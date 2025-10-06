@@ -1,0 +1,45 @@
+{
+  "name": "s52",
+  "version": "1.0.0",
+  "description": "",
+  "keywords": [
+    "s52",
+    "s57",
+    "enc",
+    "mbtiles",
+    "mapbox",
+    "maplibre",
+    "styles",
+    "ecdis"
+  ],
+  "homepage": "https://github.com/bkeepers/s52#readme",
+  "bugs": {
+    "url": "https://github.com/bkeepers/s52/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/bkeepers/s52.git"
+  },
+  "license": "ISC",
+  "author": "Brandon Keepers",
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "prepare": "bin/build && tsc -b",
+    "test": "vitest"
+  },
+  "bin": {
+    "s52": "./dist/cli/s2.js",
+    "dai2json": "./dist/cli/dai2json.js"
+  },
+  "devDependencies": {
+    "@maplibre/maplibre-gl-style-spec": "^24.2.0",
+    "@tsconfig/recommended": "^1.0.10",
+    "@types/node": "^24.6.2",
+    "maplibre-gl": "^5.8.0",
+    "typescript": "^5.9.3",
+    "vite": "^7.1.8",
+    "vitest": "^3.2.4",
+    "xml-js": "^1.6.11"
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "compilerOptions": {
+    "rootDir": "./src",
+    "tsBuildInfoFile": "dist/.tsbuildinfo",
+    "outDir": "./dist",
+    "target": "ESNext",
+    "sourceMap": true,
+    "declaration": true,
+    "declarationMap": true,
+    "noUncheckedIndexedAccess": true,
+    "strictNullChecks": true,
+    "exactOptionalPropertyTypes": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+
+    "skipLibCheck": true,
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "isolatedModules": true,
+    "esModuleInterop": true,
+    "lib": ["esnext"],
+    "baseUrl": "./"
+  },
+  "include": ["src"]
+}
