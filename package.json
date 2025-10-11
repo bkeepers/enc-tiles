@@ -26,7 +26,8 @@
   "main": "dist/index.js",
   "scripts": {
     "prepare": "bin/build && tsc -b",
-    "test": "vitest"
+    "test": "vitest",
+    "demo": "tileserver-gl --config demo/config.json"
   },
   "bin": {
     "s52": "./dist/cli/s2.js",
@@ -37,6 +38,7 @@
     "@tsconfig/recommended": "^1.0.10",
     "@types/node": "^24.6.2",
     "maplibre-gl": "^5.8.0",
+    "tileserver-gl": "^5.4.0",
     "typescript": "^5.9.3",
     "vite": "^7.1.8",
     "vitest": "^3.2.4",

@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+
+set -e
+
+cd "$(dirname "$0")/.."
+mkdir -p demo/data
+mkdir -p demo/styles
+
+for in in docs/Draft_S-52_PresLib_e4.0.0_Digital_Files/ECDIS_Chart_1/ENC_ROOT/*.000; do
+  filename=$(basename $in)
+  mbtiles=${filename%.000}.mbtiles
+
+  echo "Generating $mbtiles"
+  ogr2ogr \
+    -f MVT \
+    -splitlistfields \
+    demo/data/$mbtiles $in
+
+  bin/s52 --url mbtiles://$mbtiles --output demo/styles/${filename%.000}.json
+done

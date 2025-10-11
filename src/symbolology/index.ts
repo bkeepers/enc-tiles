@@ -31,7 +31,7 @@ export function build(config: LayerConfig): LayerSpecification[] {
       const priority = sortKey(lookup.dpri, layer);
       return {
         ...layer,
-        filter: filter(lookup.attc),
+        ...(lookup.attc.length > 0 ? { filter: filter(lookup.attc) } : {}),
         layout: {
           ...layer.layout,
           [`${layer.type}-sort-key`]: priority,

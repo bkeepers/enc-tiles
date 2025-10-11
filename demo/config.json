@@ -1,0 +1,209 @@
+{
+  "options": {
+    "paths": {
+      "mbtiles": "data",
+      "styles": "styles",
+      "sprites": "../sprites"
+    }
+  },
+  "data": {
+    "AA4C1XMS": {
+      "mbtiles": "AA4C1XMS.mbtiles"
+    },
+    "AA5C1AB1": {
+      "mbtiles": "AA5C1AB1.mbtiles"
+    },
+    "AA5C1AB2": {
+      "mbtiles": "AA5C1AB2.mbtiles"
+    },
+    "AA5C1CDE": {
+      "mbtiles": "AA5C1CDE.mbtiles"
+    },
+    "AA5C1FOO": {
+      "mbtiles": "AA5C1FOO.mbtiles"
+    },
+    "AA5C1HIO": {
+      "mbtiles": "AA5C1HIO.mbtiles"
+    },
+    "AA5C1JKL": {
+      "mbtiles": "AA5C1JKL.mbtiles"
+    },
+    "AA5C1MNS": {
+      "mbtiles": "AA5C1MNS.mbtiles"
+    },
+    "AA5C1MOO": {
+      "mbtiles": "AA5C1MOO.mbtiles"
+    },
+    "AA5C1NOO": {
+      "mbtiles": "AA5C1NOO.mbtiles"
+    },
+    "AA5C1PRS": {
+      "mbtiles": "AA5C1PRS.mbtiles"
+    },
+    "AA5C1QO1": {
+      "mbtiles": "AA5C1QO1.mbtiles"
+    },
+    "AA5C1QO2": {
+      "mbtiles": "AA5C1QO2.mbtiles"
+    },
+    "AA5C1WOO": {
+      "mbtiles": "AA5C1WOO.mbtiles"
+    }
+  },
+  "styles": {
+    "AA4C1XMS": {
+      "style": "AA4C1XMS.json",
+      "tilejson": {
+        "bounds": [
+          -5.1358030,
+          15.0001800,
+          -4.9979830,
+          15.1333110
+        ]
+      }
+    },
+    "AA5C1AB1": {
+      "style": "AA5C1AB1.json",
+      "tilejson": {
+        "bounds": [
+          -5.1307470,
+          15.0992610,
+          -5.1002400,
+          15.1288190
+        ]
+      }
+    },
+    "AA5C1AB2": {
+      "style": "AA5C1AB2.json",
+      "tilejson": {
+        "bounds": [
+          -5.0981840,
+          15.0992640,
+          -5.0676780,
+          15.1288220
+        ]
+      }
+    },
+    "AA5C1CDE": {
+      "style": "AA5C1CDE.json",
+      "tilejson": {
+        "bounds": [
+          -5.0656220,
+          15.0992330,
+          -5.0351150,
+          15.1288240
+        ]
+      }
+    },
+    "AA5C1FOO": {
+      "style": "AA5C1FOO.json",
+      "tilejson": {
+        "bounds": [
+          -5.0330600,
+          15.0992660,
+          -5.0025530,
+          15.1288220
+        ]
+      }
+    },
+    "AA5C1HIO": {
+      "style": "AA5C1HIO.json",
+      "tilejson": {
+        "bounds": [
+          -5.1307270,
+          15.0677230,
+          -5.1002060,
+          15.0972840
+        ]
+      }
+    },
+    "AA5C1JKL": {
+      "style": "AA5C1JKL.json",
+      "tilejson": {
+        "bounds": [
+          -5.0981930,
+          15.0677260,
+          -5.0676780,
+          15.0972820
+        ]
+      }
+    },
+    "AA5C1MNS": {
+      "style": "AA5C1MNS.json",
+      "tilejson": {
+        "bounds": [
+          -5.1306700,
+          15.0046400,
+          -5.1001580,
+          15.0341960
+        ]
+      }
+    },
+    "AA5C1MOO": {
+      "style": "AA5C1MOO.json",
+      "tilejson": {
+        "bounds": [
+          -5.0656160,
+          15.0677240,
+          -5.0350960,
+          15.0972800
+        ]
+      }
+    },
+    "AA5C1NOO": {
+      "style": "AA5C1NOO.json",
+      "tilejson": {
+        "bounds": [
+          -5.0330770,
+          15.0677220,
+          -5.0025530,
+          15.0972770
+        ]
+      }
+    },
+    "AA5C1PRS": {
+      "style": "AA5C1PRS.json",
+      "tilejson": {
+        "bounds": [
+          -5.1306740,
+          15.0361850,
+          -5.1001630,
+          15.0657400
+        ]
+      }
+    },
+    "AA5C1QO1": {
+      "style": "AA5C1QO1.json",
+      "tilejson": {
+        "bounds": [
+          -5.0981540,
+          15.0361820,
+          -5.0676390,
+          15.0657380
+        ]
+      }
+    },
+    "AA5C1QO2": {
+      "style": "AA5C1QO2.json",
+      "tilejson": {
+        "bounds": [
+          -5.0655580,
+          15.0361800,
+          -5.0350380,
+          15.0657360
+        ]
+      }
+    },
+    "AA5C1WOO": {
+      "style": "AA5C1WOO.json",
+      "tilejson": {
+        "bounds": [
+          -5.0331240,
+          15.0361800,
+          -5.0026000,
+          15.0656920
+        ]
+      }
+    }
+  }
+}
