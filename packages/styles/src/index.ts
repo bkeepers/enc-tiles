@@ -30,7 +30,7 @@ export default function ({
   return {
     version: 8,
     name,
-    sprite: [...(sprite ? [sprite] : []), `${mode.toLowerCase()}_simplified`].join('/'),
+    sprite: [...(sprite ? [sprite] : []), mode.toLowerCase()].join('/'),
     glyphs: "http://fonts.openmaptiles.org/{fontstack}/{range}.pbf",
     sources: {
       [config.source]: source

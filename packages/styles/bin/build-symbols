@@ -1,0 +1,16 @@
+#!/usr/bin/env sh
+
+set -e
+mkdir -p sprites
+mkdir -p symbols
+
+for MODE in day dusk night; do
+  echo "Building symbols/$MODE"
+  npx svgo -q -f S-101_Portrayal-Catalogue/PortrayalCatalog/Symbols -o symbols/$MODE
+
+  echo "Building sprites/$MODE"
+  spreet symbols/$MODE sprites/$MODE
+
+  echo "Building sprites/$MODE@2x"
+  spreet --retina symbols/$MODE sprites/$MODE@2x
+done
