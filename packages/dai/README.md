@@ -7,7 +7,7 @@ Parses S-52 .dai presentation library files as described in [S-52 PresLib e4.0.0
 ### CLI
 
 ```sh
-npx @enc-tiles/dai dai2json input.dai output.json
+npx @enc-tiles/dai input.dai output.json
 ```
 
 ### Library
