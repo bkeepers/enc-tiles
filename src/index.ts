@@ -6,12 +6,14 @@ export interface StyleOptions {
   source: VectorSourceSpecification
   name?: string
   mode?: Mode
+  sprite?: string
 }
 
 export default function ({
   source,
   name = "S52 Style",
-  mode = Mode.DAY
+  mode = Mode.DAY,
+  sprite,
 }: StyleOptions): StyleSpecification {
   const colors = theme[mode]!;
 
@@ -28,7 +30,7 @@ export default function ({
   return {
     version: 8,
     name,
-    sprite: "day_simplified",
+    sprite: [...(sprite ? [sprite] : []), `${mode.toLowerCase()}_simplified`].join('/'),
     glyphs: "http://fonts.openmaptiles.org/{fontstack}/{range}.pbf",
     sources: {
       [config.source]: source
