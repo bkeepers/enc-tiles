@@ -1,6 +1,6 @@
 import preslib from '../../data/PresLib_e4.0.0.json' with { type: 'json' };
 import type { Colors } from "../themes/index.js";
-import type { ExpressionFilterSpecification, LayerSpecification } from "maplibre-gl";
+import type { BackgroundLayerSpecification, ExpressionFilterSpecification, LayerSpecification } from "maplibre-gl";
 import { LookupEntry } from "../dai.js";
 import { instructionsToStyles } from '../instructions/index.js';
 
@@ -26,22 +26,35 @@ export enum SymbolType {
 
 
 export function build(config: LayerConfig): LayerSpecification[] {
-  return getLookups(config).flatMap((lookup, i) => {
-    return instructionsToStyles(lookup.inst).map((layer, j) => {
-      const priority = sortKey(lookup.dpri, layer);
-      return {
-        ...layer,
-        ...(lookup.attc.length > 0 ? { filter: filter(lookup.attc) } : {}),
-        layout: {
-          ...layer.layout,
-          [`${layer.type}-sort-key`]: priority,
-        },
-        source: "enc",
-        "source-layer": lookup.obcl,
-        id: [lookup.obcl, layer.type, lookup.rcid, i, j].join('-'),
-      }
-    });
-  });
+  return [
+    background(config),
+    ...getLookups(config).flatMap((lookup, i) => {
+      return instructionsToStyles(lookup.inst).map((layer, j) => {
+        const priority = sortKey(lookup.dpri, layer);
+        return {
+          ...layer,
+          ...(lookup.attc.length > 0 ? { filter: filter(lookup.attc) } : {}),
+          layout: {
+            ...layer.layout,
+            [`${layer.type}-sort-key`]: priority,
+          },
+          source: "enc",
+          "source-layer": lookup.obcl,
+          id: [lookup.obcl, layer.type, lookup.rcid, i, j].join('-'),
+        }
+      });
+    })
+  ];
+}
+
+function background({ colors }: LayerConfig): BackgroundLayerSpecification {
+  return {
+    id: 'background',
+    type: 'background',
+    paint: {
+      'background-color': colors.NODTA!,
+    }
+  }
 }
 
 
@@ -87,35 +100,3 @@ export function filter(conditions: { attl: string, attv?: string }[]): Expressio
 
   return filters.length === 1 ? filters[0]! : ["all", ...filters];
 }
-
-/**
-
-SENC, or some other neutral criterion, must be used for an arbitrary decision as to which object
-is drawn on top. Text must be drawn last (except for own ship etc.), in priority 8.
-The display priority must be used to ensure that objects that overlap each other are drawn in the
-right sequence. Thus, an object with a higher priority must be drawn after (on top of) an object
-70
-S-52 PresLib e4.0.0 Part I September 2014
-with a lower display priority. However, if two line objects, or two area boundaries, or a line and
-an area boundary, are located at the same position and share the same extent (their
-coordinates are identical), then the line symbolization with the higher display priority must
-suppress the line symbolization of the other object (line or area). Therefore only the line
-symbolization of the object (line or area) of the higher display priority is drawn. Where two
-objects share the same spatial edge and both have the same display priorities each line must
-be symbolized.
-Fig 6. Symbolization of shared edges
-The coastline object is symbolized with a solid line while the anchorage area is bordered with a
-dashed line. Both objects share an edge that is part of the coastline. The symbolization of the
-coastline object suppresses the border of the anchorage area since the display priority of the
-coastline symbolization is higher. Note that priorities have to be evaluated again, if the
-presentation scale changes (see section 8.4).
-This suppression only applies to line objects and area boundaries. The rule for centred symbols,
-area patterns and point symbols is that all symbols must be drawn with the highest priority
-object being drawn last independent of the geometric primitive (point, line or area).
-There is one exception to this rule for suppressing overlapping lines. The manual chart
-correction lines LC(CHCRIDnn) and LC(CHCRDELn) must coexist with the underlying line. Both
-LC(CHCRIDnn) or LC(CHCRDELn) and the underlying line must be drawn.
-Overdrawing may be essential, for example in the case of a buoy, and its name and light flare.
-These are given offsets in the symbol library to avoid the symbols being drawn over each other.
-
-*/
