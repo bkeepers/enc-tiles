@@ -1,5 +1,5 @@
 {
   "extends": "../../tsconfig.json",
   "include": ["src"],
-  "references": [{ "path": "../dai" }, { "path": "../s52" }]
+  "references": [{ "path": "../dai" }]
 }
