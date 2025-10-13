@@ -2,6 +2,12 @@ import { LineLayerSpecification } from "maplibre-gl";
 import theme from '../themes/index.js';
 import { Reference } from "./parser.js";
 
+export const LineStyles = {
+  SOLD: [], // (_________)
+  DASH: [3.6, 1.8], // (-----) dash: 3.6 mm; space: 1.8 mm
+  DOTT: [0.6, 1.2]  // (.........) dot: 0.6 mm; space: 1.2 mm
+}
+
 /**
  * LS – Showline (complex linestyle)
  *
@@ -20,18 +26,12 @@ import { Reference } from "./parser.js";
  * COLOUR Line colour parameter. A valid colour token as described in section 7
  */
 export function LS(style: Reference, width: number, colour: Reference): Pick<LineLayerSpecification, 'type' | 'paint'> {
-  const styles = {
-    SOLD: {}, // (_________)
-    DASH: { 'line-dasharray': [3.6, 1.8] }, // (-----) dash: 3.6 mm; space: 1.8 mm
-    DOTT: { 'line-dasharray': [0.6, 1.2] }  // (.........) dot: 0.6 mm; space: 1.2 mm
-  }
-
   return {
     type: 'line',
     paint: {
-      ...styles[style.name],
+      'line-dasharray': LineStyles[style.name] ?? [],
       'line-width': width,
-      'line-color': theme.DAY![colour.name],
+      'line-color': theme.DAY![colour.name]!,
     }
   }
 }
