@@ -1,15 +1,15 @@
 import { test, expect } from 'vitest';
 import { readFileSync } from "fs";
-import { parse } from "../src/dai.js";
+import { parse } from "../src/index.js";
 
 const daiPath = new URL(
-  '../docs/Draft_S-52_PresLib_e4.0.0_Digital_Files/Digital_PresLib_dai/PresLib_e4.0.0.dai',
+  '../../s52/data/Digital_PresLib_dai/PresLib_e4.0.0.dai',
   import.meta.url
 )
 const text = readFileSync(daiPath, 'utf8');
 
 test('parse S52 DAI file', async () => {
-  const { colours, lookups } = parse(text);
+  const { colours } = parse(text);
 
   expect(colours.length).toBe(3); // DAY, DUSK, NIGHT
   const day = colours[0];

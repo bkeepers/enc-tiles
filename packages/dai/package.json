@@ -1,0 +1,32 @@
+{
+  "name": "@enc-tiles/dai",
+  "version": "1.0.0",
+  "description": "S-52 Presentation Library",
+  "keywords": [
+    "s52",
+    "iho"
+  ],
+  "homepage": "https://github.com/bkeepers/enc-tiles#readme",
+  "bugs": {
+    "url": "https://github.com/bkeepers/enc-tiles/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/bkeepers/enc-tiles.git"
+  },
+  "license": "ISC",
+  "author": "Brandon Keepers",
+  "type": "module",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "prepare": "tsc -b",
+    "test": "vitest"
+  },
+  "bin": {
+    "dai2json": "./bin/dai2json.js"
+  }
+}

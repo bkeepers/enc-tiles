@@ -1,6 +1,6 @@
-# S-52 Presentation Library for MapLibre
+# @enc-tiles/styles
 
-> MapLibre styles from S-57 Nautical Charts
+> MapLibre styles for S-57 Nautical Charts using IHO's S-52 Presentation Library
 
 This library implements [IHO's S-52 Presentation Library specification](./docs/S-52_PresLib_e4.0.0_Part%20I_Clean_Draft.pdf) for rendering S-57 ENCs with [MapLibre](https://maplibre.org/).
 

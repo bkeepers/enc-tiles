@@ -1,7 +1,7 @@
 {
-  "name": "s52",
+  "name": "@enc-tiles/styles",
   "version": "1.0.0",
-  "description": "",
+  "description": "MapLibre styles for S-57 Nautical Charts using IHO's S-52 Presentation Library",
   "keywords": [
     "s52",
     "s57",
@@ -30,8 +30,7 @@
     "demo": "tileserver-gl --config demo/config.json"
   },
   "bin": {
-    "s52": "./dist/cli/s2.js",
-    "dai2json": "./dist/cli/dai2json.js"
+    "s52": "./dist/cli/s52.js"
   },
   "devDependencies": {
     "@maplibre/maplibre-gl-style-spec": "^24.2.0",
@@ -41,5 +40,9 @@
     "tileserver-gl": "^5.4.0",
     "typescript": "^5.9.3",
     "vitest": "^3.2.4"
+  },
+  "dependencies": {
+    "@enc-tiles/dai": "^1.0.0",
+    "@enc-tiles/s52": "^4.0.0"
   }
 }

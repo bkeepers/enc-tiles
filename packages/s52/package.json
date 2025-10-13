@@ -1,0 +1,40 @@
+{
+  "name": "@enc-tiles/s52",
+  "version": "4.0.0",
+  "description": "The S-52 Presentation Library in JSON format",
+  "keywords": [
+    "s52",
+    "enc",
+    "ecdis",
+    "iho"
+  ],
+  "homepage": "https://github.com/bkeepers/enc-tiles#readme",
+  "bugs": {
+    "url": "https://github.com/bkeepers/enc-tiles/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/bkeepers/enc-tiles.git"
+  },
+  "license": "ISC",
+  "author": "Brandon Keepers",
+  "type": "module",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js"
+    },
+    "./data.json": {
+      "import": "./data.json"
+    }
+  },
+  "scripts": {
+    "build": "dai2json data/Digital_PresLib_dai/PresLib_e4.0.0.dai data.json && vite build",
+    "prepublish": "npm run build"
+  },
+  "dependencies": {
+    "@enc-tiles/dai": "^1.0.0"
+  },
+  "devDependencies": {
+    "tsdown": "^0.15.6"
+  }
+}

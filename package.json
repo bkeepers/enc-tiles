@@ -1,0 +1,17 @@
+{
+  "name": "@enc-tiles/dev",
+  "devDependencies": {
+    "@types/node": "^24.7.2",
+    "publint": "^0.3.14",
+    "typescript": "^5.9.3",
+    "vite": "^7.1.9",
+    "vitest": "^3.2.4"
+  },
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "prepare": "npm run --workspaces --if-present build",
+    "test": "npm run --workspaces --if-present test -- --run"
+  }
+}

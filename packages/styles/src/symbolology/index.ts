@@ -1,7 +1,7 @@
-import preslib from '../../data/PresLib_e4.0.0.json' with { type: 'json' };
+import s52 from '@enc-tiles/s52';
 import type { Colors } from "../themes/index.js";
 import type { BackgroundLayerSpecification, ExpressionFilterSpecification, LayerSpecification } from "maplibre-gl";
-import { LookupEntry } from "../dai.js";
+import { LookupEntry } from "@enc-tiles/dai";
 import { instructionsToStyles } from '../instructions/index.js';
 
 export interface LayerConfig {
@@ -70,7 +70,7 @@ export function getLookups({ boundaries = BoundaryType.PLAIN, symbols = SymbolTy
     symbols === SymbolType.SIMPLIFIED ? 'SIMPLIFIED' : 'PAPER_CHART'
   ];
 
-  return preslib.lookups.filter(l => sets.includes(l.tnam)) as LookupEntry[];
+  return s52.lookups.filter(l => sets.includes(l.tnam)) as LookupEntry[];
 }
 
 const TypePriority = { symbol: 1, line: 2, fill: 3 }
