@@ -25,7 +25,7 @@
   "type": "module",
   "main": "dist/index.js",
   "scripts": {
-    "prepare": "bin/build && tsc -b",
+    "prepare": "tsc -b",
     "test": "vitest",
     "demo": "tileserver-gl --config demo/config.json"
   },
@@ -40,8 +40,6 @@
     "maplibre-gl": "^5.8.0",
     "tileserver-gl": "^5.4.0",
     "typescript": "^5.9.3",
-    "vite": "^7.1.8",
-    "vitest": "^3.2.4",
-    "xml-js": "^1.6.11"
+    "vitest": "^3.2.4"
   }
 }
