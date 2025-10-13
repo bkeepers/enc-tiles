@@ -27,6 +27,6 @@
     "test": "vitest"
   },
   "bin": {
-    "dai2json": "./bin/dai2json.js"
+    "dai2json": "bin/dai2json.js"
   }
 }
