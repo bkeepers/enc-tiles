@@ -1,0 +1,91 @@
+#!/usr/bin/env bash
+# Converts S57 ENC files to MBTiles/PMTiles
+# Usage: bin/s57-to-tiles input.000 output.mbtiles
+
+set -e
+
+in=$1
+out=$2
+ext="${out##*.}"
+
+case "$ext" in
+  pmtiles)
+    format="PMTiles"
+    ;;
+  mbtiles)
+    format="MBV"
+    ;;
+  *)
+    echo "Output format must be .mbtiles or .pmtiles"
+    exit 1
+    ;;
+esac
+
+mkdir -p "$(dirname $out)"
+
+# Get Intended Use band from DSID_INTU field
+INTENDED_USE=$(ogrinfo -q $in DSID | grep DSID_INTU | awk '{print $NF}')
+
+# zoom	scale
+# -z0	  1:320,000,000
+# -z1	  1:160,000,000
+# -z2	  1:80,000,000
+# -z3	  1:40,000,000
+# -z4	  1:20,000,000
+# -z5	  1:10,000,000
+# -z6	  1:5,000,000
+# -z7	  1:2,500,000
+# -z8	  1:1,250,000
+# -z9	  1:640,000
+# -z10	  1:320,000
+# -z11	  1:160,000
+# -z12	  1:80,000
+# -z13	  1:40,000
+# -z14	  1:20,000
+# -z15	  1:10,000
+# -z16	  1:5,000
+# -z17	  1:2,500
+# -z18	  1:1,250
+# -z19	  1:600
+# -z20	  1:300
+# -z21	  1:300
+# -z22	  1:300
+
+
+# https://github.com/felt/tippecanoe?tab=readme-ov-file#zoom-levels
+case "$INTENDED_USE" in
+  1) # Overview: 1:1,500,000. Passage planning for large ocean crossings. Minimal detail shown.
+    minzoom=0
+    maxzoom=6
+    ;;
+  2) # General: 1:750,000. Overall picture for offshore navigation. More detail than overview.
+    minzoom=7
+    maxzoom=8
+    ;;
+  3) # Coastal: 1:150,000. Navigation near coastlines. Increased detail like navigation aids.
+    minzoom=9
+    maxzoom=10
+    ;;
+  4) # Approach: 1:50,000. Approaching a port or harbor. High detail, including bathymetry and depth contours.
+    minzoom=11
+    maxzoom=12
+    ;;
+  5) # Harbour: 1:15,000. Maneuvering within a harbor. Very high detail on aids to navigation, anchorages, and hazards.
+    minzoom=13
+    maxzoom=14
+    ;;
+  6) # Berthing: 1:5,000 or larger. Docking and close-quarters maneuvering. Extremely detailed.
+    minzoom=15
+    maxzoom=16
+    ;;
+  *)
+    echo "Unknown DSID_INTU: $INTENDED_USE"
+    ;;
+esac
+
+ogr2ogr \
+  -f $format \
+  -splitlistfields \
+  -dsco MINZOOM=$minzoom \
+  -dsco MAXZOOM=$maxzoom \
+  $out $in
