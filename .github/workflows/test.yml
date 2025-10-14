@@ -5,7 +5,7 @@ on:
 
 jobs:
   test:
-    name: Run tests
+    name: Tests
     runs-on: ubuntu-latest
     env:
       CI: true
