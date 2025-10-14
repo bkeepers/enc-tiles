@@ -1,0 +1,3 @@
+[submodule "packages/styles/data/S-101_Portrayal-Catalogue"]
+	path = packages/styles/data/S-101_Portrayal-Catalogue
+	url = https://github.com/iho-ohi/S-101_Portrayal-Catalogue.git

@@ -35,12 +35,12 @@ export default {
                 !classList.includes("pivotPoint")
               ) {
                 parent.children = parent.children.filter((n) => n !== node);
-              } else if (cls == "sl") {
+              } else if (cls === "sl") {
                 Object.assign(node.attributes, {
                   "stroke-linecap": "round",
                   "stroke-linejoin": "round",
                 });
-              } else if (cls == "f0") {
+              } else if (cls === "f0") {
                 Object.assign(node.attributes, { fill: "none" });
               } else if (cls.startsWith("s")) {
                 Object.assign(node.attributes, {
