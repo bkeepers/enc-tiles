@@ -25,7 +25,7 @@
   "type": "module",
   "main": "dist/index.js",
   "scripts": {
-    "prepare": "tsc -b",
+    "build": "tsc -b && bin/build-symbols",
     "test": "vitest",
     "demo": "tileserver-gl --config demo/config.json"
   },
@@ -37,6 +37,7 @@
     "@tsconfig/recommended": "^1.0.10",
     "@types/node": "^24.6.2",
     "maplibre-gl": "^5.8.0",
+    "svgo": "^4.0.0",
     "tileserver-gl": "^5.4.0",
     "typescript": "^5.9.3",
     "vitest": "^3.2.4"
