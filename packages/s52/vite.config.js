@@ -1,6 +1,9 @@
 // vite.config.js
 import { defineConfig } from "vite";
-import { resolve } from "path";
+import { resolve, dirname } from "path";
+import { mkdir, writeFile } from "fs/promises";
+import buildColours from "./src/build/colours.js";
+import buildSymbols from "./src/build/symbols.js";
 
 export default defineConfig({
   build: {
@@ -9,6 +12,6 @@ export default defineConfig({
       fileName: "index", // Naming convention for output files
       formats: ["es"], // Desired output formats
     },
-    rollupOptions: {},
   },
+  plugins: [buildColours(), buildSymbols()],
 });

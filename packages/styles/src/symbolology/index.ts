@@ -1,11 +1,10 @@
-import s52 from '@enc-tiles/s52';
-import type { Colors } from "../themes/index.js";
+import s52, { colours, Mode } from '@enc-tiles/s52';
 import type { BackgroundLayerSpecification, ExpressionFilterSpecification, LayerSpecification } from "maplibre-gl";
 import { LookupEntry } from "@enc-tiles/dai";
 import { instructionsToStyles } from '../instructions/index.js';
 
 export interface LayerConfig {
-  colors: Colors;
+  mode: Mode;
   source: string;
   shallowDepth: number;
   safetyDepth: number;
@@ -47,12 +46,12 @@ export function build(config: LayerConfig): LayerSpecification[] {
   ];
 }
 
-function background({ colors }: LayerConfig): BackgroundLayerSpecification {
+function background({ mode }: LayerConfig): BackgroundLayerSpecification {
   return {
     id: 'background',
     type: 'background',
     paint: {
-      'background-color': colors.NODTA!,
+      'background-color': colours[mode].NODTA!,
     }
   }
 }

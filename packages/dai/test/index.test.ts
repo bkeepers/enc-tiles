@@ -3,7 +3,7 @@ import { readFileSync } from "fs";
 import { parse } from "../src/index.js";
 
 const daiPath = new URL(
-  '../../s52/data/Digital_PresLib_dai/PresLib_e4.0.0.dai',
+  '../../s52/data/PresLib_e4.0.0.dai',
   import.meta.url
 )
 const text = readFileSync(daiPath, 'utf8');

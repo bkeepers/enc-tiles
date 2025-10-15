@@ -1,4 +1,4 @@
 /data
-build
+/build
 node_modules
 dist

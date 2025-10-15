@@ -1,4 +1,4 @@
-import theme, { Mode } from './themes/index.js';
+import { colours, Mode } from '@enc-tiles/s52';
 import type { StyleSpecification, VectorSourceSpecification } from 'maplibre-gl';
 import { build, LayerConfig } from './symbolology/index.js';
 
@@ -12,13 +12,12 @@ export interface StyleOptions {
 export default function ({
   source,
   name = "S52 Style",
-  mode = Mode.DAY,
+  mode = "DAY",
   sprite,
 }: StyleOptions): StyleSpecification {
-  const colors = theme[mode]!;
 
   const config: LayerConfig = {
-    colors,
+    mode,
     source: "enc",
     shallowDepth: 3.0, // meters (9.8 feet)
     safetyDepth: 6.0, // meters (19.6 feet)

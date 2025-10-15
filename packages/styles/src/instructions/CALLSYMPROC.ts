@@ -1,7 +1,7 @@
 
 import { ExpressionSpecification, LayerSpecification } from "maplibre-gl";
 import { Reference } from "./parser.js";
-import theme from '../themes/index.js';
+import { colours } from '@enc-tiles/s52';
 import { LineStyles } from "./SHOWLINE.js";
 
 const procs = { DEPARE03, DEPCNT03, RESTRN01 }
@@ -43,7 +43,7 @@ export function DEPCNT03(): Partial<LayerSpecification>[] {
       paint: {
         'line-dasharray': LineStyles.DASH,
         'line-width': 1,
-        'line-color': theme.DAY!.DEPCN!,
+        'line-color': colours.DAY.DEPCN,
       }
     },
     {
@@ -51,7 +51,7 @@ export function DEPCNT03(): Partial<LayerSpecification>[] {
       filter: ["!", qualityExpression],
       paint: {
         'line-width': 1,
-        'line-color': theme.DAY!.DEPCN!,
+        'line-color': colours.DAY.DEPCN,
       }
     },
     {
@@ -108,7 +108,7 @@ export function SAFECON01(): Partial<LayerSpecification>[] {
       paint: {
         'text-halo-color': 'rgba(255, 255, 255, 0.5)',
         'text-halo-width': 1,
-        'text-color': theme.DAY!.CHBLK!
+        'text-color': colours.DAY.CHBLK
       }
     }
   ];
@@ -118,18 +118,18 @@ export function SAFECON01(): Partial<LayerSpecification>[] {
 
 /** SEABED01 - 13.2.14 Colour fill for depth areas */
 export function SEABED01({
-  colors = theme.DAY!,
+  theme = colours.DAY,
   shallowDepth = 2.0,
   safetyDepth = 6.0,
   deepDepth = 30.0,
 } = {}): ExpressionSpecification {
   return [
     "case",
-    ["all", [">=", ["var", "drval1"], deepDepth], [">", ["var", "drval2"], deepDepth]], colors.DEPDW!,
-    ["all", [">=", ["var", "drval1"], safetyDepth], [">", ["var", "drval2"], safetyDepth]], colors.DEPMD!,
-    ["all", [">=", ["var", "drval1"], shallowDepth], [">", ["var", "drval2"], shallowDepth]], colors.DEPMS!,
-    ["all", [">=", ["var", "drval1"], 0], [">", ["var", "drval2"], 0]], colors.DEPVS!,
-    colors.DEPIT!
+    ["all", [">=", ["var", "drval1"], deepDepth], [">", ["var", "drval2"], deepDepth]], theme.DEPDW!,
+    ["all", [">=", ["var", "drval1"], safetyDepth], [">", ["var", "drval2"], safetyDepth]], theme.DEPMD!,
+    ["all", [">=", ["var", "drval1"], shallowDepth], [">", ["var", "drval2"], shallowDepth]], theme.DEPMS!,
+    ["all", [">=", ["var", "drval1"], 0], [">", ["var", "drval2"], 0]], theme.DEPVS!,
+    theme.DEPIT!
   ]
 }
 

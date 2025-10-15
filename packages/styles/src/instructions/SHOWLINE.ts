@@ -1,5 +1,5 @@
 import { LineLayerSpecification } from "maplibre-gl";
-import theme from '../themes/index.js';
+import { colours } from '@enc-tiles/s52';
 import { Reference } from "./parser.js";
 
 export const LineStyles = {
@@ -31,7 +31,7 @@ export function LS(style: Reference, width: number, colour: Reference): Pick<Lin
     paint: {
       'line-dasharray': LineStyles[style.name] ?? [],
       'line-width': width,
-      'line-color': theme.DAY![colour.name]!,
+      'line-color': colours.DAY![colour.name]!,
     }
   }
 }
