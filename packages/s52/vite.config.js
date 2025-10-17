@@ -2,8 +2,8 @@
 import { defineConfig } from "vite";
 import { resolve, dirname } from "path";
 import { mkdir, writeFile } from "fs/promises";
-import buildColours from "./src/build/colours.js";
-import buildSymbols from "./src/build/symbols.js";
+import buildColours from "./build/colours.js";
+import buildSymbols from "./build/symbols.js";
 
 export default defineConfig({
   build: {

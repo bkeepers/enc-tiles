@@ -1,4 +1,4 @@
-import { colours, Mode } from '@enc-tiles/s52';
+import { Mode } from '@enc-tiles/s52';
 import type { StyleSpecification, VectorSourceSpecification } from 'maplibre-gl';
 import { build, LayerConfig } from './symbolology/index.js';
 
