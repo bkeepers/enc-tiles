@@ -11,9 +11,9 @@ const SOURCES = [
 ]
 
 const styles = {
-  DAY: styleToAttrs(readFileSync('data/S-101_Portrayal-Catalogue/PortrayalCatalog/Symbols/daySvgStyle.css', 'utf8')),
-  DUSK: styleToAttrs(readFileSync('data/S-101_Portrayal-Catalogue/PortrayalCatalog/Symbols/duskSvgStyle.css', 'utf8')),
-  NIGHT: styleToAttrs(readFileSync('data/S-101_Portrayal-Catalogue/PortrayalCatalog/Symbols/nightSvgStyle.css', 'utf8')),
+  day: styleToAttrs(readFileSync('data/S-101_Portrayal-Catalogue/PortrayalCatalog/Symbols/daySvgStyle.css', 'utf8')),
+  dusk: styleToAttrs(readFileSync('data/S-101_Portrayal-Catalogue/PortrayalCatalog/Symbols/duskSvgStyle.css', 'utf8')),
+  night: styleToAttrs(readFileSync('data/S-101_Portrayal-Catalogue/PortrayalCatalog/Symbols/nightSvgStyle.css', 'utf8')),
 }
 
 // Return a vite plugin that generates a symbols.json file and styled SVGs
