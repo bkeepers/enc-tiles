@@ -1,0 +1,10 @@
+#!/usr/bin/env sh
+
+set -e
+
+mkdir -p sprites
+echo "Building sprites"
+for MODE in day dusk night; do
+  spreet symbols/$MODE sprites/$MODE
+  spreet --retina symbols/$MODE sprites/$MODE@2x
+done
