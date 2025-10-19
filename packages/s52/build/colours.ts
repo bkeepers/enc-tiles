@@ -1,5 +1,6 @@
 import { writeFile } from "fs/promises";
-import { colours as data } from "../data.js";
+import s52 from "../data.json" with { type: "json" };
+const data = s52.colours;
 
 type RGB = [number, number, number];
 
@@ -34,18 +35,16 @@ function rgbToHex([r, g, b]: RGB): string {
 }
 
 // Return a vite plugin that generates a colours.json file
-export default () => {
-  return {
-    name: "generate-colours",
-    async buildStart() {
-      // Convert PresLib colors to hex strings
-      const colours = Object.fromEntries(data.map(({ ctus, entries }) => {
-        return [ctus, Object.fromEntries(entries.map((color) => {
-          return [color.ctok, rgbToHex(cieToRgb(color.chrx, color.chry, color.clum))]
-        }))]
-      }));
+export default {
+  name: "generate-colours",
+  async buildStart() {
+    // Convert PresLib colors to hex strings
+    const colours = Object.fromEntries(data.map(({ ctus, entries }) => {
+      return [ctus, Object.fromEntries(entries.map((color) => {
+        return [color.ctok, rgbToHex(cieToRgb(color.chrx, color.chry, color.clum))]
+      }))]
+    }));
 
-      await writeFile("colours.json", JSON.stringify(colours, null, 2));
-    },
-  };
-}
+    await writeFile("colours.json", JSON.stringify(colours, null, 2));
+  },
+};

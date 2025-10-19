@@ -25,7 +25,7 @@
     "./symbols.json": "./symbols.json"
   },
   "scripts": {
-    "build": "bin/build",
+    "build": "vite build",
     "prepublish": "npm run build",
     "test": "vitest"
   },

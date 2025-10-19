@@ -1,9 +1,11 @@
 // vite.config.js
 import { defineConfig } from "vite";
-import { resolve, dirname } from "path";
-import { mkdir, writeFile } from "fs/promises";
+import { resolve } from "path";
+import buildData from "./build/data.js";
 import buildColours from "./build/colours.js";
 import buildSymbols from "./build/symbols.js";
+import buildSprites from "./build/sprites.js";
+import buildSpritecss from "./build/spritecss.js";
 
 export default defineConfig({
   build: {
@@ -13,5 +15,11 @@ export default defineConfig({
       formats: ["es"], // Desired output formats
     },
   },
-  plugins: [buildColours(), buildSymbols()],
+  plugins: [
+    buildData,
+    buildColours,
+    buildSymbols,
+    buildSprites,
+    buildSpritecss,
+  ],
 });

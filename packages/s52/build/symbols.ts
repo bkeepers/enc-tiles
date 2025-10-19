@@ -17,61 +17,60 @@ const styles = {
 }
 
 // Return a vite plugin that generates a symbols.json file and styled SVGs
-export default () => {
-  return {
-    name: 'generate-symbols',
-    async buildStart() {
-      const symbols = {};
+export default {
+  name: 'build-symbols',
+  async buildStart() {
+    console.log("Building symbols...");
+    const symbols = {};
 
-      const data = JSON.parse(readFileSync('data.json', 'utf8'));
+    const data = JSON.parse(readFileSync('data.json', 'utf8'));
 
-      for (const symbol of data.symbols) {
-        const name = symbol.symd.synm;
+    for (const symbol of data.symbols) {
+      const name = symbol.symd.synm;
 
-        let input;
+      let input;
 
-        for (const source of SOURCES) {
-          try {
-            input = readFileSync(join(source, `${name}.svg`), 'utf8');
-            break;
-          } catch (err) {
-            // ignore
-          }
-        }
-
-        if (!input) {
-          console.warn(`Missing symbol: ${name}`);
-          continue;
-        }
-
-        for (const mode of Object.keys(styles)) {
-          const output = process(input, [
-            styles[mode],
-            (svg) => {
-              // This only needs extracted once
-              if (symbols[name]) return;
-
-              const [minX, minY, width, height] = svg.getAttribute('viewBox').split(/ |,/).map(Number).map(mmToPx);
-              const offset = [
-                roundToDecimal((width / 2) + minX, 3),
-                roundToDecimal((height / 2) + minY, 3)
-              ];
-
-              symbols[name] = {
-                description: svg.querySelector('desc')?.textContent ?? symbol.symd.syds,
-                width,
-                height,
-                offset,
-              };
-            }
-          ])
-          mkdirSync(`symbols/${mode}`, { recursive: true });
-          writeFileSync(`symbols/${mode}/${name}.svg`, output);
+      for (const source of SOURCES) {
+        try {
+          input = readFileSync(join(source, `${name}.svg`), 'utf8');
+          break;
+        } catch (err) {
+          // ignore
         }
       }
 
-      writeFileSync('symbols.json', JSON.stringify(symbols, null, 2) + '\n');
+      if (!input) {
+        console.warn(`Missing symbol: ${name}`);
+        continue;
+      }
+
+      for (const mode of Object.keys(styles)) {
+        const output = process(input, [
+          styles[mode],
+          (svg) => {
+            // This only needs extracted once
+            if (symbols[name]) return;
+
+            const [minX, minY, width, height] = svg.getAttribute('viewBox').split(/ |,/).map(Number).map(mmToPx);
+            const offset = [
+              roundToDecimal((width / 2) + minX, 3),
+              roundToDecimal((height / 2) + minY, 3)
+            ];
+
+            symbols[name] = {
+              description: svg.querySelector('desc')?.textContent ?? symbol.symd.syds,
+              width,
+              height,
+              offset,
+            };
+          }
+        ])
+        mkdirSync(`symbols/${mode}`, { recursive: true });
+        writeFileSync(`symbols/${mode}/${name}.svg`, output);
+      }
     }
+
+    writeFileSync('symbols.json', JSON.stringify(symbols, null, 2) + '\n');
   }
 }
 
