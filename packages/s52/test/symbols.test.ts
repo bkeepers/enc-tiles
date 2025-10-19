@@ -4,11 +4,11 @@ import { symbols } from '../src/index.js';
 test('returns symbol data', () => {
   expect(symbols['BCNCAR01']).toEqual({
     description: 'cardinal beacon, north, simplified',
-    height: 6.44,
+    height: 24,
     offset: [
-      4.33,
-      6.43,
+      0,
+      0,
     ],
-    width: 4.34,
+    width: 16,
   });
 });
