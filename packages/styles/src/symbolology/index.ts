@@ -51,7 +51,7 @@ function background({ mode }: LayerConfig): BackgroundLayerSpecification {
     id: 'background',
     type: 'background',
     paint: {
-      'background-color': colours[mode].NODTA!,
+      'background-color': colours[mode].NODTA,
     }
   }
 }

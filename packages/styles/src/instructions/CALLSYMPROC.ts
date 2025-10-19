@@ -125,11 +125,11 @@ export function SEABED01({
 } = {}): ExpressionSpecification {
   return [
     "case",
-    ["all", [">=", ["var", "drval1"], deepDepth], [">", ["var", "drval2"], deepDepth]], theme.DEPDW!,
-    ["all", [">=", ["var", "drval1"], safetyDepth], [">", ["var", "drval2"], safetyDepth]], theme.DEPMD!,
-    ["all", [">=", ["var", "drval1"], shallowDepth], [">", ["var", "drval2"], shallowDepth]], theme.DEPMS!,
-    ["all", [">=", ["var", "drval1"], 0], [">", ["var", "drval2"], 0]], theme.DEPVS!,
-    theme.DEPIT!
+    ["all", [">=", ["var", "drval1"], deepDepth], [">", ["var", "drval2"], deepDepth]], theme.DEPDW,
+    ["all", [">=", ["var", "drval1"], safetyDepth], [">", ["var", "drval2"], safetyDepth]], theme.DEPMD,
+    ["all", [">=", ["var", "drval1"], shallowDepth], [">", ["var", "drval2"], shallowDepth]], theme.DEPMS,
+    ["all", [">=", ["var", "drval1"], 0], [">", ["var", "drval2"], 0]], theme.DEPVS,
+    theme.DEPIT
   ]
 }
 

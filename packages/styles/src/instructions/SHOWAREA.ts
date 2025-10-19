@@ -54,7 +54,7 @@ export function AC(colour: Reference, transp: number = 0): Pick<FillLayerSpecifi
   return {
     type: 'fill',
     paint: {
-      'fill-color': colours.DAY[colour.name]!,
+      'fill-color': colours.DAY[colour.name],
       'fill-opacity': opacity,
     }
   }

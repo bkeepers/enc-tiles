@@ -31,7 +31,7 @@ export function LS(style: Reference, width: number, colour: Reference): Pick<Lin
     paint: {
       'line-dasharray': LineStyles[style.name] ?? [],
       'line-width': width,
-      'line-color': colours.DAY![colour.name]!,
+      'line-color': colours.DAY[colour.name],
     }
   }
 }
