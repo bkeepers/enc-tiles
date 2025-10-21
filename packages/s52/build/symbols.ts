@@ -39,10 +39,7 @@ export default {
         }
       }
 
-      if (!input) {
-        console.warn(`Missing symbol: ${name}`);
-        continue;
-      }
+      if (!input) throw new Error(`Missing symbol: ${name}`);
 
       for (const mode of Object.keys(styles)) {
         const output = process(input, [
