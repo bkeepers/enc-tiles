@@ -20,21 +20,25 @@
   "author": "Brandon Keepers",
   "type": "module",
   "exports": {
-    ".": {
-      "import": "./dist/index.js"
-    },
-    "./data.json": {
-      "import": "./data.json"
-    }
+    ".": "./dist/index.js",
+    "./data.json": "./data.json",
+    "./symbols.json": "./symbols.json"
   },
   "scripts": {
-    "build": "dai2json data/Digital_PresLib_dai/PresLib_e4.0.0.dai data.json && vite build",
-    "prepublish": "npm run build"
+    "build": "vite build",
+    "prepublish": "npm run build",
+    "test": "vitest"
   },
   "dependencies": {
     "@enc-tiles/dai": "^1.0.0"
   },
   "devDependencies": {
-    "tsdown": "^0.15.6"
+    "@types/css": "^0.0.38",
+    "@types/jsdom": "^27.0.0",
+    "css": "^3.0.0",
+    "jsdom": "^27.0.0",
+    "tsdown": "^0.15.6",
+    "vite-plugin-command": "^1.0.0",
+    "vite-plugin-dts": "^4.5.4"
   }
 }

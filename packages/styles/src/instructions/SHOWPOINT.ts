@@ -1,5 +1,6 @@
 import { DataDrivenPropertyValueSpecification, SymbolLayerSpecification } from "maplibre-gl";
 import { Reference } from "./parser";
+import { symbols } from "@enc-tiles/s52";
 
 /**
 * SY – Showpoint, Show symbol command.
@@ -25,16 +26,24 @@ import { Reference } from "./parser";
 * 4. The symbol must always be rotated about its pivot point. Rotation angle is in
 * degrees clockwise from 0 to 360. The default value is 0 degrees."
 */
-export function SY(symbol: Reference, rot: number | Reference = 0): Pick<SymbolLayerSpecification, 'type' | 'layout'> {
+export function SY(symbol: Reference, rot: number | Reference = 0): Pick<SymbolLayerSpecification, 'type' | 'layout'>[] {
   const rotate: DataDrivenPropertyValueSpecification<number> = typeof rot === 'number' ? rot : ['get', rot.name];
 
-  return {
+  const data = symbols[symbol.name];
+
+  if (!data) {
+    console.warn(`Missing symbol: ${symbol.name}`);
+    return [];
+  }
+
+  return [{
     type: 'symbol',
     layout: {
       'symbol-placement': 'point',
       'icon-allow-overlap': true,
       'icon-image': symbol.name,
+      'icon-offset': data.offset,
       ...(rotate !== 0 ? { 'icon-rotate': rotate } : {}),
     }
-  }
+  }];
 }

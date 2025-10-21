@@ -10,12 +10,12 @@ test("SY(BOYCAR01)", () => {
   expect(style.layout!['icon-image']).toBe('BOYCAR01')
 })
 
-test('SY(LIGHTDEF,135)', () => {
-  const styles = instructionsToStyles("SY(LIGHTDEF,135)")
+test('SY(FAIRWY52,135)', () => {
+  const styles = instructionsToStyles("SY(FAIRWY52,135)")
   expect(styles).toHaveLength(1)
   const style = styles[0] as SymbolLayerSpecification
   expect(style.type).toBe('symbol')
-  expect(style.layout!['icon-image']).toBe('LIGHTDEF')
+  expect(style.layout!['icon-image']).toBe('FAIRWY52')
   expect(style.layout!['icon-rotate']).toBe(135)
 })
 

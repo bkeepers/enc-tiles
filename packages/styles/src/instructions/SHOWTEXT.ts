@@ -1,5 +1,5 @@
 import { ExpressionSpecification, SymbolLayerSpecification } from "maplibre-gl";
-import theme from "../themes/index.js";
+import { colours } from "@enc-tiles/s52";
 import sprintf from "./sprintf.js";
 import { Reference } from "./parser.js";
 
@@ -143,7 +143,7 @@ export function showText(
     },
     paint: {
       // FIXME: make theme configurable
-      'text-color': theme.DAY![colour?.name ?? 'CHBLK']!,
+      'text-color': colours.DAY[colour?.name ?? 'CHBLK'],
       'text-halo-color': 'rgba(255, 255, 255, 0.5)',
       'text-halo-width': 2,
     },

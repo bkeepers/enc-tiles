@@ -1,5 +1,5 @@
 import { FillLayerSpecification } from "maplibre-gl";
-import theme from '../themes/index.js';
+import { colours } from '@enc-tiles/s52';
 import { Reference } from "./parser.js";
 
 /**
@@ -54,7 +54,7 @@ export function AC(colour: Reference, transp: number = 0): Pick<FillLayerSpecifi
   return {
     type: 'fill',
     paint: {
-      'fill-color': theme.DAY![colour.name]!,
+      'fill-color': colours.DAY[colour.name],
       'fill-opacity': opacity,
     }
   }

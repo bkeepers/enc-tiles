@@ -1,0 +1,4790 @@
+{
+  "ACHARE02": {
+    "description": "anchorage area as a point at small scale, or anchor points of mooring trot at large scale",
+    "width": 16,
+    "height": 20,
+    "offset": [
+      0,
+      -1
+    ]
+  },
+  "ACHARE51": {
+    "description": "anchorage area",
+    "width": 48,
+    "height": 50,
+    "offset": [
+      0,
+      -5
+    ]
+  },
+  "ACHBRT07": {
+    "description": "designated anchor berth for a single vessel",
+    "width": 20,
+    "height": 20,
+    "offset": [
+      0,
+      -1
+    ]
+  },
+  "ACHRES51": {
+    "description": "area where anchoring is prohibited or restricted",
+    "width": 72,
+    "height": 70,
+    "offset": [
+      35,
+      34
+    ]
+  },
+  "ACHRES61": {
+    "description": "area where anchoring is prohibited or restricted, with other cautions",
+    "width": 80,
+    "height": 70,
+    "offset": [
+      39,
+      34
+    ]
+  },
+  "ACHRES71": {
+    "description": "area where anchoring is prohibited or restricted, with other information",
+    "width": 72,
+    "height": 70,
+    "offset": [
+      35,
+      34
+    ]
+  },
+  "AIRARE02": {
+    "description": "symbol for airport as a point",
+    "width": 31,
+    "height": 31,
+    "offset": [
+      -0.5,
+      -0.5
+    ]
+  },
+  "BCNCAR01": {
+    "description": "cardinal beacon, north, simplified",
+    "width": 16,
+    "height": 24,
+    "offset": [
+      0,
+      0
+    ]
+  },
+  "BCNCAR02": {
+    "description": "cardinal beacon, east, simplified",
+    "width": 16,
+    "height": 26,
+    "offset": [
+      0,
+      0
+    ]
+  },
+  "BCNCAR03": {
+    "description": "cardinal beacon, south, simplified",
+    "width": 16,
+    "height": 24,
+    "offset": [
+      0,
+      0
+    ]
+  },
+  "BCNCAR04": {
+    "description": "cardinal beacon, west, simplified",
+    "width": 16,
+    "height": 24,
+    "offset": [
+      0,
+      0
+    ]
+  },
+  "BCNDEF13": {
+    "description": "default symbol for a beacon, simplified",
+    "width": 21,
+    "height": 18,
+    "offset": [
+      6.5,
+      0
+    ]
+  },
+  "BCNGEN01": {
+    "description": "beacon in general, paper-chart",
+    "width": 14,
+    "height": 22,
+    "offset": [
+      0,
+      -7
+    ]
+  },
+  "BCNGEN03": {
+    "description": "default symbol for beacon, paper-chart",
+    "width": 24,
+    "height": 23,
+    "offset": [
+      5,
+      -7.5
+    ]
+  },
+  "BCNISD21": {
+    "description": "isolated danger beacon, simplified",
+    "width": 10,
+    "height": 22,
+    "offset": [
+      0,
+      0
+    ]
+  },
+  "BCNLAT15": {
+    "description": "major lateral beacon, red, simplified",
+    "width": 9,
+    "height": 16,
+    "offset": [
+      0.5,
+      0
+    ]
+  },
+  "BCNLAT16": {
+    "description": "major lateral beacon, green, simplified",
+    "width": 9,
+    "height": 16,
+    "offset": [
+      0.5,
+      0
+    ]
+  },
+  "BCNLAT21": {
+    "description": "minor lateral beacon, red, simplified",
+    "width": 6,
+    "height": 20,
+    "offset": [
+      0,
+      0
+    ]
+  },
+  "BCNLAT22": {
+    "description": "minor lateral beacon, green, simplified",
+    "width": 6,
+    "height": 20,
+    "offset": [
+      0,
+      0
+    ]
+  },
+  "BCNLTC01": {
+    "description": "lattice beacon, paper-chart",
+    "width": 21,
+    "height": 22,
+    "offset": [
+      -0.5,
+      -7
+    ]
+  },
+  "BCNSAW13": {
+    "description": "major safe water beacon, simplified",
+    "width": 9,
+    "height": 16,
+    "offset": [
+      0.5,
+      0
+    ]
+  },
+  "BCNSAW21": {
+    "description": "minor safe water beacon, simplified",
+    "width": 6,
+    "height": 20,
+    "offset": [
+      0,
+      0
+    ]
+  },
+  "BCNSPP13": {
+    "description": "major special purpose beacon, simplified",
+    "width": 9,
+    "height": 16,
+    "offset": [
+      0.5,
+      0
+    ]
+  },
+  "BCNSPP21": {
+    "description": "minor special purpose beacon, simplified",
+    "width": 6,
+    "height": 20,
+    "offset": [
+      0,
+      0
+    ]
+  },
+  "BCNSTK02": {
+    "description": "minor, stake or pole beacon, paper-chart",
+    "width": 12,
+    "height": 19,
+    "offset": [
+      0,
+      -8.5
+    ]
+  },
+  "BCNTOW01": {
+    "description": "beacon tower, paper-chart",
+    "width": 21,
+    "height": 22,
+    "offset": [
+      -0.5,
+      -7
+    ]
+  },
+  "BLKADJ01": {
+    "description": "symbol for checking and adjusting the brightness and contrast controls",
+    "width": 77,
+    "height": 77,
+    "offset": [
+      -1.5,
+      -1.5
+    ]
+  },
+  "BOYBAR01": {
+    "description": "barrel buoy, paper-chart",
+    "width": 26,
+    "height": 19,
+    "offset": [
+      -2,
+      -6.5
+    ]
+  },
+  "BOYCAN01": {
+    "description": "can buoy, paper-chart",
+    "width": 26,
+    "height": 17,
+    "offset": [
+      1,
+      -5.5
+    ]
+  },
+  "BOYCAR01": {
+    "description": "cardinal buoy, north, simplified",
+    "width": 17,
+    "height": 24,
+    "offset": [
+      -2.5,
+      0
+    ]
+  },
+  "BOYCAR02": {
+    "description": "cardinal buoy, east, simplified",
+    "width": 15,
+    "height": 26,
+    "offset": [
+      0.5,
+      0
+    ]
+  },
+  "BOYCAR03": {
+    "description": "cardinal buoy, south, simplified",
+    "width": 17,
+    "height": 24,
+    "offset": [
+      3.5,
+      0
+    ]
+  },
+  "BOYCAR04": {
+    "description": "cardinal buoy, west, simplified",
+    "width": 24,
+    "height": 24,
+    "offset": [
+      0,
+      0
+    ]
+  },
+  "BOYCON01": {
+    "description": "conical buoy, paper-chart",
+    "width": 24,
+    "height": 21,
+    "offset": [
+      0,
+      -7.5
+    ]
+  },
+  "BOYDEF03": {
+    "description": "default symbol for buoy, simplified",
+    "width": 28,
+    "height": 18,
+    "offset": [
+      6,
+      0
+    ]
+  },
+  "BOYGEN03": {
+    "description": "default symbol for buoy, paper-chart",
+    "width": 30,
+    "height": 19,
+    "offset": [
+      4,
+      -7.5
+    ]
+  },
+  "BOYINB01": {
+    "description": "installation buoy, paper-chart",
+    "width": 35,
+    "height": 21,
+    "offset": [
+      0.5,
+      -7.5
+    ]
+  },
+  "BOYISD12": {
+    "description": "isolated danger buoy, simplified",
+    "width": 16,
+    "height": 22,
+    "offset": [
+      0,
+      0
+    ]
+  },
+  "BOYLAT13": {
+    "description": "conical lateral buoy, green, simplified",
+    "width": 18,
+    "height": 18,
+    "offset": [
+      -3,
+      -3
+    ]
+  },
+  "BOYLAT14": {
+    "description": "conical lateral buoy, red, simplified",
+    "width": 18,
+    "height": 18,
+    "offset": [
+      -3,
+      -3
+    ]
+  },
+  "BOYLAT23": {
+    "description": "can shape lateral buoy, green, simplified",
+    "width": 21,
+    "height": 16,
+    "offset": [
+      -0.5,
+      0
+    ]
+  },
+  "BOYLAT24": {
+    "description": "can shape lateral buoy, red, simplified",
+    "width": 21,
+    "height": 16,
+    "offset": [
+      -0.5,
+      0
+    ]
+  },
+  "BOYLAT34": {
+    "description": "conical lateral buoy, red, simplified",
+    "width": 18,
+    "height": 18,
+    "offset": [
+      -3,
+      -3
+    ]
+  },
+  "BOYMOR01": {
+    "description": "mooring buoy, barrel shape, paper-chart",
+    "width": 25,
+    "height": 24,
+    "offset": [
+      -1.5,
+      -9
+    ]
+  },
+  "BOYMOR03": {
+    "description": "mooring buoy, can shape, paper-chart",
+    "width": 26,
+    "height": 23,
+    "offset": [
+      1,
+      -8.5
+    ]
+  },
+  "BOYMOR11": {
+    "description": "installation buoy and mooring buoy, simplified",
+    "width": 31,
+    "height": 16,
+    "offset": [
+      -0.5,
+      0
+    ]
+  },
+  "BOYPIL01": {
+    "description": "pillar buoy, paper-chart",
+    "width": 25,
+    "height": 21,
+    "offset": [
+      -0.5,
+      -7.5
+    ]
+  },
+  "BOYSAW12": {
+    "description": "safe water buoy, simplified",
+    "width": 17,
+    "height": 17,
+    "offset": [
+      0.5,
+      0.5
+    ]
+  },
+  "BOYSPH01": {
+    "description": "spherical buoy, paper-chart",
+    "width": 24,
+    "height": 21,
+    "offset": [
+      0,
+      -7.5
+    ]
+  },
+  "BOYSPP11": {
+    "description": "special purpose buoy, spherical or barrel shaped, or default symbol for special purpose buoy, simplified",
+    "width": 16,
+    "height": 16,
+    "offset": [
+      0,
+      0
+    ]
+  },
+  "BOYSPP15": {
+    "description": "special purpose TSS buoy marking the starboard side of the traffic lane, simplified",
+    "width": 18,
+    "height": 18,
+    "offset": [
+      -3,
+      -3
+    ]
+  },
+  "BOYSPP25": {
+    "description": "special purpose TSS buoy marking the port side of the traffic lane, simplified",
+    "width": 21,
+    "height": 16,
+    "offset": [
+      -0.5,
+      0
+    ]
+  },
+  "BOYSPP35": {
+    "description": "special purpose ice buoy or spar or pillar shaped buoy, simplified",
+    "width": 14,
+    "height": 20,
+    "offset": [
+      0,
+      0
+    ]
+  },
+  "BOYSPR01": {
+    "description": "spar buoy, paper-chart",
+    "width": 13,
+    "height": 21,
+    "offset": [
+      -0.5,
+      -7.5
+    ]
+  },
+  "BOYSUP01": {
+    "description": "super-buoy, paper-chart",
+    "width": 35,
+    "height": 23,
+    "offset": [
+      0.5,
+      -7.5
+    ]
+  },
+  "BOYSUP02": {
+    "description": "super-buoy ODAS And LANBY, simplified",
+    "width": 31,
+    "height": 20,
+    "offset": [
+      -0.5,
+      0
+    ]
+  },
+  "BOYSUP03": {
+    "description": "LANBY, super-buoy, paper-chart",
+    "width": 35,
+    "height": 26,
+    "offset": [
+      -0.5,
+      -10
+    ]
+  },
+  "BRIDGE01": {
+    "description": "symbol for opening bridge",
+    "width": 16,
+    "height": 16,
+    "offset": [
+      0,
+      0
+    ]
+  },
+  "BRTHNO01": {
+    "description": "berth number symbol",
+    "width": 28,
+    "height": 28,
+    "offset": [
+      0,
+      0
+    ]
+  },
+  "BUAARE02": {
+    "description": "built-up area",
+    "width": 21,
+    "height": 21,
+    "offset": [
+      0.5,
+      0.5
+    ]
+  },
+  "BUIREL01": {
+    "description": "non-conspicuous religious building, Christian",
+    "width": 16,
+    "height": 16,
+    "offset": [
+      0,
+      0
+    ]
+  },
+  "BUIREL04": {
+    "description": "non-conspicuous religious building, non-Christian",
+    "width": 23,
+    "height": 12,
+    "offset": [
+      0.5,
+      0
+    ]
+  },
+  "BUIREL05": {
+    "description": "mosque or minaret",
+    "width": 14,
+    "height": 19,
+    "offset": [
+      -1,
+      -5.5
+    ]
+  },
+  "BUIREL13": {
+    "description": "conspicuous religious building, Christian",
+    "width": 16,
+    "height": 16,
+    "offset": [
+      0,
+      0
+    ]
+  },
+  "BUIREL14": {
+    "description": "conspicuous religious building, non-Christian",
+    "width": 24,
+    "height": 13,
+    "offset": [
+      0,
+      -0.5
+    ]
+  },
+  "BUIREL15": {
+    "description": "conspicuous mosque or minaret",
+    "width": 16,
+    "height": 20,
+    "offset": [
+      0,
+      -5
+    ]
+  },
+  "BUISGL01": {
+    "description": "single building",
+    "width": 11,
+    "height": 11,
+    "offset": [
+      -0.5,
+      -0.5
+    ]
+  },
+  "BUISGL11": {
+    "description": "conspicuous single building",
+    "width": 12,
+    "height": 12,
+    "offset": [
+      0,
+      0
+    ]
+  },
+  "CAIRNS01": {
+    "description": "cairn",
+    "width": 19,
+    "height": 19,
+    "offset": [
+      -0.5,
+      -7.5
+    ]
+  },
+  "CAIRNS11": {
+    "description": "conspicuous cairn",
+    "width": 20,
+    "height": 20,
+    "offset": [
+      0,
+      -8
+    ]
+  },
+  "CBLARE51": {
+    "description": "cable area",
+    "width": 18,
+    "height": 46,
+    "offset": [
+      1,
+      0
+    ]
+  },
+  "CGUSTA02": {
+    "description": "coastguard station",
+    "width": 28,
+    "height": 19,
+    "offset": [
+      12,
+      -7.5
+    ]
+  },
+  "CHCRDEL1": {
+    "description": "this object has been manually deleted or modified",
+    "width": 32,
+    "height": 32,
+    "offset": [
+      0,
+      0
+    ]
+  },
+  "CHCRID01": {
+    "description": "this object has been manually updated",
+    "width": 5,
+    "height": 24,
+    "offset": [
+      0.5,
+      11
+    ]
+  },
+  "CHIMNY01": {
+    "description": "chimney",
+    "width": 19,
+    "height": 27,
+    "offset": [
+      2.5,
+      -10.5
+    ]
+  },
+  "CHIMNY11": {
+    "description": "conspicuous chimney",
+    "width": 19,
+    "height": 27,
+    "offset": [
+      2.5,
+      -10.5
+    ]
+  },
+  "CHINFO06": {
+    "description": "HO caution note",
+    "width": 21,
+    "height": 21,
+    "offset": [
+      0.5,
+      0.5
+    ]
+  },
+  "CHINFO07": {
+    "description": "HO information note",
+    "width": 20,
+    "height": 20,
+    "offset": [
+      1,
+      0
+    ]
+  },
+  "CHINFO08": {
+    "description": "mariner's information note",
+    "width": 20,
+    "height": 20,
+    "offset": [
+      1,
+      0
+    ]
+  },
+  "CHINFO09": {
+    "description": "mariners caution note",
+    "width": 21,
+    "height": 21,
+    "offset": [
+      0.5,
+      0.5
+    ]
+  },
+  "CHINFO10": {
+    "description": "manufacturer's information note",
+    "width": 20,
+    "height": 20,
+    "offset": [
+      1,
+      0
+    ]
+  },
+  "CHINFO11": {
+    "description": "manufacturer's caution note",
+    "width": 21,
+    "height": 21,
+    "offset": [
+      0.5,
+      0.5
+    ]
+  },
+  "CHKPNT01": {
+    "description": "checkpoint symbol",
+    "width": 16,
+    "height": 16,
+    "offset": [
+      0,
+      0
+    ]
+  },
+  "CHKSYM01": {
+    "description": "test symbol for checking symbol sizes, should measure 5mm by 5mm",
+    "width": 20,
+    "height": 20,
+    "offset": [
+      0,
+      0
+    ]
+  },
+  "CRANES01": {
+    "description": "cranes",
+    "width": 24,
+    "height": 20,
+    "offset": [
+      2,
+      -8
+    ]
+  },
+  "CTNARE51": {
+    "description": "caution area, a specific caution note applies",
+    "width": 71,
+    "height": 64,
+    "offset": [
+      -33.5,
+      30
+    ]
+  },
+  "CTYARE51": {
+    "description": "cautionary area (e.g. ferry area) navigate with caution",
+    "width": 71,
+    "height": 64,
+    "offset": [
+      -33.5,
+      30
+    ]
+  },
+  "CTYARE71": {
+    "description": "cautionary area with further information",
+    "width": 80,
+    "height": 64,
+    "offset": [
+      -38,
+      30
+    ]
+  },
+  "CURDEF01": {
+    "description": "current or tidal stream whose direction is not known",
+    "width": 39,
+    "height": 36,
+    "offset": [
+      0.5,
+      0
+    ]
+  },
+  "CURENT01": {
+    "description": "non-tidal current",
+    "width": 9,
+    "height": 36,
+    "offset": [
+      0.5,
+      0
+    ]
+  },
+  "CURSRA01": {
+    "description": "ordinary cursor",
+    "width": 41,
+    "height": 41,
+    "offset": [
+      -0.5,
+      0.5
+    ]
+  },
+  "CURSRB01": {
+    "description": "cursor with open centre",
+    "width": 41,
+    "height": 41,
+    "offset": [
+      -0.5,
+      -0.5
+    ]
+  },
+  "DANGER01": {
+    "description": "underwater hazard with a defined depth",
+    "width": 31,
+    "height": 25,
+    "offset": [
+      -0.5,
+      -0.5
+    ]
+  },
+  "DANGER02": {
+    "description": "underwater hazard with depth greater than 20 metres",
+    "width": 31,
+    "height": 25,
+    "offset": [
+      -0.5,
+      -0.5
+    ]
+  },
+  "DANGER03": {
+    "description": "underwater hazard which covers and uncovers",
+    "width": 31,
+    "height": 25,
+    "offset": [
+      -0.5,
+      -0.5
+    ]
+  },
+  "DAYSQR01": {
+    "description": "square or rectangular daymark, simplified",
+    "width": 16,
+    "height": 23,
+    "offset": [
+      0,
+      -4.5
+    ]
+  },
+  "DAYSQR21": {
+    "description": "square or rectangular daymark, paper chart",
+    "width": 16,
+    "height": 27,
+    "offset": [
+      0,
+      -10.5
+    ]
+  },
+  "DAYTRI01": {
+    "description": "triangular daymark, point up, simplified",
+    "width": 20,
+    "height": 24,
+    "offset": [
+      0,
+      -4
+    ]
+  },
+  "DAYTRI05": {
+    "description": "triangular daymark, point down, simplified",
+    "width": 20,
+    "height": 24,
+    "offset": [
+      0,
+      -4
+    ]
+  },
+  "DAYTRI21": {
+    "description": "triangular daymark, point up, paper chart",
+    "width": 20,
+    "height": 29,
+    "offset": [
+      0,
+      -11.5
+    ]
+  },
+  "DAYTRI25": {
+    "description": "triangular daymark, point down, paper chart",
+    "width": 20,
+    "height": 26,
+    "offset": [
+      0,
+      -10
+    ]
+  },
+  "DIRBOY01": {
+    "description": "direction of buoyage",
+    "width": 51,
+    "height": 116,
+    "offset": [
+      0.5,
+      -58
+    ]
+  },
+  "DIRBOYA1": {
+    "description": "direction and color of buoyage for approaching harbour in IALA region A (red to port)",
+    "width": 51,
+    "height": 116,
+    "offset": [
+      0.5,
+      -58
+    ]
+  },
+  "DIRBOYB1": {
+    "description": "direction and color of buoyage for approaching harbour in IALA region B (green to port)",
+    "width": 51,
+    "height": 116,
+    "offset": [
+      0.5,
+      -58
+    ]
+  },
+  "DISMAR03": {
+    "description": "distance mark",
+    "width": 34,
+    "height": 16,
+    "offset": [
+      -2,
+      -3
+    ]
+  },
+  "DISMAR04": {
+    "description": "distance point with no mark",
+    "width": 22,
+    "height": 16,
+    "offset": [
+      4,
+      -3
+    ]
+  },
+  "DNGHILIT": {
+    "description": "transparent danger highlight for mariner's use",
+    "width": 48,
+    "height": 48,
+    "offset": [
+      0,
+      0
+    ]
+  },
+  "DOMES001": {
+    "description": "dome",
+    "width": 20,
+    "height": 17,
+    "offset": [
+      0,
+      -6.5
+    ]
+  },
+  "DOMES011": {
+    "description": "conspicuous dome",
+    "width": 20,
+    "height": 17,
+    "offset": [
+      0,
+      -6.5
+    ]
+  },
+  "DRFSTA01": {
+    "description": "DGPS reference station",
+    "width": 42,
+    "height": 24,
+    "offset": [
+      9,
+      0
+    ]
+  },
+  "DSHAER01": {
+    "description": "dish aerial",
+    "width": 14,
+    "height": 21,
+    "offset": [
+      0,
+      -8.5
+    ]
+  },
+  "DSHAER11": {
+    "description": "conspicuous dish aerial",
+    "width": 14,
+    "height": 21,
+    "offset": [
+      0,
+      -8.5
+    ]
+  },
+  "DWRTPT51": {
+    "description": "part of deep water route",
+    "width": 62,
+    "height": 68,
+    "offset": [
+      2,
+      -33
+    ]
+  },
+  "DWRUTE51": {
+    "description": "reciprocal traffic directions in a two-way part of a deep-water route",
+    "width": 25,
+    "height": 58,
+    "offset": [
+      0.5,
+      0
+    ]
+  },
+  "EBBSTR01": {
+    "description": "ebb stream, rate at spring tides",
+    "width": 9,
+    "height": 35,
+    "offset": [
+      0.5,
+      -2.5
+    ]
+  },
+  "EBLVRM11": {
+    "description": "point of origin for an offset EBL or VRM",
+    "width": 9,
+    "height": 9,
+    "offset": [
+      0.5,
+      0.5
+    ]
+  },
+  "EMACHAR1": {
+    "description": "Embedded symbol",
+    "width": 16,
+    "height": 20,
+    "offset": [
+      0,
+      0
+    ]
+  },
+  "EMACHRE1": {
+    "description": "Embedded symbol",
+    "width": 17,
+    "height": 20,
+    "offset": [
+      -0.5,
+      -1
+    ]
+  },
+  "EMACHRE2": {
+    "description": "Embedded symbol",
+    "width": 1,
+    "height": 7,
+    "offset": [
+      -0.5,
+      2.5
+    ]
+  },
+  "EMAREGR1": {
+    "description": "Embedded symbol",
+    "width": 14,
+    "height": 7,
+    "offset": [
+      0,
+      2.5
+    ]
+  },
+  "EMAREMG1": {
+    "description": "Embedded symbol",
+    "width": 14,
+    "height": 7,
+    "offset": [
+      0,
+      2.5
+    ]
+  },
+  "EMCBLAR1": {
+    "description": "Embedded symbol",
+    "width": 9,
+    "height": 20,
+    "offset": [
+      -0.5,
+      2
+    ]
+  },
+  "EMCBLSU1": {
+    "description": "Embedded symbol",
+    "width": 24,
+    "height": 9,
+    "offset": [
+      0,
+      0.5
+    ]
+  },
+  "EMCTNAR1": {
+    "description": "Embedded symbol",
+    "width": 21,
+    "height": 21,
+    "offset": [
+      0.5,
+      2.5
+    ]
+  },
+  "EMDRGRE1": {
+    "description": "embedded symbol",
+    "width": 1,
+    "height": 10,
+    "offset": [
+      -0.5,
+      4
+    ]
+  },
+  "EMDRGRE2": {
+    "description": "embedded symbol",
+    "width": 2,
+    "height": 11,
+    "offset": [
+      0,
+      4.5
+    ]
+  },
+  "EMDWRTC1": {
+    "description": "Embedded symbol",
+    "width": 9,
+    "height": 13,
+    "offset": [
+      -0.5,
+      0.5
+    ]
+  },
+  "EMDWRTC2": {
+    "description": "Embedded symbol",
+    "width": 9,
+    "height": 13,
+    "offset": [
+      0.5,
+      -0.5
+    ]
+  },
+  "EMDWRUT1": {
+    "description": "Embedded symbol",
+    "width": 25,
+    "height": 13,
+    "offset": [
+      -0.5,
+      2.5
+    ]
+  },
+  "EMDWRUT2": {
+    "description": "Embedded symbol",
+    "width": 25,
+    "height": 18,
+    "offset": [
+      0.5,
+      2
+    ]
+  },
+  "EMENTRE1": {
+    "description": "Embedded symbol",
+    "width": 23,
+    "height": 23,
+    "offset": [
+      -0.5,
+      -0.5
+    ]
+  },
+  "EMFEYRT1": {
+    "description": "Embedded symbol",
+    "width": 20,
+    "height": 13,
+    "offset": [
+      0,
+      2.5
+    ]
+  },
+  "EMFEYRT2": {
+    "description": "Embedded symbol",
+    "width": 20,
+    "height": 13,
+    "offset": [
+      0,
+      2.5
+    ]
+  },
+  "EMFSHFA1": {
+    "description": "Embedded symbol",
+    "width": 1,
+    "height": 8,
+    "offset": [
+      -0.5,
+      -2
+    ]
+  },
+  "EMFSHRE1": {
+    "description": "Embedded symbol",
+    "width": 26,
+    "height": 16,
+    "offset": [
+      -2,
+      2
+    ]
+  },
+  "EMNEWOB1": {
+    "description": "new object",
+    "width": 16,
+    "height": 16,
+    "offset": [
+      0,
+      0
+    ]
+  },
+  "EMPIPAR1": {
+    "description": "Embedded symbol",
+    "width": 23,
+    "height": 8,
+    "offset": [
+      0.5,
+      2
+    ]
+  },
+  "EMPIPAR2": {
+    "description": "Embedded symbol",
+    "width": 23,
+    "height": 8,
+    "offset": [
+      0.5,
+      2
+    ]
+  },
+  "EMPIPSL1": {
+    "description": "Embedded symbol",
+    "width": 8,
+    "height": 8,
+    "offset": [
+      3,
+      0
+    ]
+  },
+  "EMPIPSL2": {
+    "description": "Embedded symbol",
+    "width": 6,
+    "height": 6,
+    "offset": [
+      0,
+      0
+    ]
+  },
+  "EMPRCAR1": {
+    "description": "Embedded symbol",
+    "width": 15,
+    "height": 20,
+    "offset": [
+      0.5,
+      0
+    ]
+  },
+  "EMQUESM1": {
+    "description": "Embedded symbol",
+    "width": 10,
+    "height": 18,
+    "offset": [
+      1,
+      0
+    ]
+  },
+  "EMQUESM2": {
+    "description": "Embedded symbol",
+    "width": 10,
+    "height": 18,
+    "offset": [
+      1,
+      0
+    ]
+  },
+  "EMQUESM3": {
+    "description": "Embedded symbol",
+    "width": 10,
+    "height": 18,
+    "offset": [
+      1,
+      0
+    ]
+  },
+  "EMRCRTC1": {
+    "description": "Embedded symbol",
+    "width": 32,
+    "height": 10,
+    "offset": [
+      15,
+      -5
+    ]
+  },
+  "EMRCRTC2": {
+    "description": "Embedded symbol",
+    "width": 32,
+    "height": 11,
+    "offset": [
+      15,
+      4.5
+    ]
+  },
+  "EMRECTR1": {
+    "description": "Embedded symbol",
+    "width": 9,
+    "height": 13,
+    "offset": [
+      -0.5,
+      0.5
+    ]
+  },
+  "EMRECTR2": {
+    "description": "Embedded symbol",
+    "width": 9,
+    "height": 13,
+    "offset": [
+      0.5,
+      -0.5
+    ]
+  },
+  "EMRESAR1": {
+    "description": "Embedded symbol",
+    "width": 2,
+    "height": 8,
+    "offset": [
+      0,
+      3
+    ]
+  },
+  "EMTIDIN1": {
+    "description": "Embedded symbol",
+    "width": 35,
+    "height": 14,
+    "offset": [
+      1.5,
+      0
+    ]
+  },
+  "ENTRES51": {
+    "description": "area where entry is prohibited or restricted or \"to be avoided\"",
+    "width": 79,
+    "height": 41,
+    "offset": [
+      -37.5,
+      -14.5
+    ]
+  },
+  "ENTRES61": {
+    "description": "area where entry is prohibited or restricted or \"to be avoided\", with other cautions",
+    "width": 79,
+    "height": 42,
+    "offset": [
+      -37.5,
+      -14
+    ]
+  },
+  "ENTRES71": {
+    "description": "area where entry is prohibited or restricted or \"to be avoided\", with other information",
+    "width": 88,
+    "height": 41,
+    "offset": [
+      -42,
+      -14.5
+    ]
+  },
+  "ERBLTIK1": {
+    "description": "range mark for an ERBL",
+    "width": 49,
+    "height": 7,
+    "offset": [
+      0.5,
+      2.5
+    ]
+  },
+  "ESSARE01": {
+    "description": "ESSA - centred symbol",
+    "width": 50,
+    "height": 31,
+    "offset": [
+      0,
+      14.5
+    ]
+  },
+  "FAIRWY51": {
+    "description": "fairway with one-way traffic in direction indicated",
+    "width": 24,
+    "height": 52,
+    "offset": [
+      0,
+      -3
+    ]
+  },
+  "FAIRWY52": {
+    "description": "fairway with two-way traffic",
+    "width": 24,
+    "height": 52,
+    "offset": [
+      0,
+      -3
+    ]
+  },
+  "FLASTK01": {
+    "description": "flare stack",
+    "width": 13,
+    "height": 24,
+    "offset": [
+      0.5,
+      -10
+    ]
+  },
+  "FLASTK11": {
+    "description": "conspicuous flare stack",
+    "width": 13,
+    "height": 24,
+    "offset": [
+      0.5,
+      -10
+    ]
+  },
+  "FLDSTR01": {
+    "description": "flood stream, rate at spring tides",
+    "width": 9,
+    "height": 36,
+    "offset": [
+      0.5,
+      0
+    ]
+  },
+  "FLGSTF01": {
+    "description": "flagstaff, flagpole",
+    "width": 13,
+    "height": 20,
+    "offset": [
+      0.5,
+      -8
+    ]
+  },
+  "FLTHAZ02": {
+    "description": "Floating hazard to navigation",
+    "width": 26,
+    "height": 26,
+    "offset": [
+      0,
+      0
+    ]
+  },
+  "FOGSIG01": {
+    "description": "fog signal",
+    "width": 21,
+    "height": 18,
+    "offset": [
+      -9.5,
+      8
+    ]
+  },
+  "FORSTC01": {
+    "description": "fortified structure",
+    "width": 16,
+    "height": 16,
+    "offset": [
+      0,
+      0
+    ]
+  },
+  "FORSTC11": {
+    "description": "conspicuous fortified structure",
+    "width": 18,
+    "height": 18,
+    "offset": [
+      0,
+      0
+    ]
+  },
+  "FOULGND1": {
+    "description": "foul area of seabed safe for navigation but not for anchoring",
+    "width": 16,
+    "height": 13,
+    "offset": [
+      0,
+      0.5
+    ]
+  },
+  "FRYARE51": {
+    "description": "ferry area",
+    "width": 98,
+    "height": 12,
+    "offset": [
+      6,
+      0
+    ]
+  },
+  "FRYARE52": {
+    "description": "cable ferry area",
+    "width": 98,
+    "height": 12,
+    "offset": [
+      6,
+      0
+    ]
+  },
+  "FSHFAC02": {
+    "description": "fish trap, fish weir, tunny net",
+    "width": 21,
+    "height": 18,
+    "offset": [
+      -0.5,
+      0
+    ]
+  },
+  "FSHFAC03": {
+    "description": "fish stakes",
+    "width": 24,
+    "height": 7,
+    "offset": [
+      0,
+      -0.5
+    ]
+  },
+  "FSHGRD01": {
+    "description": "fishing ground",
+    "width": 44,
+    "height": 19,
+    "offset": [
+      -5,
+      -0.5
+    ]
+  },
+  "FSHHAV01": {
+    "description": "fish haven",
+    "width": 40,
+    "height": 26,
+    "offset": [
+      -5,
+      0
+    ]
+  },
+  "FSHRES51": {
+    "description": "area where fishing or trawling is prohibited or restricted",
+    "width": 81,
+    "height": 41,
+    "offset": [
+      39.5,
+      -19.5
+    ]
+  },
+  "FSHRES61": {
+    "description": "area where fishing or trawling is prohibited or restricted, with other cautions",
+    "width": 86,
+    "height": 41,
+    "offset": [
+      42,
+      -19.5
+    ]
+  },
+  "FSHRES71": {
+    "description": "area where fishing or trawling is prohibited or restricted, with other information",
+    "width": 81,
+    "height": 41,
+    "offset": [
+      39.5,
+      -19.5
+    ]
+  },
+  "GATCON03": {
+    "description": "navigable lock gate",
+    "width": 28,
+    "height": 28,
+    "offset": [
+      0,
+      0
+    ]
+  },
+  "GATCON04": {
+    "description": "non-navigable lock gate",
+    "width": 28,
+    "height": 28,
+    "offset": [
+      0,
+      0
+    ]
+  },
+  "HILTOP01": {
+    "description": "hill or mountain top",
+    "width": 39,
+    "height": 33,
+    "offset": [
+      -0.5,
+      -0.5
+    ]
+  },
+  "HILTOP11": {
+    "description": "conspicuous hill or mountain top",
+    "width": 39,
+    "height": 33,
+    "offset": [
+      -0.5,
+      -0.5
+    ]
+  },
+  "HRBFAC09": {
+    "description": "fishing harbour",
+    "width": 23,
+    "height": 23,
+    "offset": [
+      -0.5,
+      -0.5
+    ]
+  },
+  "HULKES01": {
+    "description": "hulk",
+    "width": 21,
+    "height": 12,
+    "offset": [
+      -0.5,
+      -1
+    ]
+  },
+  "INFARE51": {
+    "description": "area with minor restrictions or information notices",
+    "width": 86,
+    "height": 33,
+    "offset": [
+      42,
+      5.5
+    ]
+  },
+  "INFORM01": {
+    "description": "this object has additional information available by cursor query",
+    "width": 63,
+    "height": 63,
+    "offset": [
+      26.5,
+      -26.5
+    ]
+  },
+  "ISODGR01": {
+    "description": "isolated underwater danger of depth less than the safety contour",
+    "width": 28,
+    "height": 28,
+    "offset": [
+      0,
+      0
+    ]
+  },
+  "ITZARE51": {
+    "description": "area of inshore traffic",
+    "width": 46,
+    "height": 36,
+    "offset": [
+      3,
+      2
+    ]
+  },
+  "LIGHTS11": {
+    "description": "light flare, red",
+    "width": 10,
+    "height": 28,
+    "offset": [
+      0,
+      -13
+    ]
+  },
+  "LIGHTS12": {
+    "description": "light flare, green",
+    "width": 10,
+    "height": 28,
+    "offset": [
+      0,
+      -13
+    ]
+  },
+  "LIGHTS13": {
+    "description": "light flare, white or yellow",
+    "width": 10,
+    "height": 28,
+    "offset": [
+      0,
+      -13
+    ]
+  },
+  "LIGHTS81": {
+    "description": "strip light",
+    "width": 15,
+    "height": 11,
+    "offset": [
+      -0.5,
+      0.5
+    ]
+  },
+  "LIGHTS82": {
+    "description": "floodlight",
+    "width": 29,
+    "height": 16,
+    "offset": [
+      -13.5,
+      -7
+    ]
+  },
+  "LITDEF11": {
+    "description": "light flare",
+    "width": 10,
+    "height": 28,
+    "offset": [
+      0,
+      -13
+    ]
+  },
+  "LITFLT01": {
+    "description": "light float, paper-chart",
+    "width": 36,
+    "height": 15,
+    "offset": [
+      0,
+      -3.5
+    ]
+  },
+  "LITFLT02": {
+    "description": "light float, simplified",
+    "width": 24,
+    "height": 10,
+    "offset": [
+      0,
+      0
+    ]
+  },
+  "LITVES01": {
+    "description": "light vessel, paper-chart",
+    "width": 36,
+    "height": 28,
+    "offset": [
+      0,
+      -10
+    ]
+  },
+  "LITVES02": {
+    "description": "light vessel, simplified",
+    "width": 29,
+    "height": 15,
+    "offset": [
+      -0.5,
+      0.5
+    ]
+  },
+  "LNDARE01": {
+    "description": "land as a point at small scale",
+    "width": 10,
+    "height": 10,
+    "offset": [
+      0,
+      0
+    ]
+  },
+  "LOCMAG01": {
+    "description": "cursor pick site for a magnetic anomaly at a point",
+    "width": 8,
+    "height": 36,
+    "offset": [
+      -1,
+      0
+    ]
+  },
+  "LOCMAG51": {
+    "description": "cursor pick site for a magnetic anomaly along a line or over an area",
+    "width": 17,
+    "height": 154,
+    "offset": [
+      -2.5,
+      76
+    ]
+  },
+  "LOWACC01": {
+    "description": "point feature or area of low accuracy",
+    "width": 48,
+    "height": 51,
+    "offset": [
+      -23,
+      -25.5
+    ]
+  },
+  "MAGVAR01": {
+    "description": "cursor pick site for magnetic variation at a point",
+    "width": 8,
+    "height": 36,
+    "offset": [
+      -1,
+      1
+    ]
+  },
+  "MAGVAR51": {
+    "description": "cursor pick site for magnetic variation along a line or over an area",
+    "width": 16,
+    "height": 141,
+    "offset": [
+      -3,
+      -69.5
+    ]
+  },
+  "MARCUL02": {
+    "description": "fish farm",
+    "width": 28,
+    "height": 16,
+    "offset": [
+      0,
+      0
+    ]
+  },
+  "MONUMT02": {
+    "description": "monument",
+    "width": 16,
+    "height": 17,
+    "offset": [
+      0,
+      -5.5
+    ]
+  },
+  "MONUMT12": {
+    "description": "conspicuous monument",
+    "width": 16,
+    "height": 17,
+    "offset": [
+      0,
+      -5.5
+    ]
+  },
+  "MORFAC03": {
+    "description": "mooring dolphin",
+    "width": 12,
+    "height": 12,
+    "offset": [
+      -1,
+      0
+    ]
+  },
+  "MORFAC04": {
+    "description": "deviation mooring dolphin",
+    "width": 14,
+    "height": 20,
+    "offset": [
+      0,
+      -10
+    ]
+  },
+  "MSTCON04": {
+    "description": "mast",
+    "width": 13,
+    "height": 26,
+    "offset": [
+      0.5,
+      -10
+    ]
+  },
+  "MSTCON14": {
+    "description": "conspicuous mast",
+    "width": 13,
+    "height": 26,
+    "offset": [
+      0.5,
+      -10
+    ]
+  },
+  "NEWOBJ01": {
+    "description": "new object",
+    "width": 24,
+    "height": 24,
+    "offset": [
+      0,
+      0
+    ]
+  },
+  "NORTHAR1": {
+    "description": "north arrow",
+    "width": 16,
+    "height": 59,
+    "offset": [
+      -1,
+      -2.5
+    ]
+  },
+  "NOTBRD11": {
+    "description": "conspicuous notice board",
+    "width": 14,
+    "height": 18,
+    "offset": [
+      0,
+      -7
+    ]
+  },
+  "OBSTRN01": {
+    "description": "obstruction, depth not stated",
+    "width": 17,
+    "height": 17,
+    "offset": [
+      0.5,
+      0.5
+    ]
+  },
+  "OBSTRN02": {
+    "description": "obstruction in the intertidal area",
+    "width": 16,
+    "height": 16,
+    "offset": [
+      0,
+      0
+    ]
+  },
+  "OBSTRN03": {
+    "description": "obstruction which covers and uncovers",
+    "width": 17,
+    "height": 17,
+    "offset": [
+      0.5,
+      0.5
+    ]
+  },
+  "OBSTRN11": {
+    "description": "obstruction in the water which is always above water level",
+    "width": 9,
+    "height": 9,
+    "offset": [
+      0.5,
+      0.5
+    ]
+  },
+  "OFSPLF01": {
+    "description": "offshore platform",
+    "width": 18,
+    "height": 18,
+    "offset": [
+      0,
+      0
+    ]
+  },
+  "PILBOP02": {
+    "description": "pilot boarding place",
+    "width": 21,
+    "height": 21,
+    "offset": [
+      0.5,
+      -0.5
+    ]
+  },
+  "PILPNT02": {
+    "description": "pile or bollard",
+    "width": 9,
+    "height": 9,
+    "offset": [
+      0.5,
+      0.5
+    ]
+  },
+  "POSGEN01": {
+    "description": "position of a point feature",
+    "width": 16,
+    "height": 16,
+    "offset": [
+      0,
+      0
+    ]
+  },
+  "POSGEN03": {
+    "description": "position of a conspicuous point feature",
+    "width": 18,
+    "height": 18,
+    "offset": [
+      0,
+      0
+    ]
+  },
+  "POSGEN04": {
+    "description": "position of an elevation or control point",
+    "width": 9,
+    "height": 9,
+    "offset": [
+      0.5,
+      0.5
+    ]
+  },
+  "PRCARE12": {
+    "description": "point symbol for traffic precautionary area",
+    "width": 15,
+    "height": 20,
+    "offset": [
+      0.5,
+      -2
+    ]
+  },
+  "PRCARE51": {
+    "description": "traffic precautionary area",
+    "width": 42,
+    "height": 85,
+    "offset": [
+      0,
+      41.5
+    ]
+  },
+  "PRDINS02": {
+    "description": "mine, quarry",
+    "width": 22,
+    "height": 18,
+    "offset": [
+      0,
+      -3
+    ]
+  },
+  "PRICKE03": {
+    "description": "withy, port-hand, paper-chart",
+    "width": 12,
+    "height": 18,
+    "offset": [
+      1,
+      -8
+    ]
+  },
+  "PRICKE04": {
+    "description": "withy, starboard-hand, paper-chart",
+    "width": 11,
+    "height": 18,
+    "offset": [
+      -0.5,
+      -8
+    ]
+  },
+  "PSSARE01": {
+    "description": "PSSA - centred symbol",
+    "width": 50,
+    "height": 31,
+    "offset": [
+      0,
+      14.5
+    ]
+  },
+  "QUAPOS01": {
+    "description": "position approximate",
+    "width": 14,
+    "height": 13,
+    "offset": [
+      1,
+      -0.5
+    ]
+  },
+  "QUARRY01": {
+    "description": "quarry",
+    "width": 27,
+    "height": 27,
+    "offset": [
+      -0.5,
+      -2.5
+    ]
+  },
+  "QUESMRK1": {
+    "description": "object which is not sufficiently described to be symbolized, or for which no symbol exists in the symbol library",
+    "width": 10,
+    "height": 18,
+    "offset": [
+      0,
+      0
+    ]
+  },
+  "RACNSP01": {
+    "description": "symbol indicating this object is radar conspicuous",
+    "width": 24,
+    "height": 24,
+    "offset": [
+      0,
+      0
+    ]
+  },
+  "RADRFL03": {
+    "description": "radar reflector",
+    "width": 24,
+    "height": 24,
+    "offset": [
+      0,
+      0
+    ]
+  },
+  "RASCAN01": {
+    "description": "radar scanner",
+    "width": 16,
+    "height": 22,
+    "offset": [
+      0,
+      -8
+    ]
+  },
+  "RASCAN11": {
+    "description": "conspicuous radar scanner",
+    "width": 16,
+    "height": 22,
+    "offset": [
+      0,
+      -8
+    ]
+  },
+  "RCLDEF01": {
+    "description": "radio calling-in point whose direction is not known",
+    "width": 47,
+    "height": 40,
+    "offset": [
+      -0.5,
+      0
+    ]
+  },
+  "RCTLPT52": {
+    "description": "recommended traffic direction between parts of a traffic separation scheme, or for ships not needing a deep water route",
+    "width": 26,
+    "height": 56,
+    "offset": [
+      0,
+      0
+    ]
+  },
+  "RDOCAL02": {
+    "description": "radio calling-in point for traffic in one direction only",
+    "width": 18,
+    "height": 29,
+    "offset": [
+      0,
+      -5.5
+    ]
+  },
+  "RDOCAL03": {
+    "description": "radio calling-in point for traffic in both directions",
+    "width": 18,
+    "height": 40,
+    "offset": [
+      0,
+      0
+    ]
+  },
+  "RDOSTA02": {
+    "description": "radio station",
+    "width": 24,
+    "height": 24,
+    "offset": [
+      0,
+      0
+    ]
+  },
+  "RECDEF51": {
+    "description": "recommended track as an area, direction not defined in data",
+    "width": 67,
+    "height": 18,
+    "offset": [
+      -0.5,
+      0
+    ]
+  },
+  "RECTRC55": {
+    "description": "recommended two-way track as an area, not based on fixed marks",
+    "width": 13,
+    "height": 67,
+    "offset": [
+      0.5,
+      0.5
+    ]
+  },
+  "RECTRC56": {
+    "description": "recommended two-way track as an area, based on fixed marks",
+    "width": 13,
+    "height": 57,
+    "offset": [
+      0.5,
+      -0.5
+    ]
+  },
+  "RECTRC57": {
+    "description": "recommended one-way track as an area, not based on fixed marks",
+    "width": 13,
+    "height": 40,
+    "offset": [
+      -0.5,
+      1
+    ]
+  },
+  "RECTRC58": {
+    "description": "recommended one-way track as an area, based on fixed marks",
+    "width": 13,
+    "height": 47,
+    "offset": [
+      -0.5,
+      -0.5
+    ]
+  },
+  "REFPNT02": {
+    "description": "reference point, 'ghost cursor' (user interface)",
+    "width": 39,
+    "height": 39,
+    "offset": [
+      -0.5,
+      -0.5
+    ]
+  },
+  "RETRFL01": {
+    "description": "retro reflector, paper chart",
+    "width": 20,
+    "height": 14,
+    "offset": [
+      9,
+      -7
+    ]
+  },
+  "RETRFL02": {
+    "description": "retro reflector, simplified",
+    "width": 19,
+    "height": 14,
+    "offset": [
+      8.5,
+      0
+    ]
+  },
+  "RFNERY01": {
+    "description": "refinery",
+    "width": 27,
+    "height": 27,
+    "offset": [
+      0.5,
+      -0.5
+    ]
+  },
+  "RFNERY11": {
+    "description": "conspicuous refinery",
+    "width": 28,
+    "height": 28,
+    "offset": [
+      0,
+      -1
+    ]
+  },
+  "ROLROL01": {
+    "description": "RoRo terminal",
+    "width": 28,
+    "height": 13,
+    "offset": [
+      0,
+      0.5
+    ]
+  },
+  "RSCSTA02": {
+    "description": "rescue station",
+    "width": 20,
+    "height": 16,
+    "offset": [
+      0,
+      0
+    ]
+  },
+  "RSRDEF51": {
+    "description": "area in which undefined restrictions exist",
+    "width": 78,
+    "height": 41,
+    "offset": [
+      -38,
+      -14.5
+    ]
+  },
+  "RTLDEF51": {
+    "description": "recommended route between parts of a traffic separation scheme, or for ships not needing a deep water route, with the direction not specified in the data",
+    "width": 48,
+    "height": 56,
+    "offset": [
+      -1,
+      0
+    ]
+  },
+  "RTPBCN02": {
+    "description": "radar transponder beacon",
+    "width": 27,
+    "height": 25,
+    "offset": [
+      0.5,
+      -0.5
+    ]
+  },
+  "SAFCON00": {
+    "description": "contour label",
+    "width": 8,
+    "height": 13,
+    "offset": [
+      0,
+      -0.5
+    ]
+  },
+  "SAFCON01": {
+    "description": "contour label",
+    "width": 6,
+    "height": 13,
+    "offset": [
+      -1,
+      -0.5
+    ]
+  },
+  "SAFCON02": {
+    "description": "contour label",
+    "width": 8,
+    "height": 13,
+    "offset": [
+      0,
+      -0.5
+    ]
+  },
+  "SAFCON03": {
+    "description": "contour label",
+    "width": 8,
+    "height": 13,
+    "offset": [
+      0,
+      -0.5
+    ]
+  },
+  "SAFCON04": {
+    "description": "contour label",
+    "width": 9,
+    "height": 15,
+    "offset": [
+      0.5,
+      0.5
+    ]
+  },
+  "SAFCON05": {
+    "description": "contour label",
+    "width": 8,
+    "height": 13,
+    "offset": [
+      0,
+      -0.5
+    ]
+  },
+  "SAFCON06": {
+    "description": "contour label",
+    "width": 8,
+    "height": 13,
+    "offset": [
+      0,
+      -0.5
+    ]
+  },
+  "SAFCON07": {
+    "description": "contour label",
+    "width": 8,
+    "height": 13,
+    "offset": [
+      0,
+      -0.5
+    ]
+  },
+  "SAFCON08": {
+    "description": "contour label",
+    "width": 8,
+    "height": 13,
+    "offset": [
+      0,
+      -0.5
+    ]
+  },
+  "SAFCON09": {
+    "description": "contour label",
+    "width": 8,
+    "height": 13,
+    "offset": [
+      0,
+      -0.5
+    ]
+  },
+  "SAFCON10": {
+    "description": "contour label",
+    "width": 11,
+    "height": 13,
+    "offset": [
+      3.5,
+      -0.5
+    ]
+  },
+  "SAFCON11": {
+    "description": "contour label",
+    "width": 9,
+    "height": 13,
+    "offset": [
+      2.5,
+      -0.5
+    ]
+  },
+  "SAFCON12": {
+    "description": "contour label",
+    "width": 11,
+    "height": 13,
+    "offset": [
+      3.5,
+      -0.5
+    ]
+  },
+  "SAFCON13": {
+    "description": "contour label",
+    "width": 11,
+    "height": 13,
+    "offset": [
+      3.5,
+      -0.5
+    ]
+  },
+  "SAFCON14": {
+    "description": "contour label",
+    "width": 12,
+    "height": 15,
+    "offset": [
+      4,
+      0.5
+    ]
+  },
+  "SAFCON15": {
+    "description": "contour label",
+    "width": 11,
+    "height": 13,
+    "offset": [
+      3.5,
+      -0.5
+    ]
+  },
+  "SAFCON16": {
+    "description": "contour label",
+    "width": 11,
+    "height": 13,
+    "offset": [
+      3.5,
+      -0.5
+    ]
+  },
+  "SAFCON17": {
+    "description": "contour label",
+    "width": 11,
+    "height": 13,
+    "offset": [
+      3.5,
+      -0.5
+    ]
+  },
+  "SAFCON18": {
+    "description": "contour label",
+    "width": 11,
+    "height": 13,
+    "offset": [
+      3.5,
+      -0.5
+    ]
+  },
+  "SAFCON19": {
+    "description": "contour label",
+    "width": 11,
+    "height": 13,
+    "offset": [
+      3.5,
+      -0.5
+    ]
+  },
+  "SAFCON20": {
+    "description": "contour label",
+    "width": 11,
+    "height": 13,
+    "offset": [
+      -3.5,
+      -0.5
+    ]
+  },
+  "SAFCON21": {
+    "description": "contour label",
+    "width": 11,
+    "height": 13,
+    "offset": [
+      -3.5,
+      -0.5
+    ]
+  },
+  "SAFCON22": {
+    "description": "contour label",
+    "width": 11,
+    "height": 13,
+    "offset": [
+      -3.5,
+      -0.5
+    ]
+  },
+  "SAFCON23": {
+    "description": "contour label",
+    "width": 11,
+    "height": 13,
+    "offset": [
+      -3.5,
+      -0.5
+    ]
+  },
+  "SAFCON24": {
+    "description": "contour label",
+    "width": 11,
+    "height": 15,
+    "offset": [
+      -3.5,
+      0.5
+    ]
+  },
+  "SAFCON25": {
+    "description": "contour label",
+    "width": 11,
+    "height": 13,
+    "offset": [
+      -3.5,
+      -0.5
+    ]
+  },
+  "SAFCON26": {
+    "description": "contour label",
+    "width": 11,
+    "height": 13,
+    "offset": [
+      -3.5,
+      -0.5
+    ]
+  },
+  "SAFCON27": {
+    "description": "contour label",
+    "width": 11,
+    "height": 13,
+    "offset": [
+      -3.5,
+      -0.5
+    ]
+  },
+  "SAFCON28": {
+    "description": "contour label",
+    "width": 11,
+    "height": 13,
+    "offset": [
+      -3.5,
+      -0.5
+    ]
+  },
+  "SAFCON29": {
+    "description": "contour label",
+    "width": 11,
+    "height": 13,
+    "offset": [
+      -3.5,
+      -0.5
+    ]
+  },
+  "SAFCON30": {
+    "description": "contour label",
+    "width": 22,
+    "height": 13,
+    "offset": [
+      -9,
+      -0.5
+    ]
+  },
+  "SAFCON31": {
+    "description": "contour label",
+    "width": 22,
+    "height": 13,
+    "offset": [
+      -9,
+      -0.5
+    ]
+  },
+  "SAFCON32": {
+    "description": "contour label",
+    "width": 22,
+    "height": 13,
+    "offset": [
+      -9,
+      -0.5
+    ]
+  },
+  "SAFCON33": {
+    "description": "contour label",
+    "width": 22,
+    "height": 13,
+    "offset": [
+      -9,
+      -0.5
+    ]
+  },
+  "SAFCON34": {
+    "description": "contour label",
+    "width": 22,
+    "height": 15,
+    "offset": [
+      -9,
+      0.5
+    ]
+  },
+  "SAFCON35": {
+    "description": "contour label",
+    "width": 22,
+    "height": 13,
+    "offset": [
+      -9,
+      -0.5
+    ]
+  },
+  "SAFCON36": {
+    "description": "contour label",
+    "width": 22,
+    "height": 13,
+    "offset": [
+      -9,
+      -0.5
+    ]
+  },
+  "SAFCON37": {
+    "description": "contour label",
+    "width": 22,
+    "height": 13,
+    "offset": [
+      -9,
+      -0.5
+    ]
+  },
+  "SAFCON38": {
+    "description": "contour label",
+    "width": 22,
+    "height": 13,
+    "offset": [
+      -9,
+      -0.5
+    ]
+  },
+  "SAFCON39": {
+    "description": "contour label",
+    "width": 22,
+    "height": 13,
+    "offset": [
+      -9,
+      -0.5
+    ]
+  },
+  "SAFCON40": {
+    "description": "contour label",
+    "width": 32,
+    "height": 13,
+    "offset": [
+      -14,
+      -0.5
+    ]
+  },
+  "SAFCON41": {
+    "description": "contour label",
+    "width": 32,
+    "height": 13,
+    "offset": [
+      -14,
+      -0.5
+    ]
+  },
+  "SAFCON42": {
+    "description": "contour label",
+    "width": 32,
+    "height": 13,
+    "offset": [
+      -14,
+      -0.5
+    ]
+  },
+  "SAFCON43": {
+    "description": "contour label",
+    "width": 32,
+    "height": 13,
+    "offset": [
+      -14,
+      -0.5
+    ]
+  },
+  "SAFCON44": {
+    "description": "contour label",
+    "width": 32,
+    "height": 15,
+    "offset": [
+      -14,
+      0.5
+    ]
+  },
+  "SAFCON45": {
+    "description": "contour label",
+    "width": 32,
+    "height": 13,
+    "offset": [
+      -14,
+      -0.5
+    ]
+  },
+  "SAFCON46": {
+    "description": "contour label",
+    "width": 32,
+    "height": 13,
+    "offset": [
+      -14,
+      -0.5
+    ]
+  },
+  "SAFCON47": {
+    "description": "contour label",
+    "width": 32,
+    "height": 13,
+    "offset": [
+      -14,
+      -0.5
+    ]
+  },
+  "SAFCON48": {
+    "description": "contour label",
+    "width": 32,
+    "height": 13,
+    "offset": [
+      -14,
+      -0.5
+    ]
+  },
+  "SAFCON49": {
+    "description": "contour label",
+    "width": 32,
+    "height": 13,
+    "offset": [
+      -14,
+      -0.5
+    ]
+  },
+  "SAFCON50": {
+    "description": "pattern of symbol",
+    "width": 23,
+    "height": 15,
+    "offset": [
+      9.5,
+      2.5
+    ]
+  },
+  "SAFCON51": {
+    "description": "pattern of symbol",
+    "width": 21,
+    "height": 15,
+    "offset": [
+      9.5,
+      2.5
+    ]
+  },
+  "SAFCON52": {
+    "description": "pattern of symbol",
+    "width": 23,
+    "height": 15,
+    "offset": [
+      9.5,
+      2.5
+    ]
+  },
+  "SAFCON53": {
+    "description": "pattern of symbol",
+    "width": 22,
+    "height": 14,
+    "offset": [
+      9,
+      2
+    ]
+  },
+  "SAFCON54": {
+    "description": "pattern of symbol",
+    "width": 26,
+    "height": 18,
+    "offset": [
+      9,
+      3
+    ]
+  },
+  "SAFCON55": {
+    "description": "pattern of symbol",
+    "width": 26,
+    "height": 17,
+    "offset": [
+      9,
+      2.5
+    ]
+  },
+  "SAFCON56": {
+    "description": "pattern of symbol",
+    "width": 22,
+    "height": 14,
+    "offset": [
+      9,
+      2
+    ]
+  },
+  "SAFCON57": {
+    "description": "pattern of symbol",
+    "width": 22,
+    "height": 14,
+    "offset": [
+      9,
+      2
+    ]
+  },
+  "SAFCON58": {
+    "description": "pattern of symbol",
+    "width": 22,
+    "height": 14,
+    "offset": [
+      9,
+      2
+    ]
+  },
+  "SAFCON59": {
+    "description": "pattern of symbol",
+    "width": 22,
+    "height": 15,
+    "offset": [
+      9,
+      2.5
+    ]
+  },
+  "SAFCON60": {
+    "description": "contour label",
+    "width": 15,
+    "height": 13,
+    "offset": [
+      5.5,
+      4.5
+    ]
+  },
+  "SAFCON61": {
+    "description": "contour label",
+    "width": 13,
+    "height": 13,
+    "offset": [
+      4.5,
+      4.5
+    ]
+  },
+  "SAFCON62": {
+    "description": "contour label",
+    "width": 15,
+    "height": 13,
+    "offset": [
+      5.5,
+      4.5
+    ]
+  },
+  "SAFCON63": {
+    "description": "contour label",
+    "width": 15,
+    "height": 13,
+    "offset": [
+      5.5,
+      4.5
+    ]
+  },
+  "SAFCON64": {
+    "description": "contour label",
+    "width": 16,
+    "height": 15,
+    "offset": [
+      6,
+      4.5
+    ]
+  },
+  "SAFCON65": {
+    "description": "contour label",
+    "width": 15,
+    "height": 13,
+    "offset": [
+      5.5,
+      4.5
+    ]
+  },
+  "SAFCON66": {
+    "description": "contour label",
+    "width": 15,
+    "height": 13,
+    "offset": [
+      5.5,
+      4.5
+    ]
+  },
+  "SAFCON67": {
+    "description": "contour label",
+    "width": 15,
+    "height": 13,
+    "offset": [
+      5.5,
+      4.5
+    ]
+  },
+  "SAFCON68": {
+    "description": "contour label",
+    "width": 15,
+    "height": 13,
+    "offset": [
+      5.5,
+      4.5
+    ]
+  },
+  "SAFCON69": {
+    "description": "contour label",
+    "width": 15,
+    "height": 13,
+    "offset": [
+      5.5,
+      4.5
+    ]
+  },
+  "SCALEB10": {
+    "description": "one mile scalebar for display scales larger than 1/80,000",
+    "width": 5,
+    "height": 80,
+    "offset": [
+      0.5,
+      -38
+    ]
+  },
+  "SCALEB11": {
+    "description": "10 mile latitude scale for display scales smaller than 1/80,000",
+    "width": 5,
+    "height": 80,
+    "offset": [
+      0.5,
+      -38
+    ]
+  },
+  "SILBUI01": {
+    "description": "silo",
+    "width": 13,
+    "height": 13,
+    "offset": [
+      0.5,
+      0.5
+    ]
+  },
+  "SILBUI11": {
+    "description": "conspicuous silo",
+    "width": 14,
+    "height": 14,
+    "offset": [
+      0,
+      0
+    ]
+  },
+  "SISTAT02": {
+    "description": "signal station",
+    "width": 25,
+    "height": 17,
+    "offset": [
+      10.5,
+      6.5
+    ]
+  },
+  "SMCFAC02": {
+    "description": "yacht harbour, marina",
+    "width": 27,
+    "height": 27,
+    "offset": [
+      0.5,
+      -0.5
+    ]
+  },
+  "SNDWAV02": {
+    "description": "sand waves",
+    "width": 46,
+    "height": 8,
+    "offset": [
+      0,
+      0
+    ]
+  },
+  "SOUNDG00": {
+    "description": "deep soundings, greater than safety depth",
+    "width": 8,
+    "height": 11,
+    "offset": [
+      3,
+      0.5
+    ]
+  },
+  "SOUNDG01": {
+    "description": "for deep soundings, greater than safety depth",
+    "width": 6,
+    "height": 11,
+    "offset": [
+      2,
+      0.5
+    ]
+  },
+  "SOUNDG02": {
+    "description": "for deep soundings, greater than safety depth",
+    "width": 8,
+    "height": 11,
+    "offset": [
+      3,
+      0.5
+    ]
+  },
+  "SOUNDG03": {
+    "description": "for deep soundings, greater than safety depth",
+    "width": 8,
+    "height": 11,
+    "offset": [
+      3,
+      0.5
+    ]
+  },
+  "SOUNDG04": {
+    "description": "for deep soundings, greater than safety depth",
+    "width": 9,
+    "height": 12,
+    "offset": [
+      3.5,
+      0
+    ]
+  },
+  "SOUNDG05": {
+    "description": "for deep soundings, greater than safety depth",
+    "width": 8,
+    "height": 11,
+    "offset": [
+      3,
+      0.5
+    ]
+  },
+  "SOUNDG06": {
+    "description": "for deep soundings, greater than safety depth",
+    "width": 8,
+    "height": 11,
+    "offset": [
+      3,
+      0.5
+    ]
+  },
+  "SOUNDG07": {
+    "description": "for deep soundings, greater than safety depth",
+    "width": 8,
+    "height": 11,
+    "offset": [
+      3,
+      0.5
+    ]
+  },
+  "SOUNDG08": {
+    "description": "for deep soundings, greater than safety depth",
+    "width": 8,
+    "height": 11,
+    "offset": [
+      3,
+      0.5
+    ]
+  },
+  "SOUNDG09": {
+    "description": "for deep soundings, greater than safety depth",
+    "width": 8,
+    "height": 11,
+    "offset": [
+      3,
+      0.5
+    ]
+  },
+  "SOUNDG10": {
+    "description": "for deep soundings, greater than safety depth",
+    "width": 8,
+    "height": 11,
+    "offset": [
+      -3,
+      0.5
+    ]
+  },
+  "SOUNDG11": {
+    "description": "for deep soundings, greater than safety depth",
+    "width": 8,
+    "height": 11,
+    "offset": [
+      -3,
+      0.5
+    ]
+  },
+  "SOUNDG12": {
+    "description": "for deep soundings, greater than safety depth",
+    "width": 8,
+    "height": 11,
+    "offset": [
+      -3,
+      0.5
+    ]
+  },
+  "SOUNDG13": {
+    "description": "for deep soundings, greater than safety depth",
+    "width": 8,
+    "height": 11,
+    "offset": [
+      -3,
+      0.5
+    ]
+  },
+  "SOUNDG14": {
+    "description": "for deep soundings, greater than safety depth",
+    "width": 8,
+    "height": 12,
+    "offset": [
+      -3,
+      0
+    ]
+  },
+  "SOUNDG15": {
+    "description": "for deep soundings, greater than safety depth",
+    "width": 8,
+    "height": 11,
+    "offset": [
+      -3,
+      0.5
+    ]
+  },
+  "SOUNDG16": {
+    "description": "for deep soundings, greater than safety depth",
+    "width": 8,
+    "height": 11,
+    "offset": [
+      -3,
+      0.5
+    ]
+  },
+  "SOUNDG17": {
+    "description": "for deep soundings, greater than safety depth",
+    "width": 8,
+    "height": 11,
+    "offset": [
+      -3,
+      1.5
+    ]
+  },
+  "SOUNDG18": {
+    "description": "for deep soundings, greater than safety depth",
+    "width": 8,
+    "height": 11,
+    "offset": [
+      -3,
+      0.5
+    ]
+  },
+  "SOUNDG19": {
+    "description": "for deep soundings, greater than safety depth",
+    "width": 8,
+    "height": 11,
+    "offset": [
+      -3,
+      0.5
+    ]
+  },
+  "SOUNDG20": {
+    "description": "for deep soundings, greater than safety depth",
+    "width": 16,
+    "height": 11,
+    "offset": [
+      -8,
+      0.5
+    ]
+  },
+  "SOUNDG21": {
+    "description": "for deep soundings, greater than safety depth",
+    "width": 16,
+    "height": 11,
+    "offset": [
+      -8,
+      0.5
+    ]
+  },
+  "SOUNDG22": {
+    "description": "for deep soundings, greater than safety depth",
+    "width": 16,
+    "height": 11,
+    "offset": [
+      -8,
+      0.5
+    ]
+  },
+  "SOUNDG23": {
+    "description": "for deep soundings, greater than safety depth",
+    "width": 16,
+    "height": 11,
+    "offset": [
+      -8,
+      0.5
+    ]
+  },
+  "SOUNDG24": {
+    "description": "for deep soundings, greater than safety depth",
+    "width": 16,
+    "height": 12,
+    "offset": [
+      -8,
+      0
+    ]
+  },
+  "SOUNDG25": {
+    "description": "for deep soundings, greater than safety depth",
+    "width": 16,
+    "height": 11,
+    "offset": [
+      -8,
+      0.5
+    ]
+  },
+  "SOUNDG26": {
+    "description": "for deep soundings, greater than safety depth",
+    "width": 16,
+    "height": 11,
+    "offset": [
+      -8,
+      0.5
+    ]
+  },
+  "SOUNDG27": {
+    "description": "for deep soundings, greater than safety depth",
+    "width": 16,
+    "height": 11,
+    "offset": [
+      -8,
+      1.5
+    ]
+  },
+  "SOUNDG28": {
+    "description": "for deep soundings, greater than safety depth",
+    "width": 16,
+    "height": 11,
+    "offset": [
+      -8,
+      0.5
+    ]
+  },
+  "SOUNDG29": {
+    "description": "for deep soundings, greater than safety depth",
+    "width": 16,
+    "height": 11,
+    "offset": [
+      -8,
+      0.5
+    ]
+  },
+  "SOUNDG30": {
+    "description": "for deep soundings, greater than safety depth",
+    "width": 25,
+    "height": 11,
+    "offset": [
+      -11.5,
+      0.5
+    ]
+  },
+  "SOUNDG31": {
+    "description": "for deep soundings, greater than safety depth",
+    "width": 25,
+    "height": 11,
+    "offset": [
+      -11.5,
+      0.5
+    ]
+  },
+  "SOUNDG32": {
+    "description": "for deep soundings, greater than safety depth",
+    "width": 25,
+    "height": 11,
+    "offset": [
+      -11.5,
+      0.5
+    ]
+  },
+  "SOUNDG33": {
+    "description": "for deep soundings, greater than safety depth",
+    "width": 25,
+    "height": 11,
+    "offset": [
+      -11.5,
+      0.5
+    ]
+  },
+  "SOUNDG34": {
+    "description": "for deep soundings, greater than safety depth",
+    "width": 25,
+    "height": 12,
+    "offset": [
+      -11.5,
+      0
+    ]
+  },
+  "SOUNDG35": {
+    "description": "for deep soundings, greater than safety depth",
+    "width": 25,
+    "height": 11,
+    "offset": [
+      -11.5,
+      0.5
+    ]
+  },
+  "SOUNDG36": {
+    "description": "for deep soundings, greater than safety depth",
+    "width": 25,
+    "height": 11,
+    "offset": [
+      -11.5,
+      0.5
+    ]
+  },
+  "SOUNDG37": {
+    "description": "for deep soundings, greater than safety depth",
+    "width": 25,
+    "height": 11,
+    "offset": [
+      -11.5,
+      1.5
+    ]
+  },
+  "SOUNDG38": {
+    "description": "for deep soundings, greater than safety depth",
+    "width": 25,
+    "height": 11,
+    "offset": [
+      -11.5,
+      0.5
+    ]
+  },
+  "SOUNDG39": {
+    "description": "for deep soundings, greater than safety depth",
+    "width": 25,
+    "height": 11,
+    "offset": [
+      -11.5,
+      0.5
+    ]
+  },
+  "SOUNDG40": {
+    "description": "for deep soundings, greater than safety depth",
+    "width": 16,
+    "height": 11,
+    "offset": [
+      7,
+      0.5
+    ]
+  },
+  "SOUNDG41": {
+    "description": "for deep soundings, greater than safety depth",
+    "width": 14,
+    "height": 11,
+    "offset": [
+      6,
+      0.5
+    ]
+  },
+  "SOUNDG42": {
+    "description": "for deep soundings, greater than safety depth",
+    "width": 16,
+    "height": 11,
+    "offset": [
+      7,
+      0.5
+    ]
+  },
+  "SOUNDG43": {
+    "description": "for deep soundings, greater than safety depth",
+    "width": 16,
+    "height": 11,
+    "offset": [
+      7,
+      0.5
+    ]
+  },
+  "SOUNDG44": {
+    "description": "for deep soundings, greater than safety depth",
+    "width": 17,
+    "height": 12,
+    "offset": [
+      7.5,
+      0
+    ]
+  },
+  "SOUNDG45": {
+    "description": "for deep soundings, greater than safety depth",
+    "width": 16,
+    "height": 11,
+    "offset": [
+      7,
+      0.5
+    ]
+  },
+  "SOUNDG46": {
+    "description": "for deep soundings, greater than safety depth",
+    "width": 16,
+    "height": 11,
+    "offset": [
+      7,
+      0.5
+    ]
+  },
+  "SOUNDG47": {
+    "description": "for deep soundings, greater than safety depth",
+    "width": 16,
+    "height": 11,
+    "offset": [
+      7,
+      0.5
+    ]
+  },
+  "SOUNDG48": {
+    "description": "for deep soundings, greater than safety depth",
+    "width": 16,
+    "height": 11,
+    "offset": [
+      7,
+      0.5
+    ]
+  },
+  "SOUNDG49": {
+    "description": "for deep soundings, greater than safety depth",
+    "width": 16,
+    "height": 11,
+    "offset": [
+      7,
+      0.5
+    ]
+  },
+  "SOUNDG50": {
+    "description": "for deep soundings, greater than safety depth",
+    "width": 8,
+    "height": 11,
+    "offset": [
+      3,
+      4.5
+    ]
+  },
+  "SOUNDG51": {
+    "description": "for deep soundings, greater than safety depth",
+    "width": 6,
+    "height": 11,
+    "offset": [
+      2,
+      4.5
+    ]
+  },
+  "SOUNDG52": {
+    "description": "for deep soundings, greater than safety depth",
+    "width": 8,
+    "height": 11,
+    "offset": [
+      3,
+      4.5
+    ]
+  },
+  "SOUNDG53": {
+    "description": "for deep soundings, greater than safety depth",
+    "width": 8,
+    "height": 11,
+    "offset": [
+      3,
+      4.5
+    ]
+  },
+  "SOUNDG54": {
+    "description": "for deep soundings, greater than safety depth",
+    "width": 9,
+    "height": 12,
+    "offset": [
+      3.5,
+      4
+    ]
+  },
+  "SOUNDG55": {
+    "description": "for deep soundings, greater than safety depth",
+    "width": 8,
+    "height": 11,
+    "offset": [
+      3,
+      4.5
+    ]
+  },
+  "SOUNDG56": {
+    "description": "for deep soundings, greater than safety depth",
+    "width": 8,
+    "height": 11,
+    "offset": [
+      3,
+      4.5
+    ]
+  },
+  "SOUNDG57": {
+    "description": "for deep soundings, greater than safety depth",
+    "width": 8,
+    "height": 11,
+    "offset": [
+      3,
+      4.5
+    ]
+  },
+  "SOUNDG58": {
+    "description": "for deep soundings, greater than safety depth",
+    "width": 8,
+    "height": 11,
+    "offset": [
+      3,
+      4.5
+    ]
+  },
+  "SOUNDG59": {
+    "description": "for deep soundings, greater than safety depth",
+    "width": 8,
+    "height": 11,
+    "offset": [
+      3,
+      4.5
+    ]
+  },
+  "SOUNDGB1": {
+    "description": "symbol for swept sounding, used for deep soundings greater than safety depth",
+    "width": 25,
+    "height": 13,
+    "offset": [
+      -3.5,
+      5.5
+    ]
+  },
+  "SOUNDGC2": {
+    "description": "sounding of low accuracy",
+    "width": 33,
+    "height": 33,
+    "offset": [
+      -0.5,
+      -0.5
+    ]
+  },
+  "SOUNDS00": {
+    "description": "shallow soundings, less than or equal to the safety depth",
+    "width": 8,
+    "height": 11,
+    "offset": [
+      3,
+      0.5
+    ]
+  },
+  "SOUNDS01": {
+    "description": "shallow soundings, less than or equal to the safety depth",
+    "width": 6,
+    "height": 11,
+    "offset": [
+      2,
+      0.5
+    ]
+  },
+  "SOUNDS02": {
+    "description": "shallow soundings, less than or equal to the safety depth",
+    "width": 8,
+    "height": 11,
+    "offset": [
+      3,
+      0.5
+    ]
+  },
+  "SOUNDS03": {
+    "description": "shallow soundings, less than or equal to the safety depth",
+    "width": 8,
+    "height": 11,
+    "offset": [
+      3,
+      0.5
+    ]
+  },
+  "SOUNDS04": {
+    "description": "shallow soundings, less than or equal to the safety depth",
+    "width": 9,
+    "height": 12,
+    "offset": [
+      3.5,
+      0
+    ]
+  },
+  "SOUNDS05": {
+    "description": "shallow soundings, less than or equal to the safety depth",
+    "width": 8,
+    "height": 11,
+    "offset": [
+      3,
+      0.5
+    ]
+  },
+  "SOUNDS06": {
+    "description": "shallow soundings, less than or equal to the safety depth",
+    "width": 8,
+    "height": 11,
+    "offset": [
+      3,
+      0.5
+    ]
+  },
+  "SOUNDS07": {
+    "description": "shallow soundings, less than or equal to the safety depth",
+    "width": 8,
+    "height": 11,
+    "offset": [
+      3,
+      0.5
+    ]
+  },
+  "SOUNDS08": {
+    "description": "shallow soundings, less than or equal to the safety depth",
+    "width": 8,
+    "height": 11,
+    "offset": [
+      3,
+      0.5
+    ]
+  },
+  "SOUNDS09": {
+    "description": "shallow soundings, less than or equal to the safety depth",
+    "width": 8,
+    "height": 11,
+    "offset": [
+      3,
+      0.5
+    ]
+  },
+  "SOUNDS10": {
+    "description": "shallow soundings, less than or equal to the safety depth",
+    "width": 8,
+    "height": 11,
+    "offset": [
+      -3,
+      0.5
+    ]
+  },
+  "SOUNDS11": {
+    "description": "shallow soundings, less than or equal to the safety depth",
+    "width": 8,
+    "height": 11,
+    "offset": [
+      -3,
+      0.5
+    ]
+  },
+  "SOUNDS12": {
+    "description": "shallow soundings, less than or equal to the safety depth",
+    "width": 8,
+    "height": 11,
+    "offset": [
+      -3,
+      0.5
+    ]
+  },
+  "SOUNDS13": {
+    "description": "shallow soundings, less than or equal to the safety depth",
+    "width": 8,
+    "height": 11,
+    "offset": [
+      -3,
+      0.5
+    ]
+  },
+  "SOUNDS14": {
+    "description": "shallow soundings, less than or equal to the safety depth",
+    "width": 8,
+    "height": 12,
+    "offset": [
+      -3,
+      0
+    ]
+  },
+  "SOUNDS15": {
+    "description": "shallow soundings, less than or equal to the safety depth",
+    "width": 8,
+    "height": 11,
+    "offset": [
+      -3,
+      0.5
+    ]
+  },
+  "SOUNDS16": {
+    "description": "shallow soundings, less than or equal to the safety depth",
+    "width": 8,
+    "height": 11,
+    "offset": [
+      -3,
+      0.5
+    ]
+  },
+  "SOUNDS17": {
+    "description": "shallow soundings, less than or equal to the safety depth",
+    "width": 8,
+    "height": 11,
+    "offset": [
+      -3,
+      1.5
+    ]
+  },
+  "SOUNDS18": {
+    "description": "shallow soundings, less than or equal to the safety depth",
+    "width": 8,
+    "height": 11,
+    "offset": [
+      -3,
+      0.5
+    ]
+  },
+  "SOUNDS19": {
+    "description": "shallow soundings, less than or equal to the safety depth",
+    "width": 8,
+    "height": 11,
+    "offset": [
+      -3,
+      0.5
+    ]
+  },
+  "SOUNDS20": {
+    "description": "shallow soundings, less than or equal to the safety depth",
+    "width": 16,
+    "height": 11,
+    "offset": [
+      -8,
+      0.5
+    ]
+  },
+  "SOUNDS21": {
+    "description": "shallow soundings, less than or equal to the safety depth",
+    "width": 16,
+    "height": 11,
+    "offset": [
+      -8,
+      0.5
+    ]
+  },
+  "SOUNDS22": {
+    "description": "shallow soundings, less than or equal to the safety depth",
+    "width": 16,
+    "height": 11,
+    "offset": [
+      -8,
+      0.5
+    ]
+  },
+  "SOUNDS23": {
+    "description": "shallow soundings, less than or equal to the safety depth",
+    "width": 16,
+    "height": 11,
+    "offset": [
+      -8,
+      0.5
+    ]
+  },
+  "SOUNDS24": {
+    "description": "shallow soundings, less than or equal to the safety depth",
+    "width": 16,
+    "height": 12,
+    "offset": [
+      -8,
+      0
+    ]
+  },
+  "SOUNDS25": {
+    "description": "shallow soundings, less than or equal to the safety depth",
+    "width": 16,
+    "height": 11,
+    "offset": [
+      -8,
+      0.5
+    ]
+  },
+  "SOUNDS26": {
+    "description": "shallow soundings, less than or equal to the safety depth",
+    "width": 16,
+    "height": 11,
+    "offset": [
+      -8,
+      0.5
+    ]
+  },
+  "SOUNDS27": {
+    "description": "shallow soundings, less than or equal to the safety depth",
+    "width": 16,
+    "height": 11,
+    "offset": [
+      -8,
+      1.5
+    ]
+  },
+  "SOUNDS28": {
+    "description": "shallow soundings, less than or equal to the safety depth",
+    "width": 16,
+    "height": 11,
+    "offset": [
+      -8,
+      0.5
+    ]
+  },
+  "SOUNDS29": {
+    "description": "shallow soundings, less than or equal to the safety depth",
+    "width": 16,
+    "height": 11,
+    "offset": [
+      -8,
+      0.5
+    ]
+  },
+  "SOUNDS30": {
+    "description": "shallow soundings, less than or equal to the safety depth",
+    "width": 25,
+    "height": 11,
+    "offset": [
+      -11.5,
+      0.5
+    ]
+  },
+  "SOUNDS31": {
+    "description": "shallow soundings, less than or equal to the safety depth",
+    "width": 25,
+    "height": 11,
+    "offset": [
+      -11.5,
+      0.5
+    ]
+  },
+  "SOUNDS32": {
+    "description": "shallow soundings, less than or equal to the safety depth",
+    "width": 25,
+    "height": 11,
+    "offset": [
+      -11.5,
+      0.5
+    ]
+  },
+  "SOUNDS33": {
+    "description": "shallow soundings, less than or equal to the safety depth",
+    "width": 25,
+    "height": 11,
+    "offset": [
+      -11.5,
+      0.5
+    ]
+  },
+  "SOUNDS34": {
+    "description": "shallow soundings, less than or equal to the safety depth",
+    "width": 25,
+    "height": 12,
+    "offset": [
+      -11.5,
+      0
+    ]
+  },
+  "SOUNDS35": {
+    "description": "shallow soundings, less than or equal to the safety depth",
+    "width": 25,
+    "height": 11,
+    "offset": [
+      -11.5,
+      0.5
+    ]
+  },
+  "SOUNDS36": {
+    "description": "shallow soundings, less than or equal to the safety depth",
+    "width": 25,
+    "height": 11,
+    "offset": [
+      -11.5,
+      0.5
+    ]
+  },
+  "SOUNDS37": {
+    "description": "shallow soundings, less than or equal to the safety depth",
+    "width": 25,
+    "height": 11,
+    "offset": [
+      -11.5,
+      1.5
+    ]
+  },
+  "SOUNDS38": {
+    "description": "shallow soundings, less than or equal to the safety depth",
+    "width": 25,
+    "height": 11,
+    "offset": [
+      -11.5,
+      0.5
+    ]
+  },
+  "SOUNDS39": {
+    "description": "shallow soundings, less than or equal to the safety depth",
+    "width": 25,
+    "height": 11,
+    "offset": [
+      -11.5,
+      0.5
+    ]
+  },
+  "SOUNDS40": {
+    "description": "shallow soundings, less than or equal to the safety depth",
+    "width": 16,
+    "height": 11,
+    "offset": [
+      7,
+      0.5
+    ]
+  },
+  "SOUNDS41": {
+    "description": "shallow soundings, less than or equal to the safety depth",
+    "width": 14,
+    "height": 11,
+    "offset": [
+      6,
+      0.5
+    ]
+  },
+  "SOUNDS42": {
+    "description": "shallow soundings, less than or equal to the safety depth",
+    "width": 16,
+    "height": 11,
+    "offset": [
+      7,
+      0.5
+    ]
+  },
+  "SOUNDS43": {
+    "description": "shallow soundings, less than or equal to the safety depth",
+    "width": 16,
+    "height": 11,
+    "offset": [
+      7,
+      0.5
+    ]
+  },
+  "SOUNDS44": {
+    "description": "shallow soundings, less than or equal to the safety depth",
+    "width": 17,
+    "height": 12,
+    "offset": [
+      7.5,
+      0
+    ]
+  },
+  "SOUNDS45": {
+    "description": "shallow soundings, less than or equal to the safety depth",
+    "width": 16,
+    "height": 11,
+    "offset": [
+      7,
+      0.5
+    ]
+  },
+  "SOUNDS46": {
+    "description": "shallow soundings, less than or equal to the safety depth",
+    "width": 16,
+    "height": 11,
+    "offset": [
+      7,
+      0.5
+    ]
+  },
+  "SOUNDS47": {
+    "description": "shallow soundings, less than or equal to the safety depth",
+    "width": 16,
+    "height": 11,
+    "offset": [
+      7,
+      0.5
+    ]
+  },
+  "SOUNDS48": {
+    "description": "shallow soundings, less than or equal to the safety depth",
+    "width": 16,
+    "height": 11,
+    "offset": [
+      7,
+      0.5
+    ]
+  },
+  "SOUNDS49": {
+    "description": "shallow soundings, less than or equal to the safety depth",
+    "width": 16,
+    "height": 11,
+    "offset": [
+      7,
+      0.5
+    ]
+  },
+  "SOUNDS50": {
+    "description": "shallow soundings, less than or equal to the safety depth",
+    "width": 8,
+    "height": 11,
+    "offset": [
+      3,
+      4.5
+    ]
+  },
+  "SOUNDS51": {
+    "description": "shallow soundings, less than or equal to the safety depth",
+    "width": 6,
+    "height": 11,
+    "offset": [
+      2,
+      4.5
+    ]
+  },
+  "SOUNDS52": {
+    "description": "shallow soundings, less than or equal to the safety depth",
+    "width": 8,
+    "height": 11,
+    "offset": [
+      3,
+      4.5
+    ]
+  },
+  "SOUNDS53": {
+    "description": "shallow soundings, less than or equal to the safety depth",
+    "width": 8,
+    "height": 11,
+    "offset": [
+      3,
+      4.5
+    ]
+  },
+  "SOUNDS54": {
+    "description": "shallow soundings, less than or equal to the safety depth",
+    "width": 9,
+    "height": 12,
+    "offset": [
+      3.5,
+      4
+    ]
+  },
+  "SOUNDS55": {
+    "description": "shallow soundings, less than or equal to the safety depth",
+    "width": 8,
+    "height": 11,
+    "offset": [
+      3,
+      4.5
+    ]
+  },
+  "SOUNDS56": {
+    "description": "shallow soundings, less than or equal to the safety depth",
+    "width": 8,
+    "height": 11,
+    "offset": [
+      3,
+      4.5
+    ]
+  },
+  "SOUNDS57": {
+    "description": "shallow soundings, less than or equal to the safety depth",
+    "width": 8,
+    "height": 11,
+    "offset": [
+      3,
+      4.5
+    ]
+  },
+  "SOUNDS58": {
+    "description": "shallow soundings, less than or equal to the safety depth",
+    "width": 8,
+    "height": 11,
+    "offset": [
+      3,
+      4.5
+    ]
+  },
+  "SOUNDS59": {
+    "description": "shallow soundings, less than or equal to the safety depth",
+    "width": 8,
+    "height": 11,
+    "offset": [
+      3,
+      4.5
+    ]
+  },
+  "SOUNDSA1": {
+    "description": "symbol for drying height, used for shallow soundings, less than or equal to safety depth",
+    "width": 10,
+    "height": 10,
+    "offset": [
+      -4,
+      4
+    ]
+  },
+  "SOUNDSB1": {
+    "description": "symbol for swept sounding, used for shallow soundings, less than or equal to safety depth",
+    "width": 25,
+    "height": 13,
+    "offset": [
+      -3.5,
+      5.5
+    ]
+  },
+  "SOUNDSC2": {
+    "description": "sounding of low accuracy",
+    "width": 33,
+    "height": 33,
+    "offset": [
+      -0.5,
+      -0.5
+    ]
+  },
+  "SPRING02": {
+    "description": "spring",
+    "width": 15,
+    "height": 17,
+    "offset": [
+      0.5,
+      -6.5
+    ]
+  },
+  "SWPARE51": {
+    "description": "swept area",
+    "width": 45,
+    "height": 15,
+    "offset": [
+      -0.5,
+      -5.5
+    ]
+  },
+  "TIDCUR01": {
+    "description": "predicted tidal stream or current direction",
+    "width": 17,
+    "height": 57,
+    "offset": [
+      0.5,
+      4.5
+    ]
+  },
+  "TIDCUR02": {
+    "description": "actual tidal stream or current direction",
+    "width": 16,
+    "height": 47,
+    "offset": [
+      0,
+      0.5
+    ]
+  },
+  "TIDCUR03": {
+    "description": "box for current strength",
+    "width": 48,
+    "height": 48,
+    "offset": [
+      -24,
+      23
+    ]
+  },
+  "TIDEHT01": {
+    "description": "point for which tide height information is available",
+    "width": 35,
+    "height": 14,
+    "offset": [
+      1.5,
+      0
+    ]
+  },
+  "TIDSTR01": {
+    "description": "point or area for which a tidal stream table is available",
+    "width": 23,
+    "height": 22,
+    "offset": [
+      0.5,
+      0
+    ]
+  },
+  "TMARDEF1": {
+    "description": "topmark for beacons, flag or other shape, paper-chart",
+    "width": 3,
+    "height": 38,
+    "offset": [
+      -0.5,
+      -18
+    ]
+  },
+  "TMARDEF2": {
+    "description": "topmark for buoys, flag or other shape, paper-chart",
+    "width": 10,
+    "height": 35,
+    "offset": [
+      4,
+      -16.5
+    ]
+  },
+  "TMBYRD01": {
+    "description": "timber yard",
+    "width": 18,
+    "height": 18,
+    "offset": [
+      0,
+      0
+    ]
+  },
+  "TNKCON02": {
+    "description": "tank",
+    "width": 12,
+    "height": 12,
+    "offset": [
+      0,
+      0
+    ]
+  },
+  "TNKCON12": {
+    "description": "conspicuous tank",
+    "width": 13,
+    "height": 13,
+    "offset": [
+      -0.5,
+      -0.5
+    ]
+  },
+  "TNKFRM01": {
+    "description": "tank farm",
+    "width": 30,
+    "height": 30,
+    "offset": [
+      0,
+      -1
+    ]
+  },
+  "TNKFRM11": {
+    "description": "conspicuous tank farm",
+    "width": 31,
+    "height": 31,
+    "offset": [
+      -0.5,
+      -1.5
+    ]
+  },
+  "TOPMAR02": {
+    "description": "topmark for buoys, cone point up, paper-chart",
+    "width": 10,
+    "height": 27,
+    "offset": [
+      4,
+      -12.5
+    ]
+  },
+  "TOPMAR04": {
+    "description": "topmark for buoys, cone point down, paper-chart",
+    "width": 11,
+    "height": 27,
+    "offset": [
+      4.5,
+      -12.5
+    ]
+  },
+  "TOPMAR05": {
+    "description": "topmark for buoys, 2 cones point upward, paper-chart",
+    "width": 12,
+    "height": 36,
+    "offset": [
+      5,
+      -18
+    ]
+  },
+  "TOPMAR06": {
+    "description": "topmark for buoys, 2 cones point downward, paper-chart",
+    "width": 13,
+    "height": 35,
+    "offset": [
+      5.5,
+      -17.5
+    ]
+  },
+  "TOPMAR07": {
+    "description": "topmark for buoys, 2 cones base to base, paper-chart",
+    "width": 12,
+    "height": 36,
+    "offset": [
+      5,
+      -17
+    ]
+  },
+  "TOPMAR08": {
+    "description": "topmark for buoys, 2 cones point to point, paper-chart",
+    "width": 14,
+    "height": 35,
+    "offset": [
+      6,
+      -17.5
+    ]
+  },
+  "TOPMAR10": {
+    "description": "topmark for buoys, sphere, paper-chart",
+    "width": 9,
+    "height": 27,
+    "offset": [
+      3.5,
+      -13.5
+    ]
+  },
+  "TOPMAR12": {
+    "description": "topmark for buoys, 2 spheres, paper-chart",
+    "width": 11,
+    "height": 36,
+    "offset": [
+      4.5,
+      -17
+    ]
+  },
+  "TOPMAR13": {
+    "description": "topmark for buoys, cylinder, paper-chart",
+    "width": 12,
+    "height": 31,
+    "offset": [
+      5,
+      -13.5
+    ]
+  },
+  "TOPMAR14": {
+    "description": "topmark for buoys, board, paper-chart",
+    "width": 12,
+    "height": 28,
+    "offset": [
+      5,
+      -13
+    ]
+  },
+  "TOPMAR16": {
+    "description": "topmark for buoys, cube point up, paper-chart",
+    "width": 11,
+    "height": 29,
+    "offset": [
+      4.5,
+      -13.5
+    ]
+  },
+  "TOPMAR17": {
+    "description": "topmark for buoys, flag or other shape, paper-chart",
+    "width": 18,
+    "height": 31,
+    "offset": [
+      5,
+      -14.5
+    ]
+  },
+  "TOPMAR18": {
+    "description": "topmark for buoys, T-Shape, paper-chart",
+    "width": 18,
+    "height": 31,
+    "offset": [
+      6,
+      -14.5
+    ]
+  },
+  "TOPMAR22": {
+    "description": "topmark for beacons, cone point up, paper-chart",
+    "width": 10,
+    "height": 29,
+    "offset": [
+      0,
+      -13.5
+    ]
+  },
+  "TOPMAR24": {
+    "description": "topmark for beacons, cone point down, paper-chart",
+    "width": 10,
+    "height": 28,
+    "offset": [
+      0,
+      -14
+    ]
+  },
+  "TOPMAR25": {
+    "description": "topmark for beacons, 2 cones point upward, paper-chart",
+    "width": 10,
+    "height": 37,
+    "offset": [
+      0,
+      -17.5
+    ]
+  },
+  "TOPMAR26": {
+    "description": "topmark for beacons, 2 cones point downward, paper-chart",
+    "width": 10,
+    "height": 36,
+    "offset": [
+      0,
+      -18
+    ]
+  },
+  "TOPMAR27": {
+    "description": "topmark for beacons, 2 cones base to base, paper-chart",
+    "width": 10,
+    "height": 37,
+    "offset": [
+      0,
+      -18.5
+    ]
+  },
+  "TOPMAR28": {
+    "description": "topmark for beacons, 2 cones point to point, paper-chart",
+    "width": 10,
+    "height": 37,
+    "offset": [
+      0,
+      -17.5
+    ]
+  },
+  "TOPMAR30": {
+    "description": "topmark for beacons, sphere, paper-chart",
+    "width": 10,
+    "height": 30,
+    "offset": [
+      0,
+      -14
+    ]
+  },
+  "TOPMAR32": {
+    "description": "topmark for beacons, 2 spheres, paper-chart",
+    "width": 10,
+    "height": 40,
+    "offset": [
+      0,
+      -19
+    ]
+  },
+  "TOPMAR33": {
+    "description": "topmark for beacons, cylinder, paper-chart",
+    "width": 8,
+    "height": 33,
+    "offset": [
+      0,
+      -14.5
+    ]
+  },
+  "TOPMAR34": {
+    "description": "topmark for beacons, board, paper-chart",
+    "width": 11,
+    "height": 29,
+    "offset": [
+      -0.5,
+      -13.5
+    ]
+  },
+  "TOPMAR36": {
+    "description": "topmark for beacons, cube point up, paper-chart",
+    "width": 12,
+    "height": 32,
+    "offset": [
+      0,
+      -15
+    ]
+  },
+  "TOPMAR65": {
+    "description": "topmark for buoys, x-shape, paper-chart",
+    "width": 13,
+    "height": 30,
+    "offset": [
+      4.5,
+      -13
+    ]
+  },
+  "TOPMAR85": {
+    "description": "topmark for beacons, x-shape, paper-chart",
+    "width": 11,
+    "height": 31,
+    "offset": [
+      0.5,
+      -14.5
+    ]
+  },
+  "TOPMAR86": {
+    "description": "topmark for beacons, upright cross, paper-chart",
+    "width": 18,
+    "height": 39,
+    "offset": [
+      0,
+      -18.5
+    ]
+  },
+  "TOPMAR87": {
+    "description": "topmark for beacons, besom point down, paper-chart",
+    "width": 11,
+    "height": 32,
+    "offset": [
+      0.5,
+      -16
+    ]
+  },
+  "TOPMAR88": {
+    "description": "topmark for beacons, besom point up, paper-chart",
+    "width": 11,
+    "height": 32,
+    "offset": [
+      -0.5,
+      -15
+    ]
+  },
+  "TOPMAR89": {
+    "description": "topmark for beacons, T-shape, paper-chart",
+    "width": 18,
+    "height": 35,
+    "offset": [
+      0,
+      -16.5
+    ]
+  },
+  "TOWERS01": {
+    "description": "tower",
+    "width": 14,
+    "height": 25,
+    "offset": [
+      0,
+      -9.5
+    ]
+  },
+  "TOWERS02": {
+    "description": "water tower",
+    "width": 13,
+    "height": 22,
+    "offset": [
+      0.5,
+      -9
+    ]
+  },
+  "TOWERS03": {
+    "description": "conspicuous tower",
+    "width": 14,
+    "height": 25,
+    "offset": [
+      0,
+      -9.5
+    ]
+  },
+  "TOWERS05": {
+    "description": "radio, television tower",
+    "width": 13,
+    "height": 30,
+    "offset": [
+      0.5,
+      -12
+    ]
+  },
+  "TOWERS12": {
+    "description": "conspicuous water tower",
+    "width": 13,
+    "height": 22,
+    "offset": [
+      0.5,
+      -9
+    ]
+  },
+  "TOWERS15": {
+    "description": "conspicuous radio, television tower",
+    "width": 13,
+    "height": 30,
+    "offset": [
+      0.5,
+      -12
+    ]
+  },
+  "TREPNT04": {
+    "description": "general symbol for a tree",
+    "width": 15,
+    "height": 16,
+    "offset": [
+      0.5,
+      -8
+    ]
+  },
+  "TREPNT05": {
+    "description": "mangrove",
+    "width": 16,
+    "height": 13,
+    "offset": [
+      0,
+      -5.5
+    ]
+  },
+  "TSLDEF51": {
+    "description": "one way lane of a traffic separation scheme, with the direction not defined in the data",
+    "width": 47,
+    "height": 52,
+    "offset": [
+      0.5,
+      -3
+    ]
+  },
+  "TSSCRS51": {
+    "description": "traffic crossing area",
+    "width": 72,
+    "height": 64,
+    "offset": [
+      -34,
+      30
+    ]
+  },
+  "TSSLPT51": {
+    "description": "traffic direction in a one way lane of a traffic separation scheme",
+    "width": 24,
+    "height": 52,
+    "offset": [
+      0,
+      -3
+    ]
+  },
+  "TSSRON51": {
+    "description": "traffic roundabout",
+    "width": 36,
+    "height": 37,
+    "offset": [
+      0,
+      0.5
+    ]
+  },
+  "TWRDEF51": {
+    "description": "two way route of a traffic separation scheme, with the direction not defined in the data",
+    "width": 55,
+    "height": 57,
+    "offset": [
+      -0.5,
+      0.5
+    ]
+  },
+  "TWRTPT52": {
+    "description": "reciprocal traffic directions in a two-way route of a traffic separation scheme",
+    "width": 27,
+    "height": 57,
+    "offset": [
+      -0.5,
+      0.5
+    ]
+  },
+  "TWRTPT53": {
+    "description": "single traffic direction in a two-way route part of a traffic separation scheme",
+    "width": 26,
+    "height": 56,
+    "offset": [
+      0,
+      0
+    ]
+  },
+  "UWTROC03": {
+    "description": "dangerous underwater rock of uncertain depth",
+    "width": 16,
+    "height": 16,
+    "offset": [
+      0,
+      0
+    ]
+  },
+  "UWTROC04": {
+    "description": "rock which covers and uncovers or is awash at low water",
+    "width": 16,
+    "height": 13,
+    "offset": [
+      0,
+      -0.5
+    ]
+  },
+  "WATTUR02": {
+    "description": "overfalls, eddies and breakers",
+    "width": 59,
+    "height": 13,
+    "offset": [
+      -3.5,
+      0.5
+    ]
+  },
+  "WEDKLP03": {
+    "description": "weed, kelp",
+    "width": 39,
+    "height": 11,
+    "offset": [
+      -0.5,
+      0.5
+    ]
+  },
+  "WIMCON01": {
+    "description": "windmotor",
+    "width": 15,
+    "height": 26,
+    "offset": [
+      1.5,
+      -11
+    ]
+  },
+  "WIMCON11": {
+    "description": "conspicuous windmotor",
+    "width": 15,
+    "height": 26,
+    "offset": [
+      1.5,
+      -11
+    ]
+  },
+  "WNDFRM51": {
+    "description": "wind generator farm",
+    "width": 31,
+    "height": 31,
+    "offset": [
+      0.5,
+      0.5
+    ]
+  },
+  "WNDFRM61": {
+    "description": "conspicuous wind generator farm",
+    "width": 32,
+    "height": 32,
+    "offset": [
+      0,
+      0
+    ]
+  },
+  "WNDMIL02": {
+    "description": "windmill",
+    "width": 13,
+    "height": 17,
+    "offset": [
+      0.5,
+      -3.5
+    ]
+  },
+  "WNDMIL12": {
+    "description": "conspicuous windmill",
+    "width": 14,
+    "height": 18,
+    "offset": [
+      0,
+      -4
+    ]
+  },
+  "WRECKS01": {
+    "description": "wreck showing any portion of hull or superstructure at level of chart datum",
+    "width": 28,
+    "height": 17,
+    "offset": [
+      -1,
+      -4.5
+    ]
+  },
+  "WRECKS04": {
+    "description": "non-dangerous wreck, depth unknown",
+    "width": 20,
+    "height": 13,
+    "offset": [
+      0,
+      0.5
+    ]
+  },
+  "WRECKS05": {
+    "description": "dangerous wreck, depth unknown",
+    "width": 24,
+    "height": 17,
+    "offset": [
+      0,
+      -0.5
+    ]
+  },
+  "CHRVDEL1": {
+    "description": "This object has been deleted by an automatic update",
+    "width": 38,
+    "height": 38,
+    "offset": [
+      0,
+      0
+    ]
+  },
+  "CHRVID01": {
+    "description": "This object has been inserted or modified by an automatic update",
+    "width": 19,
+    "height": 41,
+    "offset": [
+      0.5,
+      16.5
+    ]
+  },
+  "CHDATD01": {
+    "description": "This object is a date dependent object",
+    "width": 66,
+    "height": 65,
+    "offset": [
+      -27,
+      25.5
+    ]
+  },
+  "INDHLT01": {
+    "description": "indication highlight for mariner's use",
+    "width": 49,
+    "height": 49,
+    "offset": [
+      -0.5,
+      -0.5
+    ]
+  }
+}

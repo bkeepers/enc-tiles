@@ -1,11 +1,9 @@
 import { describe, expect, test } from 'vitest';
-import { build, filter } from '../../src/symbolology';
-import theme from '../../src/themes/index.js';
-import { LayerConfig } from '../../dist/symbolology';
+import { build, filter, LayerConfig } from '../../src/symbolology';
 
 const config: LayerConfig = {
-  colors: theme.DAY!,
   source: "enc",
+  mode: "DAY",
   shallowDepth: 3.0, // meters (9.8 feet)
   safetyDepth: 6.0, // meters (19.6 feet)
   deepDepth: 9.0, // meters (29.5 feet)
