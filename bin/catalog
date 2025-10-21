@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# Create a catalog.json file from all generated tilejson files
+# Usage: bin/catalog path/to/tilejson/*.json
+
+jq -s '[.[] | del(.vector_layers)]' $@
