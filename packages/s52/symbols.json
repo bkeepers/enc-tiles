@@ -1871,6 +1871,15 @@
       -10
     ]
   },
+  "NEWOBJ01": {
+    "description": "new object",
+    "width": 24,
+    "height": 24,
+    "offset": [
+      0,
+      0
+    ]
+  },
   "NORTHAR1": {
     "description": "north arrow",
     "width": 16,
@@ -2940,6 +2949,15 @@
     "offset": [
       0,
       0
+    ]
+  },
+  "SISTAT02": {
+    "description": "signal station",
+    "width": 25,
+    "height": 17,
+    "offset": [
+      10.5,
+      6.5
     ]
   },
   "SMCFAC02": {
