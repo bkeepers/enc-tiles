@@ -1,0 +1,55 @@
+---
+title: Colours
+description: TODO
+---
+import { colours } from "@enc-tiles/s52";
+import { Tabs, TabItem } from "@astrojs/starlight/components";
+import { Code } from '@astrojs/starlight/components';
+
+The S-52 Prsentation Library defines a set of standard colours to be used in nautical charts. These colours are available in three modes tailored for different lighting conditions.
+
+<Tabs>
+  {
+    Object.entries(colours).map(([mode, colours]) => (
+      <TabItem
+        icon={{ DAY: "sun", DUSK: "starlight", NIGHT: "moon" }[mode] ?? ""}
+        label={mode}
+      >
+        <div class="not-content">
+          <div class="grid grid-cols-[repeat(auto-fill,minmax(6rem,1fr))] gap-4">
+            {Object.entries(colours).map(([name, hex]) => (
+              <div id={`${mode}-${name}`} class="flex flex-row gap-2 shrink-0">
+                <div
+                  class="aspect-square w-10 h-10"
+                  style={`background-color: ${hex};`}
+                >
+                </div>
+                <div class="flex flex-col text-sm">
+                  <div>{name}</div>
+                  <div>{hex}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </TabItem>
+    ))
+  }
+</Tabs>
+
+
+## Usage
+
+<Tabs>
+  <TabItem icon="json" label="JSON">
+    <Code code={JSON.stringify(colours, null, 2)} lang="json" title="colours.json" />
+  </TabItem>
+  <TabItem icon="javascript" label="JavaScript">
+```sh
+$ npm install @enc-tiles/s52
+```
+```js
+import { colours } from '@enc-tiles/s52';
+```
+  </TabItem>
+</Tabs>

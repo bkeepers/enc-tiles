@@ -1,0 +1,47 @@
+---
+title: Symbols
+description: TODO
+---
+import { symbols } from "@enc-tiles/s52";
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+
+
+S-52’s Presentation Library specifies point, line, and area symbols using a compact dialect of HPGL (Hewlett–Packard Graphics Language): pen moves, strokes, arcs, fills, and line styles that ECDIS renderers interpret at runtime.
+
+For this site, the rendered symbols are sourced from the IHO S-101 Portrayal Catalogue rather than executing HPGL instructions. The catalogue provides modern assets (including day/dusk/night variants) and metadata that we map to the expected symbol identifiers. See the [S-101 Portrayal Catalogue](https://github.com/iho-ohi/S-101_Portrayal-Catalogue.git).
+
+<link rel="stylesheet" href="/sprites/style.css" />
+<Tabs>
+  {["DAY", "DUSK", "NIGHT"].map((mode) => (
+    <TabItem tabId={mode} label={mode} icon={{ DAY: "sun", DUSK: "starlight", NIGHT: "moon" }[mode] ?? ""}>
+      <div class="not-content flex flex-col gap-3">
+        {Object.entries(symbols).map(([name, {description}]) => (
+          <div id={`${mode}-${name}`} class="flex flex-row">
+            <div class="w-30 flex justify-center items-center">
+              <div class={`symbol ${mode.toLowerCase()} ${name}`}></div>
+            </div>
+            <div class="flex flex-col">
+              <h6 class="mb-0">{name}</h6>
+              <small>{description}</small>
+            </div>
+          </div>
+        ))}
+      </div>
+    </TabItem>
+  ))}
+</Tabs>
+
+## Usage
+
+/symbols/[mode]/[name].svg
+
+### MapLibre Style
+
+
+```json
+{
+  "version": 8,
+  " sprite": "https://enctiles.org/sprites/s52",
+  ""
+}
+```

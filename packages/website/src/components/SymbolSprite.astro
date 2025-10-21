@@ -1,0 +1,47 @@
+---
+import day from "@enc-tiles/s52/sprites/day.json";
+import dusk from "@enc-tiles/s52/sprites/dusk.json";
+import night from "@enc-tiles/s52/sprites/night.json";
+import day2x from "@enc-tiles/s52/sprites/day@2x.json";
+import dusk2x from "@enc-tiles/s52/sprites/dusk@2x.json";
+import night2x from "@enc-tiles/s52/sprites/night@2x.json";
+
+const width = Math.max(
+  ...Object.values(day2x).map(({ width, x }) => width + x)
+);
+const height = Math.max(
+  ...Object.values(day2x).map(({ height, y }) => height + y)
+);
+---
+
+<style
+  is:global
+  define:vars="{ width: `${width/2}px`, height: `${height/2}px` }"
+>
+  .symbol,
+  .symbol.day {
+    background-repeat: no-repeat;
+    background-position: top left;
+    background-image: url("/sprites/day.png");
+    display: inline-block;
+  }
+  .symbol.dusk {
+    background-image: url("/sprites/dusk.png");
+  }
+  .symbol.night {
+    background-image: url("/sprites/night.png");
+  }
+  @media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+    .symbol,
+    .symbol.day {
+      background-image: url("/sprites/day@2x.png");
+      background-size: var(--width) var(--height);
+    }
+    .symbol.dusk {
+      background-image: url("/sprites/dusk@2x.png");
+    }
+    .symbol.night {
+      background-image: url("/sprites/night@2x.png");
+    }
+  }
+</style>

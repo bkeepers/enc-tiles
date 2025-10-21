@@ -1,0 +1,96 @@
+---
+
+---
+
+<div id="map-symbols" style="aspect-ratio: 16 / 9;"></div>
+
+<script>
+  import { Map, type StyleSpecification } from "maplibre-gl";
+  import { symbols, colours } from "@enc-tiles/s52";
+
+  const theme = colours.DAY;
+
+  const gridSize = Math.floor(Math.sqrt(Object.keys(symbols).length));
+
+  const style: StyleSpecification = {
+    version: 8,
+    sources: {
+      "symbol-source": {
+        type: "geojson",
+        data: {
+          type: "FeatureCollection",
+          features: Object.entries(symbols).map(([name, data], i) => {
+            const x = (i % gridSize) * 0.2;
+            const y = -Math.floor(i / gridSize) * 0.2;
+            return {
+              type: "Feature",
+              id: name,
+              geometry: {
+                type: "Point",
+                coordinates: [x, y],
+              },
+              properties: {
+                name,
+                ...data,
+              },
+            };
+          }),
+        },
+      },
+    },
+    layers: [
+      {
+        id: "background",
+        type: "background",
+        paint: {
+          "background-color": theme.NODTA,
+        },
+      },
+      {
+        id: "symbols",
+        type: "symbol",
+        source: "symbol-source",
+        layout: {
+          "icon-allow-overlap": true,
+          "icon-image": ["get", "name"],
+          "icon-offset": ["get", "offset"],
+          "icon-size": ["interpolate", ["linear"], ["zoom"], 0, 0, 15, 2],
+        },
+      },
+      {
+        id: "symbol-label",
+        type: "symbol",
+        source: "symbol-source",
+        minzoom: 14,
+        layout: {
+          "text-field": ["get", "name"],
+          "text-size": 10,
+          "text-font": ["Metropolis Regular"],
+          "text-justify": "center",
+          "text-offset": [0, 4],
+        },
+      },
+      {
+        id: "pivot-point",
+        type: "circle",
+        source: "symbol-source",
+        layout: {},
+        paint: {
+          "circle-radius": 2,
+          "circle-color": "red",
+        },
+      },
+    ],
+    glyphs: "http://fonts.openmaptiles.org/{fontstack}/{range}.pbf",
+    sprite: new URL("/sprites/day", window.location.origin).href,
+  };
+
+  console.log("STYLE", style);
+
+  const map = new Map({
+    container: "map-symbols",
+    center: [0, 0],
+    style,
+    zoom: 14,
+  });
+</script>

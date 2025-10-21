@@ -1,0 +1,89 @@
+---
+import "maplibre-gl/dist/maplibre-gl.css";
+
+const { url } = Astro.props;
+const PUBLIC_TILES_URL = import.meta.env.PUBLIC_TILES_URL ?? "/";
+---
+
+<div class="no-content" data-pmtiles-url={url} style="height: 500px"></div>
+
+<script>
+  const PUBLIC_TILES_URL = import.meta.env.PUBLIC_TILES_URL ?? "/tiles/";
+
+  import {
+    addProtocol,
+    Map,
+    NavigationControl,
+    FullscreenControl,
+  } from "maplibre-gl";
+  import { Protocol, PMTiles } from "pmtiles";
+  import createStyle from "@enc-tiles/styles";
+
+  // add the PMTiles plugin to the maplibre-gl global.
+  const protocol = new Protocol();
+  addProtocol("pmtiles", protocol.tile);
+
+  document.querySelectorAll("[data-pmtiles-url]").forEach(async (el) => {
+    const url = new URL(
+      el.getAttribute("data-pmtiles-url")!,
+      PUBLIC_TILES_URL
+    ).toString();
+
+    const pmtiles = new PMTiles(url);
+    protocol.add(pmtiles);
+
+    // Fetch the header so we can get the center lon, lat of the map.
+    const header = await pmtiles.getHeader();
+
+    const style = createStyle({
+      sprite: `${window.location.origin}/sprites`,
+      source: {
+        type: "vector",
+        url: `pmtiles://${url}`,
+      },
+    });
+
+    const map = new Map({
+      container: el,
+      hash: true, // Enable hash routing
+      zoom: header.maxZoom,
+      center: [header.centerLon, header.centerLat],
+      style,
+    });
+
+    map.addControl(
+      new NavigationControl({ showZoom: true, showCompass: false })
+    );
+    map.addControl(new FullscreenControl());
+
+    //   // map.on('click', (e) => {
+    //   //   const features = map.queryRenderedFeatures(e.point);
+
+    //   //   // Limit the number of properties we're displaying for
+    //   //   // legibility and performance
+    //   //   const displayProperties = [
+    //   //     'type',
+    //   //     'properties',
+    //   //     'id',
+    //   //     'layer',
+    //   //     'source',
+    //   //     'sourceLayer',
+    //   //     'state'
+    //   //   ];
+
+    //   //   const displayFeatures = features.map((feat) => {
+    //   //     const displayFeat = {};
+    //   //     displayProperties.forEach((prop) => {
+    //   //       displayFeat[prop] = feat[prop];
+    //   //     });
+    //   //     return displayFeat;
+    //   //   });
+
+    //   //   document.getElementById('info').innerHTML = JSON.stringify(
+    //   //     displayFeatures,
+    //   //     null,
+    //   //     2
+    //   //   );
+    //   // });
+  });
+</script>

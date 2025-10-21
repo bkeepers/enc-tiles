@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+
+set -ex
+
+# cd "$(dirname "$0")"
+
+dest=public/tiles
+
+mkdir -p $dest
+
+for in in ../s52/data/ECDIS_Chart_1/ENC_ROOT/*.000; do
+  echo "Processing $in"
+  filename=$(basename $in)
+  out="$dest/${filename%.000}.pmtiles"
+
+  echo "Generating $out"
+  ogr2ogr -f PMtiles -splitlistfields $out $in
+
+  pmtiles show --tilejson $out > "${out%.pmtiles}.json"
+done
+
+tile-join --force -o $dest/chart1.pmtiles $dest/AA*.pmtiles
+pmtiles show --tilejson $dest/chart1.pmtiles > $dest/chart1.json
