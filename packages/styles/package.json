@@ -20,7 +20,7 @@
     "type": "git",
     "url": "git+https://github.com/bkeepers/s52.git"
   },
-  "license": "ISC",
+  "license": "Apache-2.0",
   "author": "Brandon Keepers",
   "type": "module",
   "main": "dist/index.js",

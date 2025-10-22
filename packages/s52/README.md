@@ -42,3 +42,5 @@ The package exports the S-52 Presentation Library in two different formats:
 This repository contains a download of the [S-52_PresLib_e4.0.0_Digital_Files_Draft.zip](https://legacy.iho.int/iho_pubs/draft_pubs/PresLib_e4.0.0/Digital_Files/S-52_PresLib_e4.0.0_Digital_Files_Draft.zip) from the [legacy IHO website](https://legacy.iho.int/iho_pubs/draft_pubs/S-52_e6.1.0/S-52_e6.1.0_and_PresLib_e4.0.0.htm).
 
 These files are likely subject to copyright and/or licensing by the IHO, although there is no such restriction listed on the website or in the download.
+
+All other files in the project are licensed under the [Apache License 2.0](../../LICENSE).
