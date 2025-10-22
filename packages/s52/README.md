@@ -17,22 +17,25 @@ pnpm add @enc-tiles/s52
 The package exports the S-52 Presentation Library in two different formats:
 
 1. A JavaScript ESM module that can be bundled into any application:
-      ```js
-      import s52 from "@enc-tiles/s52";
-      console.dir(s52);
-      ```
+
+   ```js
+   import s52 from "@enc-tiles/s52";
+   console.dir(s52);
+   ```
 
 2. As a JSON file:
 
-      ```js
-      // If your environment supports importing JSON
-      import s52 from "@enc-tiles/s52/data.json" with { type: "json" };
+   ```js
+   // If your environment supports importing JSON
+   import s52 from "@enc-tiles/s52/data.json" with { type: "json" };
 
-      // Or in Node.js, you can read the file directly
-      import { readFileSync } from "node:fs";
-      const s52 = JSON.parse(readFileSync("node_modules/@enc-tiles/s52/data.json", "utf8"))
-      console.dir(s52);
-      ```
+   // Or in Node.js, you can read the file directly
+   import { readFileSync } from "node:fs";
+   const s52 = JSON.parse(
+     readFileSync("node_modules/@enc-tiles/s52/data.json", "utf8"),
+   );
+   console.dir(s52);
+   ```
 
 ## License
 

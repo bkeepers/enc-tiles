@@ -23307,9 +23307,7 @@
         "pbxc": 435,
         "pbxr": 452
       },
-      "pxpo": [
-        "pattern of symbols for an airport area"
-      ],
+      "pxpo": ["pattern of symbols for an airport area"],
       "pcrf": {
         "A": "LANDF"
       },
@@ -23334,15 +23332,11 @@
         "pbxc": 1125,
         "pbxr": 93
       },
-      "pxpo": [
-        "area of depth less than the safety contour"
-      ],
+      "pxpo": ["area of depth less than the safety contour"],
       "pcrf": {
         "\\": "DEPCN"
       },
-      "pvct": [
-        "SP\\;SW1;PU1125,93;PD3375,4406;PU1125,4406;PD3375,93;"
-      ]
+      "pvct": ["SP\\;SW1;PU1125,93;PD3375,4406;PU1125,4406;PD3375,93;"]
     },
     {
       "rcid": 1400,
@@ -23487,9 +23481,7 @@
         "pbxc": 1591,
         "pbxr": 837
       },
-      "pxpo": [
-        "pattern of symbols for a low accuracy or incomplete chart"
-      ],
+      "pxpo": ["pattern of symbols for a low accuracy or incomplete chart"],
       "pcrf": {
         "A": "CHGRD"
       },
@@ -23524,9 +23516,7 @@
         "pbxc": 1466,
         "pbxr": 843
       },
-      "pxpo": [
-        "pattern of symbols for an unreliable chart"
-      ],
+      "pxpo": ["pattern of symbols for an unreliable chart"],
       "pcrf": {
         "A": "CHGRD"
       },
@@ -23558,9 +23548,7 @@
         "pbxc": 2124,
         "pbxr": 841
       },
-      "pxpo": [
-        "pattern of symbols for a chart with quality not assessed"
-      ],
+      "pxpo": ["pattern of symbols for a chart with quality not assessed"],
       "pcrf": {
         "A": "CHGRD"
       },
@@ -23587,15 +23575,11 @@
         "pbxc": 1500,
         "pbxr": 1300
       },
-      "pxpo": [
-        "dredged area"
-      ],
+      "pxpo": ["dredged area"],
       "pcrf": {
         "D": "CHGRD"
       },
-      "pvct": [
-        "SPD;SW1;PU1500,1300;PD;PU1700,1500;PD;"
-      ]
+      "pvct": ["SPD;SW1;PU1500,1300;PD;PU1700,1500;PD;"]
     },
     {
       "rcid": 1407,
@@ -23614,9 +23598,7 @@
         "pbxc": 1020,
         "pbxr": 850
       },
-      "pxpo": [
-        "foul area, not safe for navigation"
-      ],
+      "pxpo": ["foul area, not safe for navigation"],
       "pcrf": {
         "A": "CHGRD"
       },
@@ -23644,9 +23626,7 @@
         "pbxc": 3135,
         "pbxr": 2173
       },
-      "pxpo": [
-        "pattern of symbols for an area with fishing stakes"
-      ],
+      "pxpo": ["pattern of symbols for an area with fishing stakes"],
       "pcrf": {
         "A": "CHGRD"
       },
@@ -23702,9 +23682,7 @@
         "pbxc": 710,
         "pbxr": 1335
       },
-      "pxpo": [
-        "pattern of symbols for a fish haven"
-      ],
+      "pxpo": ["pattern of symbols for a fish haven"],
       "pcrf": {
         "E": "CHGRD"
       },
@@ -23731,9 +23709,7 @@
         "pbxc": 2381,
         "pbxr": 815
       },
-      "pxpo": [
-        "continuous pattern for an ice area (glacier, etc.)"
-      ],
+      "pxpo": ["continuous pattern for an ice area (glacier, etc.)"],
       "pcrf": {
         "E": "CHGRD"
       },
@@ -23759,9 +23735,7 @@
         "pbxc": 416,
         "pbxr": 568
       },
-      "pxpo": [
-        "pattern of symbols for a marine farm"
-      ],
+      "pxpo": ["pattern of symbols for a marine farm"],
       "pcrf": {
         "A": "CHGRD"
       },
@@ -23794,9 +23768,7 @@
         "pbxc": 550,
         "pbxr": 499
       },
-      "pxpo": [
-        "pattern of symbols for a marsh"
-      ],
+      "pxpo": ["pattern of symbols for a marsh"],
       "pcrf": {
         "A": "CHBRN"
       },
@@ -23825,15 +23797,11 @@
         "pbxc": 2342,
         "pbxr": 645
       },
-      "pxpo": [
-        "area of no chart data"
-      ],
+      "pxpo": ["area of no chart data"],
       "pcrf": {
         "A": "CHGRD"
       },
-      "pvct": [
-        "SPA;SW2;PU2342,1041;PD2542,1040;"
-      ]
+      "pvct": ["SPA;SW2;PU2342,1041;PD2542,1040;"]
     },
     {
       "rcid": 1415,
@@ -23858,9 +23826,7 @@
       "pcrf": {
         "A": "CHGRD"
       },
-      "pvct": [
-        "SPA;SW1;PU3443,827;PD3443,1227;"
-      ]
+      "pvct": ["SPA;SW1;PU3443,827;PD3443,1227;"]
     },
     {
       "rcid": 1416,
@@ -23879,15 +23845,11 @@
         "pbxc": 2448,
         "pbxr": 741
       },
-      "pxpo": [
-        "incompletely surveyed area"
-      ],
+      "pxpo": ["incompletely surveyed area"],
       "pcrf": {
         "A": "CHGRD"
       },
-      "pvct": [
-        "SPA;SW2;PU2448,741;PD2650,741;"
-      ]
+      "pvct": ["SPA;SW2;PU2448,741;PD2650,741;"]
     },
     {
       "rcid": 1417,
@@ -23934,9 +23896,7 @@
         "pbxc": 2325,
         "pbxr": 814
       },
-      "pxpo": [
-        "rock or coral drying ledges"
-      ],
+      "pxpo": ["rock or coral drying ledges"],
       "pcrf": {
         "A": "LANDF"
       },
@@ -23974,9 +23934,7 @@
         "pbxc": 37,
         "pbxr": 316
       },
-      "pxpo": [
-        "pattern of symbols for sand waves"
-      ],
+      "pxpo": ["pattern of symbols for sand waves"],
       "pcrf": {
         "A": "CHGRD"
       },
@@ -24007,9 +23965,7 @@
       "pcrf": {
         "U": "TRFCF"
       },
-      "pvct": [
-        "SPU;SW1;PU750,750;PD1250,250;"
-      ]
+      "pvct": ["SPU;SW1;PU750,750;PD1250,250;"]
     },
     {
       "rcid": 1421,
@@ -24028,9 +23984,7 @@
         "pbxc": 574,
         "pbxr": 348
       },
-      "pxpo": [
-        "pattern of symbols for wooded areas"
-      ],
+      "pxpo": ["pattern of symbols for wooded areas"],
       "pcrf": {
         "A": "LANDF"
       },
@@ -24061,9 +24015,7 @@
         "pbxc": 550,
         "pbxr": 450
       },
-      "pxpo": [
-        "pattern of symbols for mangroves"
-      ],
+      "pxpo": ["pattern of symbols for mangroves"],
       "pcrf": {
         "A": "LANDF"
       },
@@ -24113,9 +24065,7 @@
         "sbxc": 1621,
         "sbxr": 1471
       },
-      "sxpo": [
-        "anchorage area"
-      ],
+      "sxpo": ["anchorage area"],
       "scrf": {
         "J": "CHMGF"
       },
@@ -24138,9 +24088,7 @@
         "sbxc": 1010,
         "sbxr": 783
       },
-      "sxpo": [
-        "designated anchor berth for a single vessel"
-      ],
+      "sxpo": ["designated anchor berth for a single vessel"],
       "scrf": {
         "A": "CHMGD"
       },
@@ -24165,9 +24113,7 @@
         "sbxc": 1621,
         "sbxr": 1471
       },
-      "sxpo": [
-        "area where anchoring is prohibited or restricted"
-      ],
+      "sxpo": ["area where anchoring is prohibited or restricted"],
       "scrf": {
         "A": "CHMGF"
       },
@@ -24244,9 +24190,7 @@
         "sbxc": 351,
         "sbxr": 352
       },
-      "sxpo": [
-        "symbol for airport as a point"
-      ],
+      "sxpo": ["symbol for airport as a point"],
       "scrf": {
         "A": "LANDF"
       },
@@ -24268,9 +24212,7 @@
         "sbxc": 550,
         "sbxr": 445
       },
-      "sxpo": [
-        "cardinal beacon, north, simplified"
-      ],
+      "sxpo": ["cardinal beacon, north, simplified"],
       "scrf": {
         "m": "OUTLW",
         "H": "CHYLW"
@@ -24293,9 +24235,7 @@
         "sbxc": 550,
         "sbxr": 420
       },
-      "sxpo": [
-        "cardinal beacon, east, simplified"
-      ],
+      "sxpo": ["cardinal beacon, east, simplified"],
       "scrf": {
         "m": "OUTLW",
         "H": "CHYLW"
@@ -24318,9 +24258,7 @@
         "sbxc": 550,
         "sbxr": 445
       },
-      "sxpo": [
-        "cardinal beacon, south, simplified"
-      ],
+      "sxpo": ["cardinal beacon, south, simplified"],
       "scrf": {
         "m": "OUTLW",
         "H": "CHYLW"
@@ -24343,9 +24281,7 @@
         "sbxc": 550,
         "sbxr": 445
       },
-      "sxpo": [
-        "cardinal beacon, west, simplified"
-      ],
+      "sxpo": ["cardinal beacon, west, simplified"],
       "scrf": {
         "m": "OUTLW",
         "H": "CHYLW"
@@ -24368,9 +24304,7 @@
         "sbxc": 1135,
         "sbxr": 1234
       },
-      "sxpo": [
-        "default symbol for a beacon, simplified"
-      ],
+      "sxpo": ["default symbol for a beacon, simplified"],
       "scrf": {
         "A": "CHMGD",
         "C": "CHGRD",
@@ -24397,9 +24331,7 @@
         "sbxc": 600,
         "sbxr": 300
       },
-      "sxpo": [
-        "beacon in general, paper-chart"
-      ],
+      "sxpo": ["beacon in general, paper-chart"],
       "scrf": {
         "C": "CHBLK"
       },
@@ -24421,9 +24353,7 @@
         "sbxc": 1081,
         "sbxr": 1188
       },
-      "sxpo": [
-        "default symbol for beacon, paper-chart"
-      ],
+      "sxpo": ["default symbol for beacon, paper-chart"],
       "scrf": {
         "A": "CHMGD",
         "C": "CHBLK"
@@ -24449,9 +24379,7 @@
         "sbxc": 1381,
         "sbxr": 354
       },
-      "sxpo": [
-        "isolated danger beacon, simplified"
-      ],
+      "sxpo": ["isolated danger beacon, simplified"],
       "scrf": {
         "A": "OUTLW",
         "C": "CHRED"
@@ -24476,9 +24404,7 @@
         "sbxc": 500,
         "sbxr": 650
       },
-      "sxpo": [
-        "major lateral beacon, red, simplified"
-      ],
+      "sxpo": ["major lateral beacon, red, simplified"],
       "scrf": {
         "F": "CHRED",
         "m": "OUTLW"
@@ -24502,9 +24428,7 @@
         "sbxc": 650,
         "sbxr": 550
       },
-      "sxpo": [
-        "major lateral beacon, green, simplified"
-      ],
+      "sxpo": ["major lateral beacon, green, simplified"],
       "scrf": {
         "G": "CHGRN",
         "m": "OUTLW"
@@ -24528,9 +24452,7 @@
         "sbxc": 347,
         "sbxr": 505
       },
-      "sxpo": [
-        "minor lateral beacon, red, simplified"
-      ],
+      "sxpo": ["minor lateral beacon, red, simplified"],
       "scrf": {
         "a": "OUTLW",
         "b": "CHRED"
@@ -24554,9 +24476,7 @@
         "sbxc": 347,
         "sbxr": 505
       },
-      "sxpo": [
-        "minor lateral beacon, green, simplified"
-      ],
+      "sxpo": ["minor lateral beacon, green, simplified"],
       "scrf": {
         "a": "OUTLW",
         "b": "CHGRN"
@@ -24580,9 +24500,7 @@
         "sbxc": 500,
         "sbxr": 300
       },
-      "sxpo": [
-        "lattice beacon, paper-chart"
-      ],
+      "sxpo": ["lattice beacon, paper-chart"],
       "scrf": {
         "C": "CHBLK"
       },
@@ -24604,9 +24522,7 @@
         "sbxc": 650,
         "sbxr": 550
       },
-      "sxpo": [
-        "major safe water beacon, simplified"
-      ],
+      "sxpo": ["major safe water beacon, simplified"],
       "scrf": {
         "C": "CHBLK",
         "m": "OUTLW",
@@ -24631,9 +24547,7 @@
         "sbxc": 347,
         "sbxr": 505
       },
-      "sxpo": [
-        "minor safe water beacon, simplified"
-      ],
+      "sxpo": ["minor safe water beacon, simplified"],
       "scrf": {
         "a": "OUTLW",
         "b": "CHBLK",
@@ -24658,9 +24572,7 @@
         "sbxc": 650,
         "sbxr": 550
       },
-      "sxpo": [
-        "major special purpose beacon, simplified"
-      ],
+      "sxpo": ["major special purpose beacon, simplified"],
       "scrf": {
         "H": "CHYLW",
         "m": "OUTLW"
@@ -24684,9 +24596,7 @@
         "sbxc": 347,
         "sbxr": 505
       },
-      "sxpo": [
-        "minor special purpose beacon, simplified"
-      ],
+      "sxpo": ["minor special purpose beacon, simplified"],
       "scrf": {
         "a": "OUTLW",
         "b": "CHYLW"
@@ -24710,16 +24620,11 @@
         "sbxc": 625,
         "sbxr": 299
       },
-      "sxpo": [
-        "minor, stake or pole beacon, paper-chart"
-      ],
+      "sxpo": ["minor, stake or pole beacon, paper-chart"],
       "scrf": {
         "A": "CHBLK"
       },
-      "svct": [
-        "SPA;SW2;PU625,750;PD875,750;",
-        "SPA;SW2;PU754,299;PD755,749;"
-      ]
+      "svct": ["SPA;SW2;PU625,750;PD875,750;", "SPA;SW2;PU754,299;PD755,749;"]
     },
     {
       "rcid": 1460,
@@ -24734,9 +24639,7 @@
         "sbxc": 500,
         "sbxr": 300
       },
-      "sxpo": [
-        "beacon tower, paper-chart"
-      ],
+      "sxpo": ["beacon tower, paper-chart"],
       "scrf": {
         "C": "CHBLK"
       },
@@ -24782,9 +24685,7 @@
         "sbxc": 1145,
         "sbxr": 1110
       },
-      "sxpo": [
-        "barrel buoy, paper-chart"
-      ],
+      "sxpo": ["barrel buoy, paper-chart"],
       "scrf": {
         "C": "CHBLK"
       },
@@ -24808,9 +24709,7 @@
         "sbxc": 462,
         "sbxr": 415
       },
-      "sxpo": [
-        "can buoy, paper-chart"
-      ],
+      "sxpo": ["can buoy, paper-chart"],
       "scrf": {
         "C": "CHBLK"
       },
@@ -24831,9 +24730,7 @@
         "sbxc": 484,
         "sbxr": 437
       },
-      "sxpo": [
-        "cardinal buoy, north, simplified"
-      ],
+      "sxpo": ["cardinal buoy, north, simplified"],
       "scrf": {
         "H": "CHYLW",
         "m": "OUTLW"
@@ -24856,9 +24753,7 @@
         "sbxc": 585,
         "sbxr": 420
       },
-      "sxpo": [
-        "cardinal buoy, east, simplified"
-      ],
+      "sxpo": ["cardinal buoy, east, simplified"],
       "scrf": {
         "m": "OUTLW",
         "H": "CHYLW"
@@ -24881,9 +24776,7 @@
         "sbxc": 595,
         "sbxr": 445
       },
-      "sxpo": [
-        "cardinal buoy, south, simplified"
-      ],
+      "sxpo": ["cardinal buoy, south, simplified"],
       "scrf": {
         "m": "OUTLW",
         "H": "CHYLW"
@@ -24906,9 +24799,7 @@
         "sbxc": 445,
         "sbxr": 445
       },
-      "sxpo": [
-        "cardinal buoy, west, simplified"
-      ],
+      "sxpo": ["cardinal buoy, west, simplified"],
       "scrf": {
         "m": "OUTLW",
         "H": "CHYLW"
@@ -24931,9 +24822,7 @@
         "sbxc": 462,
         "sbxr": 312
       },
-      "sxpo": [
-        "conical buoy, paper-chart"
-      ],
+      "sxpo": ["conical buoy, paper-chart"],
       "scrf": {
         "C": "CHBLK"
       },
@@ -24955,9 +24844,7 @@
         "sbxc": 1033,
         "sbxr": 1203
       },
-      "sxpo": [
-        "default symbol for buoy, simplified"
-      ],
+      "sxpo": ["default symbol for buoy, simplified"],
       "scrf": {
         "A": "CHMGD",
         "C": "CHGRD",
@@ -24984,9 +24871,7 @@
         "sbxc": 970,
         "sbxr": 1263
       },
-      "sxpo": [
-        "default symbol for buoy, paper-chart"
-      ],
+      "sxpo": ["default symbol for buoy, paper-chart"],
       "scrf": {
         "A": "CHMGD",
         "C": "CHBLK"
@@ -25013,9 +24898,7 @@
         "sbxc": 321,
         "sbxr": 316
       },
-      "sxpo": [
-        "installation buoy, paper-chart"
-      ],
+      "sxpo": ["installation buoy, paper-chart"],
       "scrf": {
         "C": "CHBLK"
       },
@@ -25036,9 +24919,7 @@
         "sbxc": 1366,
         "sbxr": 353
       },
-      "sxpo": [
-        "isolated danger buoy, simplified"
-      ],
+      "sxpo": ["isolated danger buoy, simplified"],
       "scrf": {
         "A": "OUTLW",
         "C": "CHRED"
@@ -25063,9 +24944,7 @@
         "sbxc": 724,
         "sbxr": 663
       },
-      "sxpo": [
-        "conical lateral buoy, green, simplified"
-      ],
+      "sxpo": ["conical lateral buoy, green, simplified"],
       "scrf": {
         "A": "CHGRN",
         "B": "OUTLW"
@@ -25089,9 +24968,7 @@
         "sbxc": 724,
         "sbxr": 663
       },
-      "sxpo": [
-        "conical lateral buoy, red, simplified"
-      ],
+      "sxpo": ["conical lateral buoy, red, simplified"],
       "scrf": {
         "A": "CHRED",
         "b": "OUTLW"
@@ -25115,9 +24992,7 @@
         "sbxc": 499,
         "sbxr": 499
       },
-      "sxpo": [
-        "can shape lateral buoy, green, simplified"
-      ],
+      "sxpo": ["can shape lateral buoy, green, simplified"],
       "scrf": {
         "A": "CHGRN",
         "B": "OUTLW"
@@ -25141,9 +25016,7 @@
         "sbxc": 499,
         "sbxr": 499
       },
-      "sxpo": [
-        "can shape lateral buoy, red, simplified"
-      ],
+      "sxpo": ["can shape lateral buoy, red, simplified"],
       "scrf": {
         "A": "CHRED",
         "b": "OUTLW"
@@ -25167,9 +25040,7 @@
         "sbxc": 724,
         "sbxr": 663
       },
-      "sxpo": [
-        "conical lateral buoy, red, simplified"
-      ],
+      "sxpo": ["conical lateral buoy, red, simplified"],
       "scrf": {
         "A": "CHRED",
         "b": "RESBL"
@@ -25193,9 +25064,7 @@
         "sbxc": 405,
         "sbxr": 230
       },
-      "sxpo": [
-        "mooring buoy, barrel shape, paper-chart"
-      ],
+      "sxpo": ["mooring buoy, barrel shape, paper-chart"],
       "scrf": {
         "C": "CHBLK"
       },
@@ -25219,9 +25088,7 @@
         "sbxc": 465,
         "sbxr": 259
       },
-      "sxpo": [
-        "mooring buoy, can shape, paper-chart"
-      ],
+      "sxpo": ["mooring buoy, can shape, paper-chart"],
       "scrf": {
         "C": "CHBLK"
       },
@@ -25243,9 +25110,7 @@
         "sbxc": 368,
         "sbxr": 395
       },
-      "sxpo": [
-        "installation buoy and mooring buoy, simplified"
-      ],
+      "sxpo": ["installation buoy and mooring buoy, simplified"],
       "scrf": {
         "A": "CHBLK"
       },
@@ -25267,9 +25132,7 @@
         "sbxc": 443,
         "sbxr": 318
       },
-      "sxpo": [
-        "pillar buoy, paper-chart"
-      ],
+      "sxpo": ["pillar buoy, paper-chart"],
       "scrf": {
         "C": "CHBLK"
       },
@@ -25291,9 +25154,7 @@
         "sbxc": 547,
         "sbxr": 547
       },
-      "sxpo": [
-        "safe water buoy, simplified"
-      ],
+      "sxpo": ["safe water buoy, simplified"],
       "scrf": {
         "C": "CHRED",
         "m": "OUTLW"
@@ -25316,9 +25177,7 @@
         "sbxc": 456,
         "sbxr": 312
       },
-      "sxpo": [
-        "spherical buoy, paper-chart"
-      ],
+      "sxpo": ["spherical buoy, paper-chart"],
       "scrf": {
         "C": "CHBLK"
       },
@@ -25444,9 +25303,7 @@
         "sbxc": 603,
         "sbxr": 318
       },
-      "sxpo": [
-        "spar buoy, paper-chart"
-      ],
+      "sxpo": ["spar buoy, paper-chart"],
       "scrf": {
         "C": "CHBLK"
       },
@@ -25468,9 +25325,7 @@
         "sbxc": 321,
         "sbxr": 275
       },
-      "sxpo": [
-        "super-buoy, paper-chart"
-      ],
+      "sxpo": ["super-buoy, paper-chart"],
       "scrf": {
         "C": "CHBLK"
       },
@@ -25492,9 +25347,7 @@
         "sbxc": 365,
         "sbxr": 275
       },
-      "sxpo": [
-        "super-buoy ODAS & LANBY, simplified"
-      ],
+      "sxpo": ["super-buoy ODAS & LANBY, simplified"],
       "scrf": {
         "A": "CHBLK"
       },
@@ -25517,9 +25370,7 @@
         "sbxc": 318,
         "sbxr": 178
       },
-      "sxpo": [
-        "LANBY, super-buoy, paper-chart"
-      ],
+      "sxpo": ["LANBY, super-buoy, paper-chart"],
       "scrf": {
         "C": "CHBLK"
       },
@@ -25541,16 +25392,11 @@
         "sbxc": 351,
         "sbxr": 617
       },
-      "sxpo": [
-        "symbol for opening bridge"
-      ],
+      "sxpo": ["symbol for opening bridge"],
       "scrf": {
         "A": "CHMGD"
       },
-      "svct": [
-        "SPA;SW1;PU551,817;CI200;",
-        "SPA;SW1;PU552,813;CI115;"
-      ]
+      "svct": ["SPA;SW1;PU551,817;CI200;", "SPA;SW1;PU552,813;CI115;"]
     },
     {
       "rcid": 1493,
@@ -25565,15 +25411,11 @@
         "sbxc": 400,
         "sbxr": 400
       },
-      "sxpo": [
-        "berth number symbol"
-      ],
+      "sxpo": ["berth number symbol"],
       "scrf": {
         "J": "CHMGD"
       },
-      "svct": [
-        "SPJ;PU750,750;SW1;CI350;"
-      ]
+      "svct": ["SPJ;PU750,750;SW1;CI350;"]
     },
     {
       "rcid": 1494,
@@ -25588,15 +25430,11 @@
         "sbxc": 886,
         "sbxr": 1182
       },
-      "sxpo": [
-        "built-up area"
-      ],
+      "sxpo": ["built-up area"],
       "scrf": {
         "A": "LANDF"
       },
-      "svct": [
-        "SPA;SW1;ST0;PU1145,1441;PM0;CI259;PM2;FP;"
-      ]
+      "svct": ["SPA;SW1;ST0;PU1145,1441;PM0;CI259;PM2;FP;"]
     },
     {
       "rcid": 1495,
@@ -25611,9 +25449,7 @@
         "sbxc": 550,
         "sbxr": 550
       },
-      "sxpo": [
-        "non-conspicuous religious building, Christian"
-      ],
+      "sxpo": ["non-conspicuous religious building, Christian"],
       "scrf": {
         "A": "LANDF"
       },
@@ -25643,9 +25479,7 @@
         "sbxc": 462,
         "sbxr": 603
       },
-      "sxpo": [
-        "non-conspicuous religious building, non-Christian"
-      ],
+      "sxpo": ["non-conspicuous religious building, non-Christian"],
       "scrf": {
         "A": "LANDF"
       },
@@ -25668,9 +25502,7 @@
         "sbxc": 561,
         "sbxr": 518
       },
-      "sxpo": [
-        "mosque or minaret"
-      ],
+      "sxpo": ["mosque or minaret"],
       "scrf": {
         "A": "LANDF"
       },
@@ -25694,9 +25526,7 @@
         "sbxc": 550,
         "sbxr": 550
       },
-      "sxpo": [
-        "conspicuous religious building, Christian"
-      ],
+      "sxpo": ["conspicuous religious building, Christian"],
       "scrf": {
         "A": "CHBLK"
       },
@@ -25726,9 +25556,7 @@
         "sbxc": 462,
         "sbxr": 603
       },
-      "sxpo": [
-        "conspicuous religious building, non-Christian"
-      ],
+      "sxpo": ["conspicuous religious building, non-Christian"],
       "scrf": {
         "A": "CHBLK"
       },
@@ -25751,9 +25579,7 @@
         "sbxc": 561,
         "sbxr": 518
       },
-      "sxpo": [
-        "conspicuous mosque or minaret"
-      ],
+      "sxpo": ["conspicuous mosque or minaret"],
       "scrf": {
         "A": "CHBLK"
       },
@@ -25777,9 +25603,7 @@
         "sbxc": 618,
         "sbxr": 618
       },
-      "sxpo": [
-        "single building"
-      ],
+      "sxpo": ["single building"],
       "scrf": {
         "W": "LANDF",
         "K": "CHBRN"
@@ -25802,9 +25626,7 @@
         "sbxc": 618,
         "sbxr": 618
       },
-      "sxpo": [
-        "conspicuous single building"
-      ],
+      "sxpo": ["conspicuous single building"],
       "scrf": {
         "W": "LANDF",
         "C": "CHBLK"
@@ -25827,9 +25649,7 @@
         "sbxc": 510,
         "sbxr": 310
       },
-      "sxpo": [
-        "cairn"
-      ],
+      "sxpo": ["cairn"],
       "scrf": {
         "W": "LANDF"
       },
@@ -25855,9 +25675,7 @@
         "sbxc": 510,
         "sbxr": 310
       },
-      "sxpo": [
-        "conspicuous cairn"
-      ],
+      "sxpo": ["conspicuous cairn"],
       "scrf": {
         "C": "CHBLK"
       },
@@ -25883,15 +25701,11 @@
         "sbxc": 2930,
         "sbxr": 1289
       },
-      "sxpo": [
-        "cable area"
-      ],
+      "sxpo": ["cable area"],
       "scrf": {
         "A": "CHMGF"
       },
-      "svct": [
-        "SPA;SW3;PU3246,1289;PD2930,1791;PD3304,1923;PD3005,2401;"
-      ]
+      "svct": ["SPA;SW3;PU3246,1289;PD2930,1791;PD3304,1923;PD3005,2401;"]
     },
     {
       "rcid": 1506,
@@ -25906,9 +25720,7 @@
         "sbxc": 169,
         "sbxr": 312
       },
-      "sxpo": [
-        "coastguard station"
-      ],
+      "sxpo": ["coastguard station"],
       "scrf": {
         "A": "LANDF",
         "B": "CHWHT",
@@ -25937,15 +25749,11 @@
         "sbxc": 371,
         "sbxr": 143
       },
-      "sxpo": [
-        "this object has been manually deleted or modified"
-      ],
+      "sxpo": ["this object has been manually deleted or modified"],
       "scrf": {
         "A": "CHCOR"
       },
-      "svct": [
-        "SPA;SW1;PU371,948;PD1176,143;"
-      ]
+      "svct": ["SPA;SW1;PU371,948;PD1176,143;"]
     },
     {
       "rcid": 1508,
@@ -25960,16 +25768,11 @@
         "sbxc": 5470,
         "sbxr": 1851
       },
-      "sxpo": [
-        "this object has been manually updated"
-      ],
+      "sxpo": ["this object has been manually updated"],
       "scrf": {
         "A": "CHCOR"
       },
-      "svct": [
-        "SPA;SW1;PU5519,2404;CI49;",
-        "SPA;SW1;PU5519,1851;PD5519,2353;"
-      ]
+      "svct": ["SPA;SW1;PU5519,2404;CI49;", "SPA;SW1;PU5519,1851;PD5519,2353;"]
     },
     {
       "rcid": 1509,
@@ -25984,9 +25787,7 @@
         "sbxc": 568,
         "sbxr": 134
       },
-      "sxpo": [
-        "chimney"
-      ],
+      "sxpo": ["chimney"],
       "scrf": {
         "W": "LANDF"
       },
@@ -26009,9 +25810,7 @@
         "sbxc": 568,
         "sbxr": 134
       },
-      "sxpo": [
-        "conspicuous chimney"
-      ],
+      "sxpo": ["conspicuous chimney"],
       "scrf": {
         "C": "CHBLK"
       },
@@ -26034,9 +25833,7 @@
         "sbxc": 886,
         "sbxr": 1182
       },
-      "sxpo": [
-        "HO caution note"
-      ],
+      "sxpo": ["HO caution note"],
       "scrf": {
         "A": "CHMGD"
       },
@@ -26059,9 +25856,7 @@
         "sbxc": 2400,
         "sbxr": 1605
       },
-      "sxpo": [
-        "HO information note"
-      ],
+      "sxpo": ["HO information note"],
       "scrf": {
         "A": "CHMGD"
       },
@@ -26085,9 +25880,7 @@
         "sbxc": 2400,
         "sbxr": 1605
       },
-      "sxpo": [
-        "mariner's information note"
-      ],
+      "sxpo": ["mariner's information note"],
       "scrf": {
         "A": "NINFO"
       },
@@ -26111,9 +25904,7 @@
         "sbxc": 886,
         "sbxr": 1182
       },
-      "sxpo": [
-        "mariners caution note"
-      ],
+      "sxpo": ["mariners caution note"],
       "scrf": {
         "A": "NINFO"
       },
@@ -26136,9 +25927,7 @@
         "sbxc": 2400,
         "sbxr": 1605
       },
-      "sxpo": [
-        "manufacturer's information note"
-      ],
+      "sxpo": ["manufacturer's information note"],
       "scrf": {
         "A": "ADINF"
       },
@@ -26162,9 +25951,7 @@
         "sbxc": 886,
         "sbxr": 1182
       },
-      "sxpo": [
-        "manufacturer's caution note"
-      ],
+      "sxpo": ["manufacturer's caution note"],
       "scrf": {
         "A": "ADINF"
       },
@@ -26187,9 +25974,7 @@
         "sbxc": 0,
         "sbxr": 0
       },
-      "sxpo": [
-        "checkpoint symbol"
-      ],
+      "sxpo": ["checkpoint symbol"],
       "scrf": {
         "A": "LANDF"
       },
@@ -26237,9 +26022,7 @@
         "sbxc": 500,
         "sbxr": 300
       },
-      "sxpo": [
-        "cranes"
-      ],
+      "sxpo": ["cranes"],
       "scrf": {
         "W": "LANDF"
       },
@@ -26261,9 +26044,7 @@
         "sbxc": 276,
         "sbxr": 1846
       },
-      "sxpo": [
-        "caution area, a specific caution note applies"
-      ],
+      "sxpo": ["caution area, a specific caution note applies"],
       "scrf": {
         "A": "TRFCF"
       },
@@ -26286,9 +26067,7 @@
         "sbxc": 276,
         "sbxr": 1846
       },
-      "sxpo": [
-        "cautionary area (e.g. ferry area) navigate with caution"
-      ],
+      "sxpo": ["cautionary area (e.g. ferry area) navigate with caution"],
       "scrf": {
         "A": "TRFCF"
       },
@@ -26311,9 +26090,7 @@
         "sbxc": 35,
         "sbxr": 1846
       },
-      "sxpo": [
-        "cautionary area with further information"
-      ],
+      "sxpo": ["cautionary area with further information"],
       "scrf": {
         "A": "TRFCF",
         "D": "CHMGD"
@@ -26340,9 +26117,7 @@
         "sbxc": 297,
         "sbxr": 362
       },
-      "sxpo": [
-        "current or tidal stream whose direction is not known"
-      ],
+      "sxpo": ["current or tidal stream whose direction is not known"],
       "scrf": {
         "A": "CHGRD"
       },
@@ -26370,9 +26145,7 @@
         "sbxc": 684,
         "sbxr": 362
       },
-      "sxpo": [
-        "non-tidal current"
-      ],
+      "sxpo": ["non-tidal current"],
       "scrf": {
         "A": "CHGRD"
       },
@@ -26396,15 +26169,11 @@
         "sbxc": 1875,
         "sbxr": 1755
       },
-      "sxpo": [
-        "ordinary cursor"
-      ],
+      "sxpo": ["ordinary cursor"],
       "scrf": {
         "B": "CURSR"
       },
-      "svct": [
-        "SPB;SW3;PU2379,1755;PD2379,2755;PU1875,2250;PD2875,2250;"
-      ]
+      "svct": ["SPB;SW3;PU2379,1755;PD2379,2755;PU1875,2250;PD2875,2250;"]
     },
     {
       "rcid": 1526,
@@ -26419,9 +26188,7 @@
         "sbxc": 1673,
         "sbxr": 1752
       },
-      "sxpo": [
-        "cursor with open centre"
-      ],
+      "sxpo": ["cursor with open centre"],
       "scrf": {
         "A": "CURSR"
       },
@@ -26445,9 +26212,7 @@
         "sbxc": 225,
         "sbxr": 496
       },
-      "sxpo": [
-        "underwater hazard with a defined depth"
-      ],
+      "sxpo": ["underwater hazard with a defined depth"],
       "scrf": {
         "A": "DEPVS",
         "B": "CHBLK"
@@ -26489,9 +26254,7 @@
         "sbxc": 225,
         "sbxr": 500
       },
-      "sxpo": [
-        "underwater hazard with depth greater than 20 metres"
-      ],
+      "sxpo": ["underwater hazard with depth greater than 20 metres"],
       "scrf": {
         "A": "CHBLK"
       },
@@ -26531,9 +26294,7 @@
         "sbxc": 225,
         "sbxr": 496
       },
-      "sxpo": [
-        "underwater hazard which covers and uncovers"
-      ],
+      "sxpo": ["underwater hazard which covers and uncovers"],
       "scrf": {
         "A": "DEPIT",
         "B": "CHBLK"
@@ -26575,9 +26336,7 @@
         "sbxc": 549,
         "sbxr": 204
       },
-      "sxpo": [
-        "square or rectangular daymark, simplified"
-      ],
+      "sxpo": ["square or rectangular daymark, simplified"],
       "scrf": {
         "A": "CHMGD"
       },
@@ -26601,9 +26360,7 @@
         "sbxc": 549,
         "sbxr": 204
       },
-      "sxpo": [
-        "square or rectangular daymark, paper chart"
-      ],
+      "sxpo": ["square or rectangular daymark, paper chart"],
       "scrf": {
         "A": "CHMGD"
       },
@@ -26628,9 +26385,7 @@
         "sbxc": 517,
         "sbxr": 103
       },
-      "sxpo": [
-        "triangular daymark, point up, simplified"
-      ],
+      "sxpo": ["triangular daymark, point up, simplified"],
       "scrf": {
         "A": "CHMGD"
       },
@@ -26654,9 +26409,7 @@
         "sbxc": 500,
         "sbxr": 224
       },
-      "sxpo": [
-        "triangular daymark, point down, simplified"
-      ],
+      "sxpo": ["triangular daymark, point down, simplified"],
       "scrf": {
         "A": "CHMGD"
       },
@@ -26680,9 +26433,7 @@
         "sbxc": 498,
         "sbxr": 88
       },
-      "sxpo": [
-        "triangular daymark, point up, paper chart"
-      ],
+      "sxpo": ["triangular daymark, point up, paper chart"],
       "scrf": {
         "A": "CHMGD"
       },
@@ -26707,9 +26458,7 @@
         "sbxc": 500,
         "sbxr": 224
       },
-      "sxpo": [
-        "triangular daymark, point down, paper chart"
-      ],
+      "sxpo": ["triangular daymark, point down, paper chart"],
       "scrf": {
         "A": "CHMGD"
       },
@@ -26734,9 +26483,7 @@
         "sbxc": 128,
         "sbxr": 355
       },
-      "sxpo": [
-        "direction of buoyage"
-      ],
+      "sxpo": ["direction of buoyage"],
       "scrf": {
         "A": "CHMGD"
       },
@@ -26813,9 +26560,7 @@
         "sbxc": 335,
         "sbxr": 494
       },
-      "sxpo": [
-        "distance mark"
-      ],
+      "sxpo": ["distance mark"],
       "scrf": {
         "A": "CHMGD"
       },
@@ -26842,9 +26587,7 @@
         "sbxc": 650,
         "sbxr": 494
       },
-      "sxpo": [
-        "distance point with no mark"
-      ],
+      "sxpo": ["distance point with no mark"],
       "scrf": {
         "A": "CHMGD"
       },
@@ -26870,9 +26613,7 @@
         "sbxc": 912,
         "sbxr": 912
       },
-      "sxpo": [
-        "transparent danger highlight for mariner's use"
-      ],
+      "sxpo": ["transparent danger highlight for mariner's use"],
       "scrf": {
         "S": "DNGHL"
       },
@@ -26894,9 +26635,7 @@
         "sbxc": 498,
         "sbxr": 150
       },
-      "sxpo": [
-        "dome"
-      ],
+      "sxpo": ["dome"],
       "scrf": {
         "A": "LANDF"
       },
@@ -26920,9 +26659,7 @@
         "sbxc": 498,
         "sbxr": 150
       },
-      "sxpo": [
-        "conspicuous dome"
-      ],
+      "sxpo": ["conspicuous dome"],
       "scrf": {
         "A": "CHBLK"
       },
@@ -26946,9 +26683,7 @@
         "sbxc": 0,
         "sbxr": 0
       },
-      "sxpo": [
-        "DGPS reference station"
-      ],
+      "sxpo": ["DGPS reference station"],
       "scrf": {
         "Y": "CHMGD"
       },
@@ -26977,9 +26712,7 @@
         "sbxc": 584,
         "sbxr": 259
       },
-      "sxpo": [
-        "dish aerial"
-      ],
+      "sxpo": ["dish aerial"],
       "scrf": {
         "W": "LANDF"
       },
@@ -27002,9 +26735,7 @@
         "sbxc": 584,
         "sbxr": 259
       },
-      "sxpo": [
-        "conspicuous dish aerial"
-      ],
+      "sxpo": ["conspicuous dish aerial"],
       "scrf": {
         "C": "CHBLK"
       },
@@ -27027,9 +26758,7 @@
         "sbxc": 1587,
         "sbxr": 881
       },
-      "sxpo": [
-        "part of deep water route"
-      ],
+      "sxpo": ["part of deep water route"],
       "scrf": {
         "A": "TRFCF"
       },
@@ -27075,9 +26804,7 @@
         "sbxc": 684,
         "sbxr": 364
       },
-      "sxpo": [
-        "ebb stream, rate at spring tides"
-      ],
+      "sxpo": ["ebb stream, rate at spring tides"],
       "scrf": {
         "A": "CHGRD"
       },
@@ -27099,15 +26826,11 @@
         "sbxc": 650,
         "sbxr": 650
       },
-      "sxpo": [
-        "point of origin for an offset EBL or VRM"
-      ],
+      "sxpo": ["point of origin for an offset EBL or VRM"],
       "scrf": {
         "C": "NINFO"
       },
-      "svct": [
-        "SPC;PU750,750;ST0;PM0;CI100;PM2;FP;"
-      ]
+      "svct": ["SPC;PU750,750;ST0;PM0;CI100;PM2;FP;"]
     },
     {
       "rcid": 1551,
@@ -27122,9 +26845,7 @@
         "sbxc": 1226,
         "sbxr": 568
       },
-      "sxpo": [
-        "Embedded symbol"
-      ],
+      "sxpo": ["Embedded symbol"],
       "scrf": {
         "A": "CHMGD"
       },
@@ -27147,9 +26868,7 @@
         "sbxc": 987,
         "sbxr": 572
       },
-      "sxpo": [
-        "Embedded symbol"
-      ],
+      "sxpo": ["Embedded symbol"],
       "scrf": {
         "A": "CHMGD"
       },
@@ -27173,15 +26892,11 @@
         "sbxc": 595,
         "sbxr": 810
       },
-      "sxpo": [
-        "Embedded symbol"
-      ],
+      "sxpo": ["Embedded symbol"],
       "scrf": {
         "A": "CHMGD"
       },
-      "svct": [
-        "SPA;SW1;PU595,810;PD595,970;"
-      ]
+      "svct": ["SPA;SW1;PU595,810;PD595,970;"]
     },
     {
       "rcid": 1554,
@@ -27196,15 +26911,11 @@
         "sbxc": 2068,
         "sbxr": 812
       },
-      "sxpo": [
-        "Embedded symbol"
-      ],
+      "sxpo": ["Embedded symbol"],
       "scrf": {
         "A": "CHGRD"
       },
-      "svct": [
-        "SPA;SW1;PU2068,812;PD2233,976;PD2397,812;"
-      ]
+      "svct": ["SPA;SW1;PU2068,812;PD2233,976;PD2397,812;"]
     },
     {
       "rcid": 1555,
@@ -27219,15 +26930,11 @@
         "sbxc": 2068,
         "sbxr": 812
       },
-      "sxpo": [
-        "Embedded symbol"
-      ],
+      "sxpo": ["Embedded symbol"],
       "scrf": {
         "A": "CHMGD"
       },
-      "svct": [
-        "SPA;SW1;PU2068,812;PD2233,976;PD2397,812;"
-      ]
+      "svct": ["SPA;SW1;PU2068,812;PD2233,976;PD2397,812;"]
     },
     {
       "rcid": 1556,
@@ -27242,15 +26949,11 @@
         "sbxc": 1130,
         "sbxr": 637
       },
-      "sxpo": [
-        "Embedded symbol"
-      ],
+      "sxpo": ["Embedded symbol"],
       "scrf": {
         "A": "CHMGD"
       },
-      "svct": [
-        "SPA;SW1;PU1280,637;PD1130,837;PD1330,937;PD1180,1137;"
-      ]
+      "svct": ["SPA;SW1;PU1280,637;PD1130,837;PD1330,937;PD1180,1137;"]
     },
     {
       "rcid": 1557,
@@ -27265,15 +26968,11 @@
         "sbxc": 2076,
         "sbxr": 1149
       },
-      "sxpo": [
-        "Embedded symbol"
-      ],
+      "sxpo": ["Embedded symbol"],
       "scrf": {
         "A": "CHMGD"
       },
-      "svct": [
-        "SPA;SW1;PU2076,1249;PD2228,1149;PD2527,1352;PD2686,1249;"
-      ]
+      "svct": ["SPA;SW1;PU2076,1249;PD2228,1149;PD2527,1352;PD2686,1249;"]
     },
     {
       "rcid": 1558,
@@ -27288,9 +26987,7 @@
         "sbxc": 1156,
         "sbxr": 640
       },
-      "sxpo": [
-        "Embedded symbol"
-      ],
+      "sxpo": ["Embedded symbol"],
       "scrf": {
         "A": "CHMGD"
       },
@@ -27313,15 +27010,11 @@
         "sbxc": 431,
         "sbxr": 1055
       },
-      "sxpo": [
-        "embedded symbol"
-      ],
+      "sxpo": ["embedded symbol"],
       "scrf": {
         "A": "DEPCN"
       },
-      "svct": [
-        "SPA;SW1;PU431,1055;PD431,1285;"
-      ]
+      "svct": ["SPA;SW1;PU431,1055;PD431,1285;"]
     },
     {
       "rcid": 1560,
@@ -27336,15 +27029,11 @@
         "sbxc": 431,
         "sbxr": 1055
       },
-      "sxpo": [
-        "embedded symbol"
-      ],
+      "sxpo": ["embedded symbol"],
       "scrf": {
         "A": "DEPSC"
       },
-      "svct": [
-        "SPA;SW2;PU431,1055;PD431,1285;"
-      ]
+      "svct": ["SPA;SW2;PU431,1055;PD431,1285;"]
     },
     {
       "rcid": 1561,
@@ -27359,15 +27048,11 @@
         "sbxc": 2064,
         "sbxr": 1260
       },
-      "sxpo": [
-        "Embedded symbol"
-      ],
+      "sxpo": ["Embedded symbol"],
       "scrf": {
         "A": "TRFCD"
       },
-      "svct": [
-        "SPA;SW1;PU2269,1570;PD2064,1415;PD2269,1260;"
-      ]
+      "svct": ["SPA;SW1;PU2269,1570;PD2064,1415;PD2269,1260;"]
     },
     {
       "rcid": 1562,
@@ -27382,15 +27067,11 @@
         "sbxc": 2527,
         "sbxr": 1255
       },
-      "sxpo": [
-        "Embedded symbol"
-      ],
+      "sxpo": ["Embedded symbol"],
       "scrf": {
         "A": "TRFCD"
       },
-      "svct": [
-        "SPA;SW1;PU2527,1565;PD2732,1415;PD2527,1255;"
-      ]
+      "svct": ["SPA;SW1;PU2527,1565;PD2732,1415;PD2527,1255;"]
     },
     {
       "rcid": 1563,
@@ -27405,9 +27086,7 @@
         "sbxc": 1101,
         "sbxr": 743
       },
-      "sxpo": [
-        "Embedded symbol"
-      ],
+      "sxpo": ["Embedded symbol"],
       "scrf": {
         "A": "TRFCD"
       },
@@ -27429,9 +27108,7 @@
         "sbxc": 3522,
         "sbxr": 1266
       },
-      "sxpo": [
-        "Embedded symbol"
-      ],
+      "sxpo": ["Embedded symbol"],
       "scrf": {
         "A": "TRFCD"
       },
@@ -27454,16 +27131,11 @@
         "sbxc": 948,
         "sbxr": 521
       },
-      "sxpo": [
-        "Embedded symbol"
-      ],
+      "sxpo": ["Embedded symbol"],
       "scrf": {
         "A": "CHMGD"
       },
-      "svct": [
-        "SPA;SW1;PU1237,810;CI289;",
-        "SPA;SW1;PU1085,810;PD1396,810;"
-      ]
+      "svct": ["SPA;SW1;PU1237,810;CI289;", "SPA;SW1;PU1085,810;PD1396,810;"]
     },
     {
       "rcid": 1566,
@@ -27478,9 +27150,7 @@
         "sbxc": 869,
         "sbxr": 774
       },
-      "sxpo": [
-        "Embedded symbol"
-      ],
+      "sxpo": ["Embedded symbol"],
       "scrf": {
         "A": "CHMGD"
       },
@@ -27501,9 +27171,7 @@
         "sbxc": 869,
         "sbxr": 774
       },
-      "sxpo": [
-        "Embedded symbol"
-      ],
+      "sxpo": ["Embedded symbol"],
       "scrf": {
         "A": "CHBLK"
       },
@@ -27524,15 +27192,11 @@
         "sbxc": 888,
         "sbxr": 620
       },
-      "sxpo": [
-        "Embedded symbol"
-      ],
+      "sxpo": ["Embedded symbol"],
       "scrf": {
         "A": "CHGRD"
       },
-      "svct": [
-        "SPA;SW1;PU888,620;PD888,803;"
-      ]
+      "svct": ["SPA;SW1;PU888,620;PD888,803;"]
     },
     {
       "rcid": 1569,
@@ -27547,9 +27211,7 @@
         "sbxc": 895,
         "sbxr": 689
       },
-      "sxpo": [
-        "Embedded symbol"
-      ],
+      "sxpo": ["Embedded symbol"],
       "scrf": {
         "A": "CHMGD"
       },
@@ -27573,9 +27235,7 @@
         "sbxc": 0,
         "sbxr": 0
       },
-      "sxpo": [
-        "new object"
-      ],
+      "sxpo": ["new object"],
       "scrf": {
         "A": "CHMGD"
       },
@@ -27598,16 +27258,11 @@
         "sbxc": 1125,
         "sbxr": 772
       },
-      "sxpo": [
-        "Embedded symbol"
-      ],
+      "sxpo": ["Embedded symbol"],
       "scrf": {
         "A": "CHMGD"
       },
-      "svct": [
-        "SPA;SW1;PU1619,867;CI95;",
-        "SPA;SW1;PU1125,867;PD1522,867;"
-      ]
+      "svct": ["SPA;SW1;PU1619,867;CI95;", "SPA;SW1;PU1125,867;PD1522,867;"]
     },
     {
       "rcid": 1572,
@@ -27622,16 +27277,11 @@
         "sbxc": 1125,
         "sbxr": 772
       },
-      "sxpo": [
-        "Embedded symbol"
-      ],
+      "sxpo": ["Embedded symbol"],
       "scrf": {
         "A": "CHGRD"
       },
-      "svct": [
-        "SPA;SW1;PU1619,867;CI95;",
-        "SPA;SW1;PU1125,867;PD1522,867;"
-      ]
+      "svct": ["SPA;SW1;PU1619,867;CI95;", "SPA;SW1;PU1125,867;PD1522,867;"]
     },
     {
       "rcid": 1573,
@@ -27646,15 +27296,11 @@
         "sbxc": 1524,
         "sbxr": 772
       },
-      "sxpo": [
-        "Embedded symbol"
-      ],
+      "sxpo": ["Embedded symbol"],
       "scrf": {
         "A": "CHMGD"
       },
-      "svct": [
-        "SPA;SW1;PU1619,867;CI95;"
-      ]
+      "svct": ["SPA;SW1;PU1619,867;CI95;"]
     },
     {
       "rcid": 1574,
@@ -27669,15 +27315,11 @@
         "sbxc": 2485,
         "sbxr": 2140
       },
-      "sxpo": [
-        "Embedded symbol"
-      ],
+      "sxpo": ["Embedded symbol"],
       "scrf": {
         "A": "CHGRD"
       },
-      "svct": [
-        "SPA;SW1;PU2542,2197;CI57;"
-      ]
+      "svct": ["SPA;SW1;PU2542,2197;CI57;"]
     },
     {
       "rcid": 1575,
@@ -27692,9 +27334,7 @@
         "sbxc": 1138,
         "sbxr": 595
       },
-      "sxpo": [
-        "Embedded symbol"
-      ],
+      "sxpo": ["Embedded symbol"],
       "scrf": {
         "A": "CHMGD"
       },
@@ -27717,9 +27357,7 @@
         "sbxc": 1568,
         "sbxr": 1227
       },
-      "sxpo": [
-        "Embedded symbol"
-      ],
+      "sxpo": ["Embedded symbol"],
       "scrf": {
         "A": "CHMGD"
       },
@@ -27741,9 +27379,7 @@
         "sbxc": 1568,
         "sbxr": 1227
       },
-      "sxpo": [
-        "Embedded symbol"
-      ],
+      "sxpo": ["Embedded symbol"],
       "scrf": {
         "A": "CHGRD"
       },
@@ -27765,9 +27401,7 @@
         "sbxc": 1568,
         "sbxr": 1227
       },
-      "sxpo": [
-        "Embedded symbol"
-      ],
+      "sxpo": ["Embedded symbol"],
       "scrf": {
         "A": "TRFCD"
       },
@@ -27789,9 +27423,7 @@
         "sbxc": 2000,
         "sbxr": 1564
       },
-      "sxpo": [
-        "Embedded symbol"
-      ],
+      "sxpo": ["Embedded symbol"],
       "scrf": {
         "A": "TRFCD"
       },
@@ -27815,9 +27447,7 @@
         "sbxc": 3106,
         "sbxr": 1204
       },
-      "sxpo": [
-        "Embedded symbol"
-      ],
+      "sxpo": ["Embedded symbol"],
       "scrf": {
         "A": "TRFCD"
       },
@@ -27841,15 +27471,11 @@
         "sbxc": 2064,
         "sbxr": 1260
       },
-      "sxpo": [
-        "Embedded symbol"
-      ],
+      "sxpo": ["Embedded symbol"],
       "scrf": {
         "A": "CHGRD"
       },
-      "svct": [
-        "SPA;SW1;PU2269,1570;PD2064,1415;PD2269,1260;"
-      ]
+      "svct": ["SPA;SW1;PU2269,1570;PD2064,1415;PD2269,1260;"]
     },
     {
       "rcid": 1582,
@@ -27864,15 +27490,11 @@
         "sbxc": 2527,
         "sbxr": 1255
       },
-      "sxpo": [
-        "Embedded symbol"
-      ],
+      "sxpo": ["Embedded symbol"],
       "scrf": {
         "A": "CHGRD"
       },
-      "svct": [
-        "SPA;SW1;PU2527,1565;PD2732,1415;PD2527,1255;"
-      ]
+      "svct": ["SPA;SW1;PU2527,1565;PD2732,1415;PD2527,1255;"]
     },
     {
       "rcid": 1583,
@@ -27887,15 +27509,11 @@
         "sbxc": 2261,
         "sbxr": 1470
       },
-      "sxpo": [
-        "Embedded symbol"
-      ],
+      "sxpo": ["Embedded symbol"],
       "scrf": {
         "A": "CHMGD"
       },
-      "svct": [
-        "SPA;SW2;PU2261,1470;PD2261,1620;"
-      ]
+      "svct": ["SPA;SW2;PU2261,1470;PD2261,1620;"]
     },
     {
       "rcid": 1584,
@@ -27910,9 +27528,7 @@
         "sbxc": 1083,
         "sbxr": 656
       },
-      "sxpo": [
-        "Embedded symbol"
-      ],
+      "sxpo": ["Embedded symbol"],
       "scrf": {
         "A": "CHGRD"
       },
@@ -27940,10 +27556,7 @@
       "scrf": {
         "A": "TRFCF"
       },
-      "svct": [
-        "SPA;SW3;PU1020,2344;PD558,2344;",
-        "SPA;SW2;PU773,2343;CI497;"
-      ]
+      "svct": ["SPA;SW3;PU1020,2344;PD558,2344;", "SPA;SW2;PU773,2343;CI497;"]
     },
     {
       "rcid": 1586,
@@ -28013,9 +27626,7 @@
         "sbxc": 2072,
         "sbxr": 1317
       },
-      "sxpo": [
-        "range mark for an ERBL"
-      ],
+      "sxpo": ["range mark for an ERBL"],
       "scrf": {
         "A": "NINFO"
       },
@@ -28040,9 +27651,7 @@
         "sbxc": 0,
         "sbxr": 500
       },
-      "sxpo": [
-        "ESSA - centred symbol"
-      ],
+      "sxpo": ["ESSA - centred symbol"],
       "scrf": {
         "A": "CHMGF"
       },
@@ -28070,9 +27679,7 @@
         "sbxc": 1950,
         "sbxr": 1500
       },
-      "sxpo": [
-        "fairway with one-way traffic in direction indicated"
-      ],
+      "sxpo": ["fairway with one-way traffic in direction indicated"],
       "scrf": {
         "A": "CHGRD"
       },
@@ -28093,9 +27700,7 @@
         "sbxc": 1948,
         "sbxr": 1499
       },
-      "sxpo": [
-        "fairway with two-way traffic"
-      ],
+      "sxpo": ["fairway with two-way traffic"],
       "scrf": {
         "A": "CHGRD"
       },
@@ -28117,9 +27722,7 @@
         "sbxc": 1350,
         "sbxr": 943
       },
-      "sxpo": [
-        "flare stack"
-      ],
+      "sxpo": ["flare stack"],
       "scrf": {
         "W": "LANDF"
       },
@@ -28143,9 +27746,7 @@
         "sbxc": 1350,
         "sbxr": 943
       },
-      "sxpo": [
-        "conspicuous flare stack"
-      ],
+      "sxpo": ["conspicuous flare stack"],
       "scrf": {
         "C": "CHBLK"
       },
@@ -28169,9 +27770,7 @@
         "sbxc": 684,
         "sbxr": 362
       },
-      "sxpo": [
-        "flood stream, rate at spring tides"
-      ],
+      "sxpo": ["flood stream, rate at spring tides"],
       "scrf": {
         "A": "CHGRD"
       },
@@ -28196,9 +27795,7 @@
         "sbxc": 600,
         "sbxr": 300
       },
-      "sxpo": [
-        "flagstaff, flagpole"
-      ],
+      "sxpo": ["flagstaff, flagpole"],
       "scrf": {
         "W": "LANDF"
       },
@@ -28219,9 +27816,7 @@
         "sbxc": 1442,
         "sbxr": 1087
       },
-      "sxpo": [
-        "Floating hazard to navigation"
-      ],
+      "sxpo": ["Floating hazard to navigation"],
       "scrf": {
         "A": "CHMGD"
       },
@@ -28245,9 +27840,7 @@
         "sbxc": 265,
         "sbxr": 771
       },
-      "sxpo": [
-        "fog signal"
-      ],
+      "sxpo": ["fog signal"],
       "scrf": {
         "J": "CHMGF"
       },
@@ -28269,15 +27862,11 @@
         "sbxc": 550,
         "sbxr": 550
       },
-      "sxpo": [
-        "fortified structure"
-      ],
+      "sxpo": ["fortified structure"],
       "scrf": {
         "W": "LANDF"
       },
-      "svct": [
-        "SPW;SW1;PU550,550;PD950,550;PD950,950;PD550,950;PD550,550;"
-      ]
+      "svct": ["SPW;SW1;PU550,550;PD950,550;PD950,950;PD550,950;PD550,550;"]
     },
     {
       "rcid": 1600,
@@ -28292,15 +27881,11 @@
         "sbxc": 550,
         "sbxr": 550
       },
-      "sxpo": [
-        "conspicuous fortified structure"
-      ],
+      "sxpo": ["conspicuous fortified structure"],
       "scrf": {
         "C": "CHBLK"
       },
-      "svct": [
-        "SPC;SW2;PU550,550;PD950,550;PD950,950;PD550,950;PD550,550;"
-      ]
+      "svct": ["SPC;SW2;PU550,550;PD950,550;PD950,950;PD550,950;PD550,550;"]
     },
     {
       "rcid": 1601,
@@ -28315,9 +27900,7 @@
         "sbxc": 465,
         "sbxr": 613
       },
-      "sxpo": [
-        "foul area of seabed safe for navigation but not for anchoring"
-      ],
+      "sxpo": ["foul area of seabed safe for navigation but not for anchoring"],
       "scrf": {
         "A": "CHGRD"
       },
@@ -28341,9 +27924,7 @@
         "sbxc": 513,
         "sbxr": 728
       },
-      "sxpo": [
-        "ferry area"
-      ],
+      "sxpo": ["ferry area"],
       "scrf": {
         "A": "CHMGF"
       },
@@ -28367,9 +27948,7 @@
         "sbxc": 513,
         "sbxr": 728
       },
-      "sxpo": [
-        "cable ferry area"
-      ],
+      "sxpo": ["cable ferry area"],
       "scrf": {
         "A": "CHBLK"
       },
@@ -28393,9 +27972,7 @@
         "sbxc": 492,
         "sbxr": 416
       },
-      "sxpo": [
-        "fish trap, fish weir, tunny net"
-      ],
+      "sxpo": ["fish trap, fish weir, tunny net"],
       "scrf": {
         "A": "CHGRD"
       },
@@ -28417,9 +27994,7 @@
         "sbxc": 3135,
         "sbxr": 2173
       },
-      "sxpo": [
-        "fish stakes"
-      ],
+      "sxpo": ["fish stakes"],
       "scrf": {
         "A": "CHGRD"
       },
@@ -28443,9 +28018,7 @@
         "sbxc": 527,
         "sbxr": 1303
       },
-      "sxpo": [
-        "fishing ground"
-      ],
+      "sxpo": ["fishing ground"],
       "scrf": {
         "A": "CHGRD"
       },
@@ -28471,9 +28044,7 @@
         "sbxc": 250,
         "sbxr": 440
       },
-      "sxpo": [
-        "fish haven"
-      ],
+      "sxpo": ["fish haven"],
       "scrf": {
         "D": "CHGRD"
       },
@@ -28500,9 +28071,7 @@
         "sbxc": 1869,
         "sbxr": 411
       },
-      "sxpo": [
-        "area where fishing or trawling is prohibited or restricted"
-      ],
+      "sxpo": ["area where fishing or trawling is prohibited or restricted"],
       "scrf": {
         "A": "CHMGF"
       },
@@ -28585,9 +28154,7 @@
         "sbxc": 1150,
         "sbxr": 1150
       },
-      "sxpo": [
-        "navigable lock gate"
-      ],
+      "sxpo": ["navigable lock gate"],
       "scrf": {
         "J": "TRFCD"
       },
@@ -28609,9 +28176,7 @@
         "sbxc": 1150,
         "sbxr": 1150
       },
-      "sxpo": [
-        "non-navigable lock gate"
-      ],
+      "sxpo": ["non-navigable lock gate"],
       "scrf": {
         "J": "TRFCD"
       },
@@ -28632,9 +28197,7 @@
         "sbxc": 78,
         "sbxr": 631
       },
-      "sxpo": [
-        "hill or mountain top"
-      ],
+      "sxpo": ["hill or mountain top"],
       "scrf": {
         "A": "LANDF"
       },
@@ -28663,9 +28226,7 @@
         "sbxc": 78,
         "sbxr": 631
       },
-      "sxpo": [
-        "conspicuous hill or mountain top"
-      ],
+      "sxpo": ["conspicuous hill or mountain top"],
       "scrf": {
         "A": "CHBLK"
       },
@@ -28694,9 +28255,7 @@
         "sbxc": 453,
         "sbxr": 459
       },
-      "sxpo": [
-        "fishing harbour"
-      ],
+      "sxpo": ["fishing harbour"],
       "scrf": {
         "A": "CHMGD"
       },
@@ -28720,9 +28279,7 @@
         "sbxc": 496,
         "sbxr": 609
       },
-      "sxpo": [
-        "hulk"
-      ],
+      "sxpo": ["hulk"],
       "scrf": {
         "X": "CSTLN",
         "E": "CHBRN"
@@ -28747,9 +28304,7 @@
         "sbxc": 2,
         "sbxr": 2172
       },
-      "sxpo": [
-        "area with minor restrictions or information notices"
-      ],
+      "sxpo": ["area with minor restrictions or information notices"],
       "scrf": {
         "A": "CHMGF"
       },
@@ -28827,9 +28382,7 @@
         "sbxc": 1693,
         "sbxr": 910
       },
-      "sxpo": [
-        "area of inshore traffic"
-      ],
+      "sxpo": ["area of inshore traffic"],
       "scrf": {
         "A": "CHMGF"
       },
@@ -28854,9 +28407,7 @@
         "sbxc": 2130,
         "sbxr": 1515
       },
-      "sxpo": [
-        "light flare, red"
-      ],
+      "sxpo": ["light flare, red"],
       "scrf": {
         "A": "LITRD",
         "B": "OUTLW"
@@ -28879,9 +28430,7 @@
         "sbxc": 2130,
         "sbxr": 1515
       },
-      "sxpo": [
-        "light flare, green"
-      ],
+      "sxpo": ["light flare, green"],
       "scrf": {
         "A": "LITGN",
         "B": "OUTLW"
@@ -28904,9 +28453,7 @@
         "sbxc": 2130,
         "sbxr": 1515
       },
-      "sxpo": [
-        "light flare, white or yellow"
-      ],
+      "sxpo": ["light flare, white or yellow"],
       "scrf": {
         "A": "LITYW",
         "B": "OUTLW"
@@ -28929,9 +28476,7 @@
         "sbxc": 450,
         "sbxr": 624
       },
-      "sxpo": [
-        "strip light"
-      ],
+      "sxpo": ["strip light"],
       "scrf": {
         "A": "CHMGD"
       },
@@ -28952,9 +28497,7 @@
         "sbxc": 30,
         "sbxr": 1742
       },
-      "sxpo": [
-        "floodlight"
-      ],
+      "sxpo": ["floodlight"],
       "scrf": {
         "A": "CHMGD"
       },
@@ -28978,9 +28521,7 @@
         "sbxc": 2130,
         "sbxr": 1515
       },
-      "sxpo": [
-        "light flare"
-      ],
+      "sxpo": ["light flare"],
       "scrf": {
         "A": "CHMGD",
         "B": "OUTLW"
@@ -29003,9 +28544,7 @@
         "sbxc": 300,
         "sbxr": 500
       },
-      "sxpo": [
-        "light float, paper-chart"
-      ],
+      "sxpo": ["light float, paper-chart"],
       "scrf": {
         "C": "CHBLK"
       },
@@ -29027,9 +28566,7 @@
         "sbxc": 434,
         "sbxr": 489
       },
-      "sxpo": [
-        "light float, simplified"
-      ],
+      "sxpo": ["light float, simplified"],
       "scrf": {
         "A": "CHBLK"
       },
@@ -29052,9 +28589,7 @@
         "sbxc": 300,
         "sbxr": 150
       },
-      "sxpo": [
-        "light vessel, paper-chart"
-      ],
+      "sxpo": ["light vessel, paper-chart"],
       "scrf": {
         "C": "CHBLK"
       },
@@ -29077,9 +28612,7 @@
         "sbxc": 375,
         "sbxr": 381
       },
-      "sxpo": [
-        "light vessel, simplified"
-      ],
+      "sxpo": ["light vessel, simplified"],
       "scrf": {
         "A": "CHBLK"
       },
@@ -29101,16 +28634,12 @@
         "sbxc": 2147,
         "sbxr": 2147
       },
-      "sxpo": [
-        "land as a point at small scale"
-      ],
+      "sxpo": ["land as a point at small scale"],
       "scrf": {
         "V": "LANDA",
         "X": "CSTLN"
       },
-      "svct": [
-        "SPV;PU2250,2250;ST0;PM0;CI93;PM2;FP;SPX;PU2250,2250;SW2;CI103;"
-      ]
+      "svct": ["SPV;PU2250,2250;ST0;PM0;CI93;PM2;FP;SPX;PU2250,2250;SW2;CI103;"]
     },
     {
       "rcid": 1632,
@@ -29125,9 +28654,7 @@
         "sbxc": 1300,
         "sbxr": 201
       },
-      "sxpo": [
-        "cursor pick site for a magnetic anomaly at a point"
-      ],
+      "sxpo": ["cursor pick site for a magnetic anomaly at a point"],
       "scrf": {
         "A": "CHMGD"
       },
@@ -29173,9 +28700,7 @@
         "sbxc": 1562,
         "sbxr": 1291
       },
-      "sxpo": [
-        "point feature or area of low accuracy"
-      ],
+      "sxpo": ["point feature or area of low accuracy"],
       "scrf": {
         "A": "CHBLK"
       },
@@ -29198,9 +28723,7 @@
         "sbxc": 1300,
         "sbxr": 201
       },
-      "sxpo": [
-        "cursor pick site for magnetic variation at a point"
-      ],
+      "sxpo": ["cursor pick site for magnetic variation at a point"],
       "scrf": {
         "A": "CHMGD"
       },
@@ -29246,9 +28769,7 @@
         "sbxc": 416,
         "sbxr": 568
       },
-      "sxpo": [
-        "fish farm"
-      ],
+      "sxpo": ["fish farm"],
       "scrf": {
         "A": "CHGRD"
       },
@@ -29277,9 +28798,7 @@
         "sbxc": 550,
         "sbxr": 394
       },
-      "sxpo": [
-        "monument"
-      ],
+      "sxpo": ["monument"],
       "scrf": {
         "A": "LANDF"
       },
@@ -29306,9 +28825,7 @@
         "sbxc": 550,
         "sbxr": 394
       },
-      "sxpo": [
-        "conspicuous monument"
-      ],
+      "sxpo": ["conspicuous monument"],
       "scrf": {
         "A": "CHBLK"
       },
@@ -29335,9 +28852,7 @@
         "sbxc": 603,
         "sbxr": 617
       },
-      "sxpo": [
-        "mooring dolphin"
-      ],
+      "sxpo": ["mooring dolphin"],
       "scrf": {
         "A": "LANDA",
         "B": "CHBLK"
@@ -29360,9 +28875,7 @@
         "sbxc": 570,
         "sbxr": 247
       },
-      "sxpo": [
-        "deviation mooring dolphin"
-      ],
+      "sxpo": ["deviation mooring dolphin"],
       "scrf": {
         "A": "CHBLK"
       },
@@ -29385,9 +28898,7 @@
         "sbxc": 600,
         "sbxr": 150
       },
-      "sxpo": [
-        "mast"
-      ],
+      "sxpo": ["mast"],
       "scrf": {
         "W": "LANDF"
       },
@@ -29408,9 +28919,7 @@
         "sbxc": 600,
         "sbxr": 150
       },
-      "sxpo": [
-        "conspicuous mast"
-      ],
+      "sxpo": ["conspicuous mast"],
       "scrf": {
         "C": "CHBLK"
       },
@@ -29431,9 +28940,7 @@
         "sbxc": 0,
         "sbxr": 0
       },
-      "sxpo": [
-        "new object"
-      ],
+      "sxpo": ["new object"],
       "scrf": {
         "A": "CHMGD"
       },
@@ -29456,9 +28963,7 @@
         "sbxc": 1307,
         "sbxr": 0
       },
-      "sxpo": [
-        "north arrow"
-      ],
+      "sxpo": ["north arrow"],
       "scrf": {
         "A": "SCLBR"
       },
@@ -29481,9 +28986,7 @@
         "sbxc": 600,
         "sbxr": 350
       },
-      "sxpo": [
-        "conspicuous notice board"
-      ],
+      "sxpo": ["conspicuous notice board"],
       "scrf": {
         "C": "CHBLK"
       },
@@ -29504,9 +29007,7 @@
         "sbxc": 1295,
         "sbxr": 1295
       },
-      "sxpo": [
-        "obstruction, depth not stated"
-      ],
+      "sxpo": ["obstruction, depth not stated"],
       "scrf": {
         "A": "DEPVS",
         "B": "CHBLK"
@@ -29544,9 +29045,7 @@
         "sbxc": 1300,
         "sbxr": 1300
       },
-      "sxpo": [
-        "obstruction in the intertidal area"
-      ],
+      "sxpo": ["obstruction in the intertidal area"],
       "scrf": {
         "A": "CHBLK"
       },
@@ -29582,9 +29081,7 @@
         "sbxc": 1295,
         "sbxr": 1295
       },
-      "sxpo": [
-        "obstruction which covers and uncovers"
-      ],
+      "sxpo": ["obstruction which covers and uncovers"],
       "scrf": {
         "A": "DEPIT",
         "B": "CHBLK"
@@ -29622,9 +29119,7 @@
         "sbxc": 598,
         "sbxr": 672
       },
-      "sxpo": [
-        "obstruction in the water which is always above water level"
-      ],
+      "sxpo": ["obstruction in the water which is always above water level"],
       "scrf": {
         "B": "CSTLN",
         "A": "LANDA"
@@ -29647,9 +29142,7 @@
         "sbxc": 550,
         "sbxr": 550
       },
-      "sxpo": [
-        "offshore platform"
-      ],
+      "sxpo": ["offshore platform"],
       "scrf": {
         "C": "CHBLK"
       },
@@ -29670,9 +29163,7 @@
         "sbxc": 341,
         "sbxr": 568
       },
-      "sxpo": [
-        "pilot boarding place"
-      ],
+      "sxpo": ["pilot boarding place"],
       "scrf": {
         "J": "CHMGD"
       },
@@ -29693,15 +29184,11 @@
         "sbxc": 650,
         "sbxr": 650
       },
-      "sxpo": [
-        "pile or bollard"
-      ],
+      "sxpo": ["pile or bollard"],
       "scrf": {
         "C": "CHBLK"
       },
-      "svct": [
-        "SPC;PU750,750;ST0;PM0;CI100;PM2;FP;"
-      ]
+      "svct": ["SPC;PU750,750;ST0;PM0;CI100;PM2;FP;"]
     },
     {
       "rcid": 1664,
@@ -29716,15 +29203,11 @@
         "sbxc": 550,
         "sbxr": 550
       },
-      "sxpo": [
-        "position of a point feature"
-      ],
+      "sxpo": ["position of a point feature"],
       "scrf": {
         "W": "LANDF"
       },
-      "svct": [
-        "SPW;PU750,750;SW1;CI200;PU750,750;ST0;PM0;CI50;PM2;FP;"
-      ]
+      "svct": ["SPW;PU750,750;SW1;CI200;PU750,750;ST0;PM0;CI50;PM2;FP;"]
     },
     {
       "rcid": 1665,
@@ -29739,15 +29222,11 @@
         "sbxc": 550,
         "sbxr": 550
       },
-      "sxpo": [
-        "position of a conspicuous point feature"
-      ],
+      "sxpo": ["position of a conspicuous point feature"],
       "scrf": {
         "W": "CHBLK"
       },
-      "svct": [
-        "SPW;PU750,750;SW2;CI200;PU750,750;ST0;PM0;CI50;PM2;FP;"
-      ]
+      "svct": ["SPW;PU750,750;SW2;CI200;PU750,750;ST0;PM0;CI50;PM2;FP;"]
     },
     {
       "rcid": 1666,
@@ -29762,15 +29241,11 @@
         "sbxc": 650,
         "sbxr": 650
       },
-      "sxpo": [
-        "position of an elevation or control point"
-      ],
+      "sxpo": ["position of an elevation or control point"],
       "scrf": {
         "W": "CHBLK"
       },
-      "svct": [
-        "SPW;PU750,750;SW1;CI100;"
-      ]
+      "svct": ["SPW;PU750,750;SW1;CI100;"]
     },
     {
       "rcid": 1668,
@@ -29785,9 +29260,7 @@
         "sbxc": 557,
         "sbxr": 1784
       },
-      "sxpo": [
-        "point symbol for traffic precautionary area"
-      ],
+      "sxpo": ["point symbol for traffic precautionary area"],
       "scrf": {
         "A": "TRFCD"
       },
@@ -29810,9 +29283,7 @@
         "sbxc": 219,
         "sbxr": 1258
       },
-      "sxpo": [
-        "traffic precautionary area"
-      ],
+      "sxpo": ["traffic precautionary area"],
       "scrf": {
         "A": "TRFCF"
       },
@@ -29835,9 +29306,7 @@
         "sbxc": 495,
         "sbxr": 475
       },
-      "sxpo": [
-        "mine, quarry"
-      ],
+      "sxpo": ["mine, quarry"],
       "scrf": {
         "W": "LANDF",
         "K": "CHBRN"
@@ -29861,9 +29330,7 @@
         "sbxc": 625,
         "sbxr": 315
       },
-      "sxpo": [
-        "withy, port-hand, paper-chart"
-      ],
+      "sxpo": ["withy, port-hand, paper-chart"],
       "scrf": {
         "C": "CHBLK"
       },
@@ -29885,9 +29352,7 @@
         "sbxc": 609,
         "sbxr": 306
       },
-      "sxpo": [
-        "withy, starboard-hand, paper-chart"
-      ],
+      "sxpo": ["withy, starboard-hand, paper-chart"],
       "scrf": {
         "C": "CHBLK"
       },
@@ -29909,9 +29374,7 @@
         "sbxc": 0,
         "sbxr": 500
       },
-      "sxpo": [
-        "PSSA - centred symbol"
-      ],
+      "sxpo": ["PSSA - centred symbol"],
       "scrf": {
         "A": "CHMGF"
       },
@@ -29939,9 +29402,7 @@
         "sbxc": 0,
         "sbxr": 473
       },
-      "sxpo": [
-        "position approximate"
-      ],
+      "sxpo": ["position approximate"],
       "scrf": {
         "A": "CHBLK"
       },
@@ -29969,9 +29430,7 @@
         "sbxc": 398,
         "sbxr": 342
       },
-      "sxpo": [
-        "quarry"
-      ],
+      "sxpo": ["quarry"],
       "scrf": {
         "A": "LANDF"
       },
@@ -30022,9 +29481,7 @@
         "sbxc": 804,
         "sbxr": 744
       },
-      "sxpo": [
-        "symbol indicating this object is radar conspicuous"
-      ],
+      "sxpo": ["symbol indicating this object is radar conspicuous"],
       "scrf": {
         "A": "CHMGD"
       },
@@ -30053,9 +29510,7 @@
         "sbxc": 804,
         "sbxr": 744
       },
-      "sxpo": [
-        "radar reflector"
-      ],
+      "sxpo": ["radar reflector"],
       "scrf": {
         "A": "CHMGD"
       },
@@ -30084,9 +29539,7 @@
         "sbxc": 546,
         "sbxr": 256
       },
-      "sxpo": [
-        "radar scanner"
-      ],
+      "sxpo": ["radar scanner"],
       "scrf": {
         "A": "LANDF"
       },
@@ -30114,9 +29567,7 @@
         "sbxc": 546,
         "sbxr": 256
       },
-      "sxpo": [
-        "conspicuous radar scanner"
-      ],
+      "sxpo": ["conspicuous radar scanner"],
       "scrf": {
         "A": "CHBLK"
       },
@@ -30144,9 +29595,7 @@
         "sbxc": 144,
         "sbxr": 231
       },
-      "sxpo": [
-        "radio calling-in point whose direction is not known"
-      ],
+      "sxpo": ["radio calling-in point whose direction is not known"],
       "scrf": {
         "A": "CHMGD"
       },
@@ -30203,9 +29652,7 @@
         "sbxc": 532,
         "sbxr": 231
       },
-      "sxpo": [
-        "radio calling-in point for traffic in one direction only"
-      ],
+      "sxpo": ["radio calling-in point for traffic in one direction only"],
       "scrf": {
         "A": "TRFCD"
       },
@@ -30227,9 +29674,7 @@
         "sbxc": 532,
         "sbxr": 231
       },
-      "sxpo": [
-        "radio calling-in point for traffic in both directions"
-      ],
+      "sxpo": ["radio calling-in point for traffic in both directions"],
       "scrf": {
         "A": "TRFCD"
       },
@@ -30252,15 +29697,11 @@
         "sbxc": 453,
         "sbxr": 455
       },
-      "sxpo": [
-        "radio station"
-      ],
+      "sxpo": ["radio station"],
       "scrf": {
         "A": "CHMGD"
       },
-      "svct": [
-        "SPA;SW1;PU748,750;CI295;"
-      ]
+      "svct": ["SPA;SW1;PU748,750;CI295;"]
     },
     {
       "rcid": 1686,
@@ -30275,9 +29716,7 @@
         "sbxc": 1596,
         "sbxr": 1179
       },
-      "sxpo": [
-        "recommended track as an area, direction not defined in data"
-      ],
+      "sxpo": ["recommended track as an area, direction not defined in data"],
       "scrf": {
         "A": "CHGRD"
       },
@@ -30330,9 +29769,7 @@
         "sbxc": 2225,
         "sbxr": 665
       },
-      "sxpo": [
-        "recommended two-way track as an area, based on fixed marks"
-      ],
+      "sxpo": ["recommended two-way track as an area, based on fixed marks"],
       "scrf": {
         "A": "CHGRD"
       },
@@ -30380,9 +29817,7 @@
         "sbxc": 1854,
         "sbxr": 795
       },
-      "sxpo": [
-        "recommended one-way track as an area, based on fixed marks"
-      ],
+      "sxpo": ["recommended one-way track as an area, based on fixed marks"],
       "scrf": {
         "A": "CHGRD"
       },
@@ -30404,9 +29839,7 @@
         "sbxc": 1050,
         "sbxr": 1150
       },
-      "sxpo": [
-        "reference point, 'ghost cursor' (user interface)"
-      ],
+      "sxpo": ["reference point, 'ghost cursor' (user interface)"],
       "scrf": {
         "f": "NINFO"
       },
@@ -30428,9 +29861,7 @@
         "sbxc": 1052,
         "sbxr": 405
       },
-      "sxpo": [
-        "retro reflector, paper chart"
-      ],
+      "sxpo": ["retro reflector, paper chart"],
       "scrf": {
         "A": "CHMGD"
       },
@@ -30454,9 +29885,7 @@
         "sbxc": 979,
         "sbxr": 534
       },
-      "sxpo": [
-        "retro reflector, simplified"
-      ],
+      "sxpo": ["retro reflector, simplified"],
       "scrf": {
         "A": "CHMGD"
       },
@@ -30480,9 +29909,7 @@
         "sbxc": 1169,
         "sbxr": 912
       },
-      "sxpo": [
-        "refinery"
-      ],
+      "sxpo": ["refinery"],
       "scrf": {
         "A": "LANDF"
       },
@@ -30506,9 +29933,7 @@
         "sbxc": 1169,
         "sbxr": 912
       },
-      "sxpo": [
-        "conspicuous refinery"
-      ],
+      "sxpo": ["conspicuous refinery"],
       "scrf": {
         "A": "CHBLK"
       },
@@ -30532,9 +29957,7 @@
         "sbxc": 0,
         "sbxr": 477
       },
-      "sxpo": [
-        "RoRo terminal"
-      ],
+      "sxpo": ["RoRo terminal"],
       "scrf": {
         "A": "CHBLK"
       },
@@ -30570,9 +29993,7 @@
         "sbxc": 50,
         "sbxr": 550
       },
-      "sxpo": [
-        "rescue station"
-      ],
+      "sxpo": ["rescue station"],
       "scrf": {
         "A": "CHBLK"
       },
@@ -30594,9 +30015,7 @@
         "sbxc": 286,
         "sbxr": 1837
       },
-      "sxpo": [
-        "area in which undefined restrictions exist"
-      ],
+      "sxpo": ["area in which undefined restrictions exist"],
       "scrf": {
         "A": "TRFCF",
         "D": "CHMGD"
@@ -30657,9 +30076,7 @@
         "sbxc": 399,
         "sbxr": 502
       },
-      "sxpo": [
-        "radar transponder beacon"
-      ],
+      "sxpo": ["radar transponder beacon"],
       "scrf": {
         "A": "CHMGD"
       },
@@ -30685,9 +30102,7 @@
         "sbxc": 575,
         "sbxr": 625
       },
-      "sxpo": [
-        "contour label"
-      ],
+      "sxpo": ["contour label"],
       "scrf": {
         "A": "DEPDW",
         "D": "SNDG2"
@@ -30714,9 +30129,7 @@
         "sbxc": 575,
         "sbxr": 625
       },
-      "sxpo": [
-        "contour label"
-      ],
+      "sxpo": ["contour label"],
       "scrf": {
         "A": "DEPDW",
         "B": "SNDG2"
@@ -30739,9 +30152,7 @@
         "sbxc": 575,
         "sbxr": 625
       },
-      "sxpo": [
-        "contour label"
-      ],
+      "sxpo": ["contour label"],
       "scrf": {
         "A": "DEPDW",
         "B": "SNDG2"
@@ -30764,9 +30175,7 @@
         "sbxc": 575,
         "sbxr": 625
       },
-      "sxpo": [
-        "contour label"
-      ],
+      "sxpo": ["contour label"],
       "scrf": {
         "A": "DEPDW",
         "E": "SNDG2"
@@ -30795,9 +30204,7 @@
         "sbxc": 575,
         "sbxr": 600
       },
-      "sxpo": [
-        "contour label"
-      ],
+      "sxpo": ["contour label"],
       "scrf": {
         "A": "DEPDW",
         "B": "SNDG2"
@@ -30820,9 +30227,7 @@
         "sbxc": 575,
         "sbxr": 625
       },
-      "sxpo": [
-        "contour label"
-      ],
+      "sxpo": ["contour label"],
       "scrf": {
         "A": "DEPDW",
         "B": "SNDG2"
@@ -30845,9 +30250,7 @@
         "sbxc": 575,
         "sbxr": 625
       },
-      "sxpo": [
-        "contour label"
-      ],
+      "sxpo": ["contour label"],
       "scrf": {
         "A": "DEPDW",
         "C": "SNDG2"
@@ -30872,9 +30275,7 @@
         "sbxc": 575,
         "sbxr": 625
       },
-      "sxpo": [
-        "contour label"
-      ],
+      "sxpo": ["contour label"],
       "scrf": {
         "A": "DEPDW",
         "B": "SNDG2"
@@ -30897,9 +30298,7 @@
         "sbxc": 575,
         "sbxr": 625
       },
-      "sxpo": [
-        "contour label"
-      ],
+      "sxpo": ["contour label"],
       "scrf": {
         "A": "DEPDW",
         "C": "SNDG2"
@@ -30924,9 +30323,7 @@
         "sbxc": 575,
         "sbxr": 625
       },
-      "sxpo": [
-        "contour label"
-      ],
+      "sxpo": ["contour label"],
       "scrf": {
         "A": "DEPDW",
         "B": "SNDG2"
@@ -30949,9 +30346,7 @@
         "sbxc": 575,
         "sbxr": 625
       },
-      "sxpo": [
-        "contour label"
-      ],
+      "sxpo": ["contour label"],
       "scrf": {
         "A": "DEPDW",
         "D": "SNDG2"
@@ -30978,9 +30373,7 @@
         "sbxc": 575,
         "sbxr": 625
       },
-      "sxpo": [
-        "contour label"
-      ],
+      "sxpo": ["contour label"],
       "scrf": {
         "A": "DEPDW",
         "B": "SNDG2"
@@ -31003,9 +30396,7 @@
         "sbxc": 575,
         "sbxr": 625
       },
-      "sxpo": [
-        "contour label"
-      ],
+      "sxpo": ["contour label"],
       "scrf": {
         "A": "DEPDW",
         "B": "SNDG2"
@@ -31028,9 +30419,7 @@
         "sbxc": 575,
         "sbxr": 625
       },
-      "sxpo": [
-        "contour label"
-      ],
+      "sxpo": ["contour label"],
       "scrf": {
         "A": "DEPDW",
         "E": "SNDG2"
@@ -31059,9 +30448,7 @@
         "sbxc": 575,
         "sbxr": 600
       },
-      "sxpo": [
-        "contour label"
-      ],
+      "sxpo": ["contour label"],
       "scrf": {
         "A": "DEPDW",
         "B": "SNDG2"
@@ -31084,9 +30471,7 @@
         "sbxc": 575,
         "sbxr": 625
       },
-      "sxpo": [
-        "contour label"
-      ],
+      "sxpo": ["contour label"],
       "scrf": {
         "A": "DEPDW",
         "B": "SNDG2"
@@ -31109,9 +30494,7 @@
         "sbxc": 575,
         "sbxr": 625
       },
-      "sxpo": [
-        "contour label"
-      ],
+      "sxpo": ["contour label"],
       "scrf": {
         "A": "DEPDW",
         "C": "SNDG2"
@@ -31136,9 +30519,7 @@
         "sbxc": 575,
         "sbxr": 625
       },
-      "sxpo": [
-        "contour label"
-      ],
+      "sxpo": ["contour label"],
       "scrf": {
         "A": "DEPDW",
         "B": "SNDG2"
@@ -31161,9 +30542,7 @@
         "sbxc": 575,
         "sbxr": 625
       },
-      "sxpo": [
-        "contour label"
-      ],
+      "sxpo": ["contour label"],
       "scrf": {
         "A": "DEPDW",
         "C": "SNDG2"
@@ -31188,9 +30567,7 @@
         "sbxc": 575,
         "sbxr": 625
       },
-      "sxpo": [
-        "contour label"
-      ],
+      "sxpo": ["contour label"],
       "scrf": {
         "A": "DEPDW",
         "B": "SNDG2"
@@ -31213,9 +30590,7 @@
         "sbxc": 800,
         "sbxr": 625
       },
-      "sxpo": [
-        "contour label"
-      ],
+      "sxpo": ["contour label"],
       "scrf": {
         "A": "DEPDW",
         "B": "SNDG2"
@@ -31238,9 +30613,7 @@
         "sbxc": 800,
         "sbxr": 625
       },
-      "sxpo": [
-        "contour label"
-      ],
+      "sxpo": ["contour label"],
       "scrf": {
         "A": "DEPDW",
         "B": "SNDG2"
@@ -31263,9 +30636,7 @@
         "sbxc": 800,
         "sbxr": 625
       },
-      "sxpo": [
-        "contour label"
-      ],
+      "sxpo": ["contour label"],
       "scrf": {
         "A": "DEPDW",
         "B": "SNDG2"
@@ -31288,9 +30659,7 @@
         "sbxc": 800,
         "sbxr": 625
       },
-      "sxpo": [
-        "contour label"
-      ],
+      "sxpo": ["contour label"],
       "scrf": {
         "A": "DEPDW",
         "E": "SNDG2"
@@ -31319,9 +30688,7 @@
         "sbxc": 800,
         "sbxr": 600
       },
-      "sxpo": [
-        "contour label"
-      ],
+      "sxpo": ["contour label"],
       "scrf": {
         "A": "DEPDW",
         "B": "SNDG2"
@@ -31344,9 +30711,7 @@
         "sbxc": 800,
         "sbxr": 625
       },
-      "sxpo": [
-        "contour label"
-      ],
+      "sxpo": ["contour label"],
       "scrf": {
         "A": "DEPDW",
         "B": "SNDG2"
@@ -31369,9 +30734,7 @@
         "sbxc": 800,
         "sbxr": 625
       },
-      "sxpo": [
-        "contour label"
-      ],
+      "sxpo": ["contour label"],
       "scrf": {
         "A": "DEPDW",
         "C": "SNDG2"
@@ -31396,9 +30759,7 @@
         "sbxc": 800,
         "sbxr": 625
       },
-      "sxpo": [
-        "contour label"
-      ],
+      "sxpo": ["contour label"],
       "scrf": {
         "A": "DEPDW",
         "B": "SNDG2"
@@ -31421,9 +30782,7 @@
         "sbxc": 800,
         "sbxr": 625
       },
-      "sxpo": [
-        "contour label"
-      ],
+      "sxpo": ["contour label"],
       "scrf": {
         "A": "DEPDW",
         "C": "SNDG2"
@@ -31448,9 +30807,7 @@
         "sbxc": 800,
         "sbxr": 625
       },
-      "sxpo": [
-        "contour label"
-      ],
+      "sxpo": ["contour label"],
       "scrf": {
         "A": "DEPDW",
         "B": "SNDG2"
@@ -31473,9 +30830,7 @@
         "sbxc": 800,
         "sbxr": 625
       },
-      "sxpo": [
-        "contour label"
-      ],
+      "sxpo": ["contour label"],
       "scrf": {
         "A": "DEPDW",
         "B": "SNDG2"
@@ -31498,9 +30853,7 @@
         "sbxc": 800,
         "sbxr": 625
       },
-      "sxpo": [
-        "contour label"
-      ],
+      "sxpo": ["contour label"],
       "scrf": {
         "A": "DEPDW",
         "B": "SNDG2"
@@ -31523,9 +30876,7 @@
         "sbxc": 800,
         "sbxr": 625
       },
-      "sxpo": [
-        "contour label"
-      ],
+      "sxpo": ["contour label"],
       "scrf": {
         "A": "DEPDW",
         "B": "SNDG2"
@@ -31548,9 +30899,7 @@
         "sbxc": 800,
         "sbxr": 625
       },
-      "sxpo": [
-        "contour label"
-      ],
+      "sxpo": ["contour label"],
       "scrf": {
         "A": "DEPDW",
         "E": "SNDG2"
@@ -31579,9 +30928,7 @@
         "sbxc": 800,
         "sbxr": 600
       },
-      "sxpo": [
-        "contour label"
-      ],
+      "sxpo": ["contour label"],
       "scrf": {
         "A": "DEPDW",
         "B": "SNDG2"
@@ -31604,9 +30951,7 @@
         "sbxc": 800,
         "sbxr": 625
       },
-      "sxpo": [
-        "contour label"
-      ],
+      "sxpo": ["contour label"],
       "scrf": {
         "A": "DEPDW",
         "B": "SNDG2"
@@ -31629,9 +30974,7 @@
         "sbxc": 800,
         "sbxr": 625
       },
-      "sxpo": [
-        "contour label"
-      ],
+      "sxpo": ["contour label"],
       "scrf": {
         "A": "DEPDW",
         "C": "SNDG2"
@@ -31656,9 +30999,7 @@
         "sbxc": 800,
         "sbxr": 625
       },
-      "sxpo": [
-        "contour label"
-      ],
+      "sxpo": ["contour label"],
       "scrf": {
         "A": "DEPDW",
         "B": "SNDG2"
@@ -31681,9 +31022,7 @@
         "sbxc": 800,
         "sbxr": 625
       },
-      "sxpo": [
-        "contour label"
-      ],
+      "sxpo": ["contour label"],
       "scrf": {
         "A": "DEPDW",
         "C": "SNDG2"
@@ -31708,9 +31047,7 @@
         "sbxc": 800,
         "sbxr": 625
       },
-      "sxpo": [
-        "contour label"
-      ],
+      "sxpo": ["contour label"],
       "scrf": {
         "A": "DEPDW",
         "B": "SNDG2"
@@ -31733,9 +31070,7 @@
         "sbxc": 800,
         "sbxr": 625
       },
-      "sxpo": [
-        "contour label"
-      ],
+      "sxpo": ["contour label"],
       "scrf": {
         "A": "DEPDW",
         "B": "SNDG2"
@@ -31758,9 +31093,7 @@
         "sbxc": 800,
         "sbxr": 625
       },
-      "sxpo": [
-        "contour label"
-      ],
+      "sxpo": ["contour label"],
       "scrf": {
         "A": "DEPDW",
         "B": "SNDG2"
@@ -31783,9 +31116,7 @@
         "sbxc": 800,
         "sbxr": 625
       },
-      "sxpo": [
-        "contour label"
-      ],
+      "sxpo": ["contour label"],
       "scrf": {
         "A": "DEPDW",
         "B": "SNDG2"
@@ -31808,9 +31139,7 @@
         "sbxc": 800,
         "sbxr": 625
       },
-      "sxpo": [
-        "contour label"
-      ],
+      "sxpo": ["contour label"],
       "scrf": {
         "A": "DEPDW",
         "E": "SNDG2"
@@ -31839,9 +31168,7 @@
         "sbxc": 800,
         "sbxr": 600
       },
-      "sxpo": [
-        "contour label"
-      ],
+      "sxpo": ["contour label"],
       "scrf": {
         "A": "DEPDW",
         "B": "SNDG2"
@@ -31864,9 +31191,7 @@
         "sbxc": 800,
         "sbxr": 625
       },
-      "sxpo": [
-        "contour label"
-      ],
+      "sxpo": ["contour label"],
       "scrf": {
         "A": "DEPDW",
         "B": "SNDG2"
@@ -31889,9 +31214,7 @@
         "sbxc": 800,
         "sbxr": 625
       },
-      "sxpo": [
-        "contour label"
-      ],
+      "sxpo": ["contour label"],
       "scrf": {
         "A": "DEPDW",
         "C": "SNDG2"
@@ -31916,9 +31239,7 @@
         "sbxc": 800,
         "sbxr": 625
       },
-      "sxpo": [
-        "contour label"
-      ],
+      "sxpo": ["contour label"],
       "scrf": {
         "A": "DEPDW",
         "B": "SNDG2"
@@ -31941,9 +31262,7 @@
         "sbxc": 800,
         "sbxr": 625
       },
-      "sxpo": [
-        "contour label"
-      ],
+      "sxpo": ["contour label"],
       "scrf": {
         "A": "DEPDW",
         "C": "SNDG2"
@@ -31968,9 +31287,7 @@
         "sbxc": 800,
         "sbxr": 625
       },
-      "sxpo": [
-        "contour label"
-      ],
+      "sxpo": ["contour label"],
       "scrf": {
         "A": "DEPDW",
         "B": "SNDG2"
@@ -31993,9 +31310,7 @@
         "sbxc": 800,
         "sbxr": 625
       },
-      "sxpo": [
-        "contour label"
-      ],
+      "sxpo": ["contour label"],
       "scrf": {
         "A": "DEPDW",
         "B": "SNDG2"
@@ -32018,9 +31333,7 @@
         "sbxc": 800,
         "sbxr": 625
       },
-      "sxpo": [
-        "contour label"
-      ],
+      "sxpo": ["contour label"],
       "scrf": {
         "A": "DEPDW",
         "B": "SNDG2"
@@ -32043,9 +31356,7 @@
         "sbxc": 800,
         "sbxr": 625
       },
-      "sxpo": [
-        "contour label"
-      ],
+      "sxpo": ["contour label"],
       "scrf": {
         "A": "DEPDW",
         "B": "SNDG2"
@@ -32068,9 +31379,7 @@
         "sbxc": 800,
         "sbxr": 625
       },
-      "sxpo": [
-        "contour label"
-      ],
+      "sxpo": ["contour label"],
       "scrf": {
         "A": "DEPDW",
         "E": "SNDG2"
@@ -32099,9 +31408,7 @@
         "sbxc": 800,
         "sbxr": 600
       },
-      "sxpo": [
-        "contour label"
-      ],
+      "sxpo": ["contour label"],
       "scrf": {
         "A": "DEPDW",
         "B": "SNDG2"
@@ -32124,9 +31431,7 @@
         "sbxc": 800,
         "sbxr": 625
       },
-      "sxpo": [
-        "contour label"
-      ],
+      "sxpo": ["contour label"],
       "scrf": {
         "A": "DEPDW",
         "B": "SNDG2"
@@ -32149,9 +31454,7 @@
         "sbxc": 800,
         "sbxr": 625
       },
-      "sxpo": [
-        "contour label"
-      ],
+      "sxpo": ["contour label"],
       "scrf": {
         "A": "DEPDW",
         "C": "SNDG2"
@@ -32176,9 +31479,7 @@
         "sbxc": 800,
         "sbxr": 625
       },
-      "sxpo": [
-        "contour label"
-      ],
+      "sxpo": ["contour label"],
       "scrf": {
         "A": "DEPDW",
         "B": "SNDG2"
@@ -32201,9 +31502,7 @@
         "sbxc": 800,
         "sbxr": 625
       },
-      "sxpo": [
-        "contour label"
-      ],
+      "sxpo": ["contour label"],
       "scrf": {
         "A": "DEPDW",
         "C": "SNDG2"
@@ -32228,9 +31527,7 @@
         "sbxc": 800,
         "sbxr": 625
       },
-      "sxpo": [
-        "contour label"
-      ],
+      "sxpo": ["contour label"],
       "scrf": {
         "A": "DEPDW",
         "B": "SNDG2"
@@ -32253,9 +31550,7 @@
         "sbxc": 800,
         "sbxr": 625
       },
-      "sxpo": [
-        "contour label"
-      ],
+      "sxpo": ["contour label"],
       "scrf": {
         "A": "DEPDW",
         "B": "SNDG2"
@@ -32278,9 +31573,7 @@
         "sbxc": 800,
         "sbxr": 625
       },
-      "sxpo": [
-        "contour label"
-      ],
+      "sxpo": ["contour label"],
       "scrf": {
         "A": "DEPDW",
         "B": "SNDG2"
@@ -32303,9 +31596,7 @@
         "sbxc": 800,
         "sbxr": 625
       },
-      "sxpo": [
-        "contour label"
-      ],
+      "sxpo": ["contour label"],
       "scrf": {
         "A": "DEPDW",
         "B": "SNDG2"
@@ -32328,9 +31619,7 @@
         "sbxc": 800,
         "sbxr": 625
       },
-      "sxpo": [
-        "contour label"
-      ],
+      "sxpo": ["contour label"],
       "scrf": {
         "A": "DEPDW",
         "E": "SNDG2"
@@ -32359,9 +31648,7 @@
         "sbxc": 800,
         "sbxr": 600
       },
-      "sxpo": [
-        "contour label"
-      ],
+      "sxpo": ["contour label"],
       "scrf": {
         "A": "DEPDW",
         "B": "SNDG2"
@@ -32384,9 +31671,7 @@
         "sbxc": 800,
         "sbxr": 625
       },
-      "sxpo": [
-        "contour label"
-      ],
+      "sxpo": ["contour label"],
       "scrf": {
         "A": "DEPDW",
         "B": "SNDG2"
@@ -32409,9 +31694,7 @@
         "sbxc": 800,
         "sbxr": 625
       },
-      "sxpo": [
-        "contour label"
-      ],
+      "sxpo": ["contour label"],
       "scrf": {
         "A": "DEPDW",
         "C": "SNDG2"
@@ -32436,9 +31719,7 @@
         "sbxc": 800,
         "sbxr": 625
       },
-      "sxpo": [
-        "contour label"
-      ],
+      "sxpo": ["contour label"],
       "scrf": {
         "A": "DEPDW",
         "B": "SNDG2"
@@ -32461,9 +31742,7 @@
         "sbxc": 800,
         "sbxr": 625
       },
-      "sxpo": [
-        "contour label"
-      ],
+      "sxpo": ["contour label"],
       "scrf": {
         "A": "DEPDW",
         "C": "SNDG2"
@@ -32488,9 +31767,7 @@
         "sbxc": 800,
         "sbxr": 625
       },
-      "sxpo": [
-        "contour label"
-      ],
+      "sxpo": ["contour label"],
       "scrf": {
         "A": "DEPDW",
         "B": "SNDG2"
@@ -32513,9 +31790,7 @@
         "sbxc": 1150,
         "sbxr": 1055
       },
-      "sxpo": [
-        "one mile scalebar for display scales larger than 1/80,000"
-      ],
+      "sxpo": ["one mile scalebar for display scales larger than 1/80,000"],
       "scrf": {
         "A": "SCLBR",
         "D": "CHGRD"
@@ -32546,9 +31821,7 @@
         "sbxc": 1150,
         "sbxr": 1055
       },
-      "sxpo": [
-        "mile latitude scale for display scales smaller than 1/80,000"
-      ],
+      "sxpo": ["mile latitude scale for display scales smaller than 1/80,000"],
       "scrf": {
         "A": "SNDG2",
         "D": "SNDG1"
@@ -32574,16 +31847,12 @@
         "sbxc": 600,
         "sbxr": 600
       },
-      "sxpo": [
-        "silo"
-      ],
+      "sxpo": ["silo"],
       "scrf": {
         "W": "LANDF",
         "K": "CHBRN"
       },
-      "svct": [
-        "SPK;PU750,750;ST0;PM0;CI150;PM2;FP;SPW;PU750,750;SW1;CI150;"
-      ]
+      "svct": ["SPK;PU750,750;ST0;PM0;CI150;PM2;FP;SPW;PU750,750;SW1;CI150;"]
     },
     {
       "rcid": 1774,
@@ -32598,16 +31867,12 @@
         "sbxc": 600,
         "sbxr": 600
       },
-      "sxpo": [
-        "conspicuous silo"
-      ],
+      "sxpo": ["conspicuous silo"],
       "scrf": {
         "W": "LANDF",
         "C": "CHBLK"
       },
-      "svct": [
-        "SPW;PU750,750;ST0;PM0;CI150;PM2;FP;SPC;PU750,750;SW2;CI150;"
-      ]
+      "svct": ["SPW;PU750,750;ST0;PM0;CI150;PM2;FP;SPC;PU750,750;SW2;CI150;"]
     },
     {
       "rcid": 1775,
@@ -32622,9 +31887,7 @@
         "sbxc": 460,
         "sbxr": 734
       },
-      "sxpo": [
-        "signal station"
-      ],
+      "sxpo": ["signal station"],
       "scrf": {
         "A": "CHWHT",
         "B": "LANDF",
@@ -32652,9 +31915,7 @@
         "sbxc": 410,
         "sbxr": 405
       },
-      "sxpo": [
-        "yacht harbour, marina"
-      ],
+      "sxpo": ["yacht harbour, marina"],
       "scrf": {
         "A": "CHMGD"
       },
@@ -32679,9 +31940,7 @@
         "sbxc": 37,
         "sbxr": 316
       },
-      "sxpo": [
-        "sand waves"
-      ],
+      "sxpo": ["sand waves"],
       "scrf": {
         "A": "CHGRD"
       },
@@ -32702,9 +31961,7 @@
         "sbxc": 800,
         "sbxr": 625
       },
-      "sxpo": [
-        "deep soundings, greater than safety depth"
-      ],
+      "sxpo": ["deep soundings, greater than safety depth"],
       "scrf": {
         "Y": "SNDG1"
       },
@@ -32725,15 +31982,11 @@
         "sbxc": 800,
         "sbxr": 625
       },
-      "sxpo": [
-        "for deep soundings, greater than safety depth"
-      ],
+      "sxpo": ["for deep soundings, greater than safety depth"],
       "scrf": {
         "Y": "SNDG1"
       },
-      "svct": [
-        "SPY;SW1;PU800,700;PD875,625;PD875,875;"
-      ]
+      "svct": ["SPY;SW1;PU800,700;PD875,625;PD875,875;"]
     },
     {
       "rcid": 1780,
@@ -32748,9 +32001,7 @@
         "sbxc": 800,
         "sbxr": 625
       },
-      "sxpo": [
-        "for deep soundings, greater than safety depth"
-      ],
+      "sxpo": ["for deep soundings, greater than safety depth"],
       "scrf": {
         "Y": "SNDG1"
       },
@@ -32771,9 +32022,7 @@
         "sbxc": 800,
         "sbxr": 625
       },
-      "sxpo": [
-        "for deep soundings, greater than safety depth"
-      ],
+      "sxpo": ["for deep soundings, greater than safety depth"],
       "scrf": {
         "Y": "SNDG1"
       },
@@ -32795,15 +32044,11 @@
         "sbxc": 799,
         "sbxr": 600
       },
-      "sxpo": [
-        "for deep soundings, greater than safety depth"
-      ],
+      "sxpo": ["for deep soundings, greater than safety depth"],
       "scrf": {
         "A": "SNDG1"
       },
-      "svct": [
-        "SPA;SW1;PU925,898;PD925,600;PD799,774;PD954,774;"
-      ]
+      "svct": ["SPA;SW1;PU925,898;PD925,600;PD799,774;PD954,774;"]
     },
     {
       "rcid": 1783,
@@ -32818,9 +32063,7 @@
         "sbxc": 800,
         "sbxr": 625
       },
-      "sxpo": [
-        "for deep soundings, greater than safety depth"
-      ],
+      "sxpo": ["for deep soundings, greater than safety depth"],
       "scrf": {
         "Y": "SNDG1"
       },
@@ -32841,9 +32084,7 @@
         "sbxc": 800,
         "sbxr": 625
       },
-      "sxpo": [
-        "for deep soundings, greater than safety depth"
-      ],
+      "sxpo": ["for deep soundings, greater than safety depth"],
       "scrf": {
         "Y": "SNDG1"
       },
@@ -32865,15 +32106,11 @@
         "sbxc": 800,
         "sbxr": 625
       },
-      "sxpo": [
-        "for deep soundings, greater than safety depth"
-      ],
+      "sxpo": ["for deep soundings, greater than safety depth"],
       "scrf": {
         "Y": "SNDG1"
       },
-      "svct": [
-        "SPY;SW1;PU800,625;PD925,625;PD850,775;PD850,875;"
-      ]
+      "svct": ["SPY;SW1;PU800,625;PD925,625;PD850,775;PD850,875;"]
     },
     {
       "rcid": 1786,
@@ -32888,9 +32125,7 @@
         "sbxc": 800,
         "sbxr": 625
       },
-      "sxpo": [
-        "for deep soundings, greater than safety depth"
-      ],
+      "sxpo": ["for deep soundings, greater than safety depth"],
       "scrf": {
         "Y": "SNDG1"
       },
@@ -32912,9 +32147,7 @@
         "sbxc": 800,
         "sbxr": 625
       },
-      "sxpo": [
-        "for deep soundings, greater than safety depth"
-      ],
+      "sxpo": ["for deep soundings, greater than safety depth"],
       "scrf": {
         "Y": "SNDG1"
       },
@@ -32936,9 +32169,7 @@
         "sbxc": 575,
         "sbxr": 625
       },
-      "sxpo": [
-        "for deep soundings, greater than safety depth"
-      ],
+      "sxpo": ["for deep soundings, greater than safety depth"],
       "scrf": {
         "Y": "SNDG1"
       },
@@ -32959,15 +32190,11 @@
         "sbxc": 800,
         "sbxr": 625
       },
-      "sxpo": [
-        "for deep soundings, greater than safety depth"
-      ],
+      "sxpo": ["for deep soundings, greater than safety depth"],
       "scrf": {
         "Y": "SNDG1"
       },
-      "svct": [
-        "SPY;SW1;PU800,700;PD875,625;PD875,875;"
-      ]
+      "svct": ["SPY;SW1;PU800,700;PD875,625;PD875,875;"]
     },
     {
       "rcid": 1790,
@@ -32982,9 +32209,7 @@
         "sbxc": 800,
         "sbxr": 625
       },
-      "sxpo": [
-        "for deep soundings, greater than safety depth"
-      ],
+      "sxpo": ["for deep soundings, greater than safety depth"],
       "scrf": {
         "Y": "SNDG1"
       },
@@ -33005,9 +32230,7 @@
         "sbxc": 800,
         "sbxr": 625
       },
-      "sxpo": [
-        "for deep soundings, greater than safety depth"
-      ],
+      "sxpo": ["for deep soundings, greater than safety depth"],
       "scrf": {
         "Y": "SNDG1"
       },
@@ -33029,15 +32252,11 @@
         "sbxc": 799,
         "sbxr": 600
       },
-      "sxpo": [
-        "for deep soundings, greater than safety depth"
-      ],
+      "sxpo": ["for deep soundings, greater than safety depth"],
       "scrf": {
         "A": "SNDG1"
       },
-      "svct": [
-        "SPA;SW1;PU925,898;PD925,600;PD799,774;PD954,774;"
-      ]
+      "svct": ["SPA;SW1;PU925,898;PD925,600;PD799,774;PD954,774;"]
     },
     {
       "rcid": 1793,
@@ -33052,9 +32271,7 @@
         "sbxc": 800,
         "sbxr": 625
       },
-      "sxpo": [
-        "for deep soundings, greater than safety depth"
-      ],
+      "sxpo": ["for deep soundings, greater than safety depth"],
       "scrf": {
         "Y": "SNDG1"
       },
@@ -33075,9 +32292,7 @@
         "sbxc": 800,
         "sbxr": 625
       },
-      "sxpo": [
-        "for deep soundings, greater than safety depth"
-      ],
+      "sxpo": ["for deep soundings, greater than safety depth"],
       "scrf": {
         "Y": "SNDG1"
       },
@@ -33099,15 +32314,11 @@
         "sbxc": 800,
         "sbxr": 625
       },
-      "sxpo": [
-        "for deep soundings, greater than safety depth"
-      ],
+      "sxpo": ["for deep soundings, greater than safety depth"],
       "scrf": {
         "Y": "SNDG1"
       },
-      "svct": [
-        "SPY;SW1;PU800,625;PD925,625;PD850,775;PD850,875;"
-      ]
+      "svct": ["SPY;SW1;PU800,625;PD925,625;PD850,775;PD850,875;"]
     },
     {
       "rcid": 1796,
@@ -33122,9 +32333,7 @@
         "sbxc": 800,
         "sbxr": 625
       },
-      "sxpo": [
-        "for deep soundings, greater than safety depth"
-      ],
+      "sxpo": ["for deep soundings, greater than safety depth"],
       "scrf": {
         "Y": "SNDG1"
       },
@@ -33146,9 +32355,7 @@
         "sbxc": 800,
         "sbxr": 625
       },
-      "sxpo": [
-        "for deep soundings, greater than safety depth"
-      ],
+      "sxpo": ["for deep soundings, greater than safety depth"],
       "scrf": {
         "Y": "SNDG1"
       },
@@ -33170,9 +32377,7 @@
         "sbxc": 350,
         "sbxr": 625
       },
-      "sxpo": [
-        "for deep soundings, greater than safety depth"
-      ],
+      "sxpo": ["for deep soundings, greater than safety depth"],
       "scrf": {
         "Y": "SNDG1"
       },
@@ -33193,15 +32398,11 @@
         "sbxc": 575,
         "sbxr": 625
       },
-      "sxpo": [
-        "for deep soundings, greater than safety depth"
-      ],
+      "sxpo": ["for deep soundings, greater than safety depth"],
       "scrf": {
         "Y": "SNDG1"
       },
-      "svct": [
-        "SPY;SW1;PU575,700;PD650,625;PD650,875;"
-      ]
+      "svct": ["SPY;SW1;PU575,700;PD650,625;PD650,875;"]
     },
     {
       "rcid": 1800,
@@ -33216,9 +32417,7 @@
         "sbxc": 800,
         "sbxr": 625
       },
-      "sxpo": [
-        "for deep soundings, greater than safety depth"
-      ],
+      "sxpo": ["for deep soundings, greater than safety depth"],
       "scrf": {
         "Y": "SNDG1"
       },
@@ -33239,9 +32438,7 @@
         "sbxc": 800,
         "sbxr": 625
       },
-      "sxpo": [
-        "for deep soundings, greater than safety depth"
-      ],
+      "sxpo": ["for deep soundings, greater than safety depth"],
       "scrf": {
         "Y": "SNDG1"
       },
@@ -33263,15 +32460,11 @@
         "sbxc": 799,
         "sbxr": 600
       },
-      "sxpo": [
-        "for deep soundings, greater than safety depth"
-      ],
+      "sxpo": ["for deep soundings, greater than safety depth"],
       "scrf": {
         "A": "SNDG1"
       },
-      "svct": [
-        "SPA;SW1;PU925,898;PD925,600;PD799,774;PD954,774;"
-      ]
+      "svct": ["SPA;SW1;PU925,898;PD925,600;PD799,774;PD954,774;"]
     },
     {
       "rcid": 1803,
@@ -33286,9 +32479,7 @@
         "sbxc": 800,
         "sbxr": 625
       },
-      "sxpo": [
-        "for deep soundings, greater than safety depth"
-      ],
+      "sxpo": ["for deep soundings, greater than safety depth"],
       "scrf": {
         "Y": "SNDG1"
       },
@@ -33309,9 +32500,7 @@
         "sbxc": 800,
         "sbxr": 625
       },
-      "sxpo": [
-        "for deep soundings, greater than safety depth"
-      ],
+      "sxpo": ["for deep soundings, greater than safety depth"],
       "scrf": {
         "Y": "SNDG1"
       },
@@ -33333,15 +32522,11 @@
         "sbxc": 800,
         "sbxr": 625
       },
-      "sxpo": [
-        "for deep soundings, greater than safety depth"
-      ],
+      "sxpo": ["for deep soundings, greater than safety depth"],
       "scrf": {
         "Y": "SNDG1"
       },
-      "svct": [
-        "SPY;SW1;PU800,625;PD925,625;PD850,775;PD850,875;"
-      ]
+      "svct": ["SPY;SW1;PU800,625;PD925,625;PD850,775;PD850,875;"]
     },
     {
       "rcid": 1806,
@@ -33356,9 +32541,7 @@
         "sbxc": 800,
         "sbxr": 625
       },
-      "sxpo": [
-        "for deep soundings, greater than safety depth"
-      ],
+      "sxpo": ["for deep soundings, greater than safety depth"],
       "scrf": {
         "Y": "SNDG1"
       },
@@ -33380,9 +32563,7 @@
         "sbxc": 800,
         "sbxr": 625
       },
-      "sxpo": [
-        "for deep soundings, greater than safety depth"
-      ],
+      "sxpo": ["for deep soundings, greater than safety depth"],
       "scrf": {
         "Y": "SNDG1"
       },
@@ -33404,9 +32585,7 @@
         "sbxc": 350,
         "sbxr": 625
       },
-      "sxpo": [
-        "for deep soundings, greater than safety depth"
-      ],
+      "sxpo": ["for deep soundings, greater than safety depth"],
       "scrf": {
         "Y": "SNDG1"
       },
@@ -33427,15 +32606,11 @@
         "sbxc": 350,
         "sbxr": 625
       },
-      "sxpo": [
-        "for deep soundings, greater than safety depth"
-      ],
+      "sxpo": ["for deep soundings, greater than safety depth"],
       "scrf": {
         "Y": "SNDG1"
       },
-      "svct": [
-        "SPY;SW1;PU350,700;PD425,625;PD425,875;"
-      ]
+      "svct": ["SPY;SW1;PU350,700;PD425,625;PD425,875;"]
     },
     {
       "rcid": 1810,
@@ -33450,9 +32625,7 @@
         "sbxc": 350,
         "sbxr": 625
       },
-      "sxpo": [
-        "for deep soundings, greater than safety depth"
-      ],
+      "sxpo": ["for deep soundings, greater than safety depth"],
       "scrf": {
         "Y": "SNDG1"
       },
@@ -33473,9 +32646,7 @@
         "sbxc": 350,
         "sbxr": 625
       },
-      "sxpo": [
-        "for deep soundings, greater than safety depth"
-      ],
+      "sxpo": ["for deep soundings, greater than safety depth"],
       "scrf": {
         "Y": "SNDG1"
       },
@@ -33497,15 +32668,11 @@
         "sbxc": 799,
         "sbxr": 600
       },
-      "sxpo": [
-        "for deep soundings, greater than safety depth"
-      ],
+      "sxpo": ["for deep soundings, greater than safety depth"],
       "scrf": {
         "A": "SNDG1"
       },
-      "svct": [
-        "SPA;SW1;PU925,898;PD925,600;PD799,774;PD954,774;"
-      ]
+      "svct": ["SPA;SW1;PU925,898;PD925,600;PD799,774;PD954,774;"]
     },
     {
       "rcid": 1813,
@@ -33520,9 +32687,7 @@
         "sbxc": 350,
         "sbxr": 625
       },
-      "sxpo": [
-        "for deep soundings, greater than safety depth"
-      ],
+      "sxpo": ["for deep soundings, greater than safety depth"],
       "scrf": {
         "Y": "SNDG1"
       },
@@ -33543,9 +32708,7 @@
         "sbxc": 350,
         "sbxr": 625
       },
-      "sxpo": [
-        "for deep soundings, greater than safety depth"
-      ],
+      "sxpo": ["for deep soundings, greater than safety depth"],
       "scrf": {
         "Y": "SNDG1"
       },
@@ -33567,15 +32730,11 @@
         "sbxc": 350,
         "sbxr": 650
       },
-      "sxpo": [
-        "for deep soundings, greater than safety depth"
-      ],
+      "sxpo": ["for deep soundings, greater than safety depth"],
       "scrf": {
         "Y": "SNDG1"
       },
-      "svct": [
-        "SPY;SW1;PU350,650;PD475,650;PD400,800;PD400,900;"
-      ]
+      "svct": ["SPY;SW1;PU350,650;PD475,650;PD400,800;PD400,900;"]
     },
     {
       "rcid": 1816,
@@ -33590,9 +32749,7 @@
         "sbxc": 350,
         "sbxr": 625
       },
-      "sxpo": [
-        "for deep soundings, greater than safety depth"
-      ],
+      "sxpo": ["for deep soundings, greater than safety depth"],
       "scrf": {
         "Y": "SNDG1"
       },
@@ -33614,9 +32771,7 @@
         "sbxc": 350,
         "sbxr": 625
       },
-      "sxpo": [
-        "for deep soundings, greater than safety depth"
-      ],
+      "sxpo": ["for deep soundings, greater than safety depth"],
       "scrf": {
         "Y": "SNDG1"
       },
@@ -33638,9 +32793,7 @@
         "sbxc": 1025,
         "sbxr": 625
       },
-      "sxpo": [
-        "for deep soundings, greater than safety depth"
-      ],
+      "sxpo": ["for deep soundings, greater than safety depth"],
       "scrf": {
         "Y": "SNDG1"
       },
@@ -33661,15 +32814,11 @@
         "sbxc": 800,
         "sbxr": 625
       },
-      "sxpo": [
-        "for deep soundings, greater than safety depth"
-      ],
+      "sxpo": ["for deep soundings, greater than safety depth"],
       "scrf": {
         "Y": "SNDG1"
       },
-      "svct": [
-        "SPY;SW1;PU800,700;PD875,625;PD875,875;"
-      ]
+      "svct": ["SPY;SW1;PU800,700;PD875,625;PD875,875;"]
     },
     {
       "rcid": 1820,
@@ -33684,9 +32833,7 @@
         "sbxc": 800,
         "sbxr": 625
       },
-      "sxpo": [
-        "for deep soundings, greater than safety depth"
-      ],
+      "sxpo": ["for deep soundings, greater than safety depth"],
       "scrf": {
         "Y": "SNDG1"
       },
@@ -33707,9 +32854,7 @@
         "sbxc": 800,
         "sbxr": 625
       },
-      "sxpo": [
-        "for deep soundings, greater than safety depth"
-      ],
+      "sxpo": ["for deep soundings, greater than safety depth"],
       "scrf": {
         "Y": "SNDG1"
       },
@@ -33731,15 +32876,11 @@
         "sbxc": 799,
         "sbxr": 600
       },
-      "sxpo": [
-        "for deep soundings, greater than safety depth"
-      ],
+      "sxpo": ["for deep soundings, greater than safety depth"],
       "scrf": {
         "A": "SNDG1"
       },
-      "svct": [
-        "SPA;SW1;PU925,898;PD925,600;PD799,774;PD954,774;"
-      ]
+      "svct": ["SPA;SW1;PU925,898;PD925,600;PD799,774;PD954,774;"]
     },
     {
       "rcid": 1823,
@@ -33754,9 +32895,7 @@
         "sbxc": 800,
         "sbxr": 625
       },
-      "sxpo": [
-        "for deep soundings, greater than safety depth"
-      ],
+      "sxpo": ["for deep soundings, greater than safety depth"],
       "scrf": {
         "Y": "SNDG1"
       },
@@ -33777,9 +32916,7 @@
         "sbxc": 800,
         "sbxr": 625
       },
-      "sxpo": [
-        "for deep soundings, greater than safety depth"
-      ],
+      "sxpo": ["for deep soundings, greater than safety depth"],
       "scrf": {
         "Y": "SNDG1"
       },
@@ -33801,15 +32938,11 @@
         "sbxc": 800,
         "sbxr": 625
       },
-      "sxpo": [
-        "for deep soundings, greater than safety depth"
-      ],
+      "sxpo": ["for deep soundings, greater than safety depth"],
       "scrf": {
         "Y": "SNDG1"
       },
-      "svct": [
-        "SPY;SW1;PU800,625;PD925,625;PD850,775;PD850,875;"
-      ]
+      "svct": ["SPY;SW1;PU800,625;PD925,625;PD850,775;PD850,875;"]
     },
     {
       "rcid": 1826,
@@ -33824,9 +32957,7 @@
         "sbxc": 800,
         "sbxr": 625
       },
-      "sxpo": [
-        "for deep soundings, greater than safety depth"
-      ],
+      "sxpo": ["for deep soundings, greater than safety depth"],
       "scrf": {
         "Y": "SNDG1"
       },
@@ -33848,9 +32979,7 @@
         "sbxc": 800,
         "sbxr": 625
       },
-      "sxpo": [
-        "for deep soundings, greater than safety depth"
-      ],
+      "sxpo": ["for deep soundings, greater than safety depth"],
       "scrf": {
         "Y": "SNDG1"
       },
@@ -33872,9 +33001,7 @@
         "sbxc": 800,
         "sbxr": 750
       },
-      "sxpo": [
-        "for deep soundings, greater than safety depth"
-      ],
+      "sxpo": ["for deep soundings, greater than safety depth"],
       "scrf": {
         "Y": "SNDG1"
       },
@@ -33895,15 +33022,11 @@
         "sbxc": 800,
         "sbxr": 625
       },
-      "sxpo": [
-        "for deep soundings, greater than safety depth"
-      ],
+      "sxpo": ["for deep soundings, greater than safety depth"],
       "scrf": {
         "Y": "SNDG1"
       },
-      "svct": [
-        "SPY;SW1;PU800,700;PD875,625;PD875,875;"
-      ]
+      "svct": ["SPY;SW1;PU800,700;PD875,625;PD875,875;"]
     },
     {
       "rcid": 1830,
@@ -33918,9 +33041,7 @@
         "sbxc": 800,
         "sbxr": 625
       },
-      "sxpo": [
-        "for deep soundings, greater than safety depth"
-      ],
+      "sxpo": ["for deep soundings, greater than safety depth"],
       "scrf": {
         "Y": "SNDG1"
       },
@@ -33941,9 +33062,7 @@
         "sbxc": 800,
         "sbxr": 625
       },
-      "sxpo": [
-        "for deep soundings, greater than safety depth"
-      ],
+      "sxpo": ["for deep soundings, greater than safety depth"],
       "scrf": {
         "Y": "SNDG1"
       },
@@ -33965,15 +33084,11 @@
         "sbxc": 799,
         "sbxr": 600
       },
-      "sxpo": [
-        "for deep soundings, greater than safety depth"
-      ],
+      "sxpo": ["for deep soundings, greater than safety depth"],
       "scrf": {
         "A": "SNDG1"
       },
-      "svct": [
-        "SPA;SW1;PU925,898;PD925,600;PD799,774;PD954,774;"
-      ]
+      "svct": ["SPA;SW1;PU925,898;PD925,600;PD799,774;PD954,774;"]
     },
     {
       "rcid": 1833,
@@ -33988,9 +33103,7 @@
         "sbxc": 800,
         "sbxr": 625
       },
-      "sxpo": [
-        "for deep soundings, greater than safety depth"
-      ],
+      "sxpo": ["for deep soundings, greater than safety depth"],
       "scrf": {
         "Y": "SNDG1"
       },
@@ -34011,9 +33124,7 @@
         "sbxc": 800,
         "sbxr": 625
       },
-      "sxpo": [
-        "for deep soundings, greater than safety depth"
-      ],
+      "sxpo": ["for deep soundings, greater than safety depth"],
       "scrf": {
         "Y": "SNDG1"
       },
@@ -34035,15 +33146,11 @@
         "sbxc": 800,
         "sbxr": 625
       },
-      "sxpo": [
-        "for deep soundings, greater than safety depth"
-      ],
+      "sxpo": ["for deep soundings, greater than safety depth"],
       "scrf": {
         "Y": "SNDG1"
       },
-      "svct": [
-        "SPY;SW1;PU800,625;PD925,625;PD850,775;PD850,875;"
-      ]
+      "svct": ["SPY;SW1;PU800,625;PD925,625;PD850,775;PD850,875;"]
     },
     {
       "rcid": 1836,
@@ -34058,9 +33165,7 @@
         "sbxc": 800,
         "sbxr": 625
       },
-      "sxpo": [
-        "for deep soundings, greater than safety depth"
-      ],
+      "sxpo": ["for deep soundings, greater than safety depth"],
       "scrf": {
         "Y": "SNDG1"
       },
@@ -34082,9 +33187,7 @@
         "sbxc": 800,
         "sbxr": 625
       },
-      "sxpo": [
-        "for deep soundings, greater than safety depth"
-      ],
+      "sxpo": ["for deep soundings, greater than safety depth"],
       "scrf": {
         "Y": "SNDG1"
       },
@@ -34112,9 +33215,7 @@
       "scrf": {
         "Y": "SNDG1"
       },
-      "svct": [
-        "SPY;SW1;PU340,928;PD340,1059;PD971,1059;PD971,928;"
-      ]
+      "svct": ["SPY;SW1;PU340,928;PD340,1059;PD971,1059;PD971,928;"]
     },
     {
       "rcid": 1839,
@@ -34129,15 +33230,11 @@
         "sbxc": 6923,
         "sbxr": 1119
       },
-      "sxpo": [
-        "sounding of low accuracy"
-      ],
+      "sxpo": ["sounding of low accuracy"],
       "scrf": {
         "A": "SNDG1"
       },
-      "svct": [
-        "SPA;SW1;PU7350,1546;CI427;"
-      ]
+      "svct": ["SPA;SW1;PU7350,1546;CI427;"]
     },
     {
       "rcid": 1840,
@@ -34152,9 +33249,7 @@
         "sbxc": 800,
         "sbxr": 625
       },
-      "sxpo": [
-        "shallow soundings, less than or equal to the safety depth"
-      ],
+      "sxpo": ["shallow soundings, less than or equal to the safety depth"],
       "scrf": {
         "Z": "SNDG2"
       },
@@ -34175,15 +33270,11 @@
         "sbxc": 800,
         "sbxr": 625
       },
-      "sxpo": [
-        "shallow soundings, less than or equal to the safety depth"
-      ],
+      "sxpo": ["shallow soundings, less than or equal to the safety depth"],
       "scrf": {
         "Z": "SNDG2"
       },
-      "svct": [
-        "SPZ;SW1;PU800,700;PD875,625;PD875,875;"
-      ]
+      "svct": ["SPZ;SW1;PU800,700;PD875,625;PD875,875;"]
     },
     {
       "rcid": 1842,
@@ -34198,9 +33289,7 @@
         "sbxc": 800,
         "sbxr": 625
       },
-      "sxpo": [
-        "shallow soundings, less than or equal to the safety depth"
-      ],
+      "sxpo": ["shallow soundings, less than or equal to the safety depth"],
       "scrf": {
         "Z": "SNDG2"
       },
@@ -34221,9 +33310,7 @@
         "sbxc": 800,
         "sbxr": 625
       },
-      "sxpo": [
-        "shallow soundings, less than or equal to the safety depth"
-      ],
+      "sxpo": ["shallow soundings, less than or equal to the safety depth"],
       "scrf": {
         "Z": "SNDG2"
       },
@@ -34245,15 +33332,11 @@
         "sbxc": 799,
         "sbxr": 600
       },
-      "sxpo": [
-        "shallow soundings, less than or equal to the safety depth"
-      ],
+      "sxpo": ["shallow soundings, less than or equal to the safety depth"],
       "scrf": {
         "A": "SNDG2"
       },
-      "svct": [
-        "SPA;SW1;PU925,898;PD925,600;PD799,774;PD954,774;"
-      ]
+      "svct": ["SPA;SW1;PU925,898;PD925,600;PD799,774;PD954,774;"]
     },
     {
       "rcid": 1845,
@@ -34268,9 +33351,7 @@
         "sbxc": 800,
         "sbxr": 625
       },
-      "sxpo": [
-        "shallow soundings, less than or equal to the safety depth"
-      ],
+      "sxpo": ["shallow soundings, less than or equal to the safety depth"],
       "scrf": {
         "Z": "SNDG2"
       },
@@ -34291,9 +33372,7 @@
         "sbxc": 800,
         "sbxr": 625
       },
-      "sxpo": [
-        "shallow soundings, less than or equal to the safety depth"
-      ],
+      "sxpo": ["shallow soundings, less than or equal to the safety depth"],
       "scrf": {
         "Z": "SNDG2"
       },
@@ -34315,15 +33394,11 @@
         "sbxc": 800,
         "sbxr": 625
       },
-      "sxpo": [
-        "shallow soundings, less than or equal to the safety depth"
-      ],
+      "sxpo": ["shallow soundings, less than or equal to the safety depth"],
       "scrf": {
         "Z": "SNDG2"
       },
-      "svct": [
-        "SPZ;SW1;PU800,625;PD925,625;PD850,775;PD850,875;"
-      ]
+      "svct": ["SPZ;SW1;PU800,625;PD925,625;PD850,775;PD850,875;"]
     },
     {
       "rcid": 1848,
@@ -34338,9 +33413,7 @@
         "sbxc": 800,
         "sbxr": 625
       },
-      "sxpo": [
-        "shallow soundings, less than or equal to the safety depth"
-      ],
+      "sxpo": ["shallow soundings, less than or equal to the safety depth"],
       "scrf": {
         "Z": "SNDG2"
       },
@@ -34362,9 +33435,7 @@
         "sbxc": 800,
         "sbxr": 625
       },
-      "sxpo": [
-        "shallow soundings, less than or equal to the safety depth"
-      ],
+      "sxpo": ["shallow soundings, less than or equal to the safety depth"],
       "scrf": {
         "Z": "SNDG2"
       },
@@ -34386,9 +33457,7 @@
         "sbxc": 575,
         "sbxr": 625
       },
-      "sxpo": [
-        "shallow soundings, less than or equal to the safety depth"
-      ],
+      "sxpo": ["shallow soundings, less than or equal to the safety depth"],
       "scrf": {
         "Z": "SNDG2"
       },
@@ -34409,15 +33478,11 @@
         "sbxc": 575,
         "sbxr": 625
       },
-      "sxpo": [
-        "shallow soundings, less than or equal to the safety depth"
-      ],
+      "sxpo": ["shallow soundings, less than or equal to the safety depth"],
       "scrf": {
         "Z": "SNDG2"
       },
-      "svct": [
-        "SPZ;SW1;PU575,700;PD650,625;PD650,875;"
-      ]
+      "svct": ["SPZ;SW1;PU575,700;PD650,625;PD650,875;"]
     },
     {
       "rcid": 1852,
@@ -34432,9 +33497,7 @@
         "sbxc": 575,
         "sbxr": 625
       },
-      "sxpo": [
-        "shallow soundings, less than or equal to the safety depth"
-      ],
+      "sxpo": ["shallow soundings, less than or equal to the safety depth"],
       "scrf": {
         "Z": "SNDG2"
       },
@@ -34455,9 +33518,7 @@
         "sbxc": 575,
         "sbxr": 625
       },
-      "sxpo": [
-        "shallow soundings, less than or equal to the safety depth"
-      ],
+      "sxpo": ["shallow soundings, less than or equal to the safety depth"],
       "scrf": {
         "Z": "SNDG2"
       },
@@ -34479,15 +33540,11 @@
         "sbxc": 799,
         "sbxr": 600
       },
-      "sxpo": [
-        "shallow soundings, less than or equal to the safety depth"
-      ],
+      "sxpo": ["shallow soundings, less than or equal to the safety depth"],
       "scrf": {
         "A": "SNDG2"
       },
-      "svct": [
-        "SPA;SW1;PU925,898;PD925,600;PD799,774;PD954,774;"
-      ]
+      "svct": ["SPA;SW1;PU925,898;PD925,600;PD799,774;PD954,774;"]
     },
     {
       "rcid": 1855,
@@ -34502,9 +33559,7 @@
         "sbxc": 575,
         "sbxr": 625
       },
-      "sxpo": [
-        "shallow soundings, less than or equal to the safety depth"
-      ],
+      "sxpo": ["shallow soundings, less than or equal to the safety depth"],
       "scrf": {
         "Z": "SNDG2"
       },
@@ -34525,9 +33580,7 @@
         "sbxc": 575,
         "sbxr": 625
       },
-      "sxpo": [
-        "shallow soundings, less than or equal to the safety depth"
-      ],
+      "sxpo": ["shallow soundings, less than or equal to the safety depth"],
       "scrf": {
         "Z": "SNDG2"
       },
@@ -34549,15 +33602,11 @@
         "sbxc": 575,
         "sbxr": 650
       },
-      "sxpo": [
-        "shallow soundings, less than or equal to the safety depth"
-      ],
+      "sxpo": ["shallow soundings, less than or equal to the safety depth"],
       "scrf": {
         "Z": "SNDG2"
       },
-      "svct": [
-        "SPZ;SW1;PU575,650;PD700,650;PD625,800;PD625,900;"
-      ]
+      "svct": ["SPZ;SW1;PU575,650;PD700,650;PD625,800;PD625,900;"]
     },
     {
       "rcid": 1858,
@@ -34572,9 +33621,7 @@
         "sbxc": 575,
         "sbxr": 625
       },
-      "sxpo": [
-        "shallow soundings, less than or equal to the safety depth"
-      ],
+      "sxpo": ["shallow soundings, less than or equal to the safety depth"],
       "scrf": {
         "Z": "SNDG2"
       },
@@ -34596,9 +33643,7 @@
         "sbxc": 575,
         "sbxr": 625
       },
-      "sxpo": [
-        "shallow soundings, less than or equal to the safety depth"
-      ],
+      "sxpo": ["shallow soundings, less than or equal to the safety depth"],
       "scrf": {
         "Z": "SNDG2"
       },
@@ -34620,9 +33665,7 @@
         "sbxc": 350,
         "sbxr": 625
       },
-      "sxpo": [
-        "shallow soundings, less than or equal to the safety depth"
-      ],
+      "sxpo": ["shallow soundings, less than or equal to the safety depth"],
       "scrf": {
         "Z": "SNDG2"
       },
@@ -34643,15 +33686,11 @@
         "sbxc": 350,
         "sbxr": 625
       },
-      "sxpo": [
-        "shallow soundings, less than or equal to the safety depth"
-      ],
+      "sxpo": ["shallow soundings, less than or equal to the safety depth"],
       "scrf": {
         "Z": "SNDG2"
       },
-      "svct": [
-        "SPZ;SW1;PU350,700;PD425,625;PD425,875;"
-      ]
+      "svct": ["SPZ;SW1;PU350,700;PD425,625;PD425,875;"]
     },
     {
       "rcid": 1862,
@@ -34666,9 +33705,7 @@
         "sbxc": 350,
         "sbxr": 625
       },
-      "sxpo": [
-        "shallow soundings, less than or equal to the safety depth"
-      ],
+      "sxpo": ["shallow soundings, less than or equal to the safety depth"],
       "scrf": {
         "Z": "SNDG2"
       },
@@ -34689,9 +33726,7 @@
         "sbxc": 350,
         "sbxr": 625
       },
-      "sxpo": [
-        "shallow soundings, less than or equal to the safety depth"
-      ],
+      "sxpo": ["shallow soundings, less than or equal to the safety depth"],
       "scrf": {
         "Z": "SNDG2"
       },
@@ -34713,15 +33748,11 @@
         "sbxc": 799,
         "sbxr": 600
       },
-      "sxpo": [
-        "shallow soundings, less than or equal to the safety depth"
-      ],
+      "sxpo": ["shallow soundings, less than or equal to the safety depth"],
       "scrf": {
         "A": "SNDG2"
       },
-      "svct": [
-        "SPA;SW1;PU925,898;PD925,600;PD799,774;PD954,774;"
-      ]
+      "svct": ["SPA;SW1;PU925,898;PD925,600;PD799,774;PD954,774;"]
     },
     {
       "rcid": 1865,
@@ -34736,9 +33767,7 @@
         "sbxc": 350,
         "sbxr": 625
       },
-      "sxpo": [
-        "shallow soundings, less than or equal to the safety depth"
-      ],
+      "sxpo": ["shallow soundings, less than or equal to the safety depth"],
       "scrf": {
         "Z": "SNDG2"
       },
@@ -34759,9 +33788,7 @@
         "sbxc": 350,
         "sbxr": 625
       },
-      "sxpo": [
-        "shallow soundings, less than or equal to the safety depth"
-      ],
+      "sxpo": ["shallow soundings, less than or equal to the safety depth"],
       "scrf": {
         "Z": "SNDG2"
       },
@@ -34783,15 +33810,11 @@
         "sbxc": 350,
         "sbxr": 650
       },
-      "sxpo": [
-        "shallow soundings, less than or equal to the safety depth"
-      ],
+      "sxpo": ["shallow soundings, less than or equal to the safety depth"],
       "scrf": {
         "Z": "SNDG2"
       },
-      "svct": [
-        "SPZ;SW1;PU350,650;PD475,650;PD400,800;PD400,900;"
-      ]
+      "svct": ["SPZ;SW1;PU350,650;PD475,650;PD400,800;PD400,900;"]
     },
     {
       "rcid": 1868,
@@ -34806,9 +33829,7 @@
         "sbxc": 350,
         "sbxr": 625
       },
-      "sxpo": [
-        "shallow soundings, less than or equal to the safety depth"
-      ],
+      "sxpo": ["shallow soundings, less than or equal to the safety depth"],
       "scrf": {
         "Z": "SNDG2"
       },
@@ -34830,9 +33851,7 @@
         "sbxc": 350,
         "sbxr": 625
       },
-      "sxpo": [
-        "shallow soundings, less than or equal to the safety depth"
-      ],
+      "sxpo": ["shallow soundings, less than or equal to the safety depth"],
       "scrf": {
         "Z": "SNDG2"
       },
@@ -34854,9 +33873,7 @@
         "sbxc": 350,
         "sbxr": 625
       },
-      "sxpo": [
-        "shallow soundings, less than or equal to the safety depth"
-      ],
+      "sxpo": ["shallow soundings, less than or equal to the safety depth"],
       "scrf": {
         "Z": "SNDG2"
       },
@@ -34877,15 +33894,11 @@
         "sbxc": 125,
         "sbxr": 625
       },
-      "sxpo": [
-        "shallow soundings, less than or equal to the safety depth"
-      ],
+      "sxpo": ["shallow soundings, less than or equal to the safety depth"],
       "scrf": {
         "Z": "SNDG2"
       },
-      "svct": [
-        "SPZ;SW1;PU125,700;PD200,625;PD200,875;"
-      ]
+      "svct": ["SPZ;SW1;PU125,700;PD200,625;PD200,875;"]
     },
     {
       "rcid": 1872,
@@ -34900,9 +33913,7 @@
         "sbxc": 125,
         "sbxr": 625
       },
-      "sxpo": [
-        "shallow soundings, less than or equal to the safety depth"
-      ],
+      "sxpo": ["shallow soundings, less than or equal to the safety depth"],
       "scrf": {
         "Z": "SNDG2"
       },
@@ -34923,9 +33934,7 @@
         "sbxc": 125,
         "sbxr": 625
       },
-      "sxpo": [
-        "shallow soundings, less than or equal to the safety depth"
-      ],
+      "sxpo": ["shallow soundings, less than or equal to the safety depth"],
       "scrf": {
         "Z": "SNDG2"
       },
@@ -34947,15 +33956,11 @@
         "sbxc": 799,
         "sbxr": 600
       },
-      "sxpo": [
-        "shallow soundings, less than or equal to the safety depth"
-      ],
+      "sxpo": ["shallow soundings, less than or equal to the safety depth"],
       "scrf": {
         "A": "SNDG2"
       },
-      "svct": [
-        "SPA;SW1;PU925,898;PD925,600;PD799,774;PD954,774;"
-      ]
+      "svct": ["SPA;SW1;PU925,898;PD925,600;PD799,774;PD954,774;"]
     },
     {
       "rcid": 1875,
@@ -34970,9 +33975,7 @@
         "sbxc": 125,
         "sbxr": 625
       },
-      "sxpo": [
-        "shallow soundings, less than or equal to the safety depth"
-      ],
+      "sxpo": ["shallow soundings, less than or equal to the safety depth"],
       "scrf": {
         "Z": "SNDG2"
       },
@@ -34993,9 +33996,7 @@
         "sbxc": 125,
         "sbxr": 625
       },
-      "sxpo": [
-        "shallow soundings, less than or equal to the safety depth"
-      ],
+      "sxpo": ["shallow soundings, less than or equal to the safety depth"],
       "scrf": {
         "Z": "SNDG2"
       },
@@ -35017,15 +34018,11 @@
         "sbxc": 125,
         "sbxr": 650
       },
-      "sxpo": [
-        "shallow soundings, less than or equal to the safety depth"
-      ],
+      "sxpo": ["shallow soundings, less than or equal to the safety depth"],
       "scrf": {
         "Z": "SNDG2"
       },
-      "svct": [
-        "SPZ;SW1;PU125,650;PD250,650;PD175,800;PD175,900;"
-      ]
+      "svct": ["SPZ;SW1;PU125,650;PD250,650;PD175,800;PD175,900;"]
     },
     {
       "rcid": 1878,
@@ -35040,9 +34037,7 @@
         "sbxc": 125,
         "sbxr": 625
       },
-      "sxpo": [
-        "shallow soundings, less than or equal to the safety depth"
-      ],
+      "sxpo": ["shallow soundings, less than or equal to the safety depth"],
       "scrf": {
         "Z": "SNDG2"
       },
@@ -35064,9 +34059,7 @@
         "sbxc": 125,
         "sbxr": 625
       },
-      "sxpo": [
-        "shallow soundings, less than or equal to the safety depth"
-      ],
+      "sxpo": ["shallow soundings, less than or equal to the safety depth"],
       "scrf": {
         "Z": "SNDG2"
       },
@@ -35088,9 +34081,7 @@
         "sbxc": 1025,
         "sbxr": 625
       },
-      "sxpo": [
-        "shallow soundings, less than or equal to the safety depth"
-      ],
+      "sxpo": ["shallow soundings, less than or equal to the safety depth"],
       "scrf": {
         "Z": "SNDG2"
       },
@@ -35111,15 +34102,11 @@
         "sbxc": 1025,
         "sbxr": 625
       },
-      "sxpo": [
-        "shallow soundings, less than or equal to the safety depth"
-      ],
+      "sxpo": ["shallow soundings, less than or equal to the safety depth"],
       "scrf": {
         "Z": "SNDG2"
       },
-      "svct": [
-        "SPZ;SW1;PU1025,700;PD1100,625;PD1100,875;"
-      ]
+      "svct": ["SPZ;SW1;PU1025,700;PD1100,625;PD1100,875;"]
     },
     {
       "rcid": 1882,
@@ -35134,9 +34121,7 @@
         "sbxc": 1025,
         "sbxr": 625
       },
-      "sxpo": [
-        "shallow soundings, less than or equal to the safety depth"
-      ],
+      "sxpo": ["shallow soundings, less than or equal to the safety depth"],
       "scrf": {
         "Z": "SNDG2"
       },
@@ -35157,9 +34142,7 @@
         "sbxc": 1025,
         "sbxr": 625
       },
-      "sxpo": [
-        "shallow soundings, less than or equal to the safety depth"
-      ],
+      "sxpo": ["shallow soundings, less than or equal to the safety depth"],
       "scrf": {
         "Z": "SNDG2"
       },
@@ -35181,15 +34164,11 @@
         "sbxc": 799,
         "sbxr": 600
       },
-      "sxpo": [
-        "shallow soundings, less than or equal to the safety depth"
-      ],
+      "sxpo": ["shallow soundings, less than or equal to the safety depth"],
       "scrf": {
         "A": "SNDG2"
       },
-      "svct": [
-        "SPA;SW1;PU925,898;PD925,600;PD799,774;PD954,774;"
-      ]
+      "svct": ["SPA;SW1;PU925,898;PD925,600;PD799,774;PD954,774;"]
     },
     {
       "rcid": 1885,
@@ -35204,9 +34183,7 @@
         "sbxc": 1025,
         "sbxr": 625
       },
-      "sxpo": [
-        "shallow soundings, less than or equal to the safety depth"
-      ],
+      "sxpo": ["shallow soundings, less than or equal to the safety depth"],
       "scrf": {
         "Z": "SNDG2"
       },
@@ -35227,9 +34204,7 @@
         "sbxc": 1025,
         "sbxr": 625
       },
-      "sxpo": [
-        "shallow soundings, less than or equal to the safety depth"
-      ],
+      "sxpo": ["shallow soundings, less than or equal to the safety depth"],
       "scrf": {
         "Z": "SNDG2"
       },
@@ -35251,15 +34226,11 @@
         "sbxc": 1025,
         "sbxr": 625
       },
-      "sxpo": [
-        "shallow soundings, less than or equal to the safety depth"
-      ],
+      "sxpo": ["shallow soundings, less than or equal to the safety depth"],
       "scrf": {
         "Z": "SNDG2"
       },
-      "svct": [
-        "SPZ;SW1;PU1025,625;PD1150,625;PD1075,775;PD1075,875;"
-      ]
+      "svct": ["SPZ;SW1;PU1025,625;PD1150,625;PD1075,775;PD1075,875;"]
     },
     {
       "rcid": 1888,
@@ -35274,9 +34245,7 @@
         "sbxc": 1025,
         "sbxr": 625
       },
-      "sxpo": [
-        "shallow soundings, less than or equal to the safety depth"
-      ],
+      "sxpo": ["shallow soundings, less than or equal to the safety depth"],
       "scrf": {
         "Z": "SNDG2"
       },
@@ -35298,9 +34267,7 @@
         "sbxc": 1025,
         "sbxr": 625
       },
-      "sxpo": [
-        "shallow soundings, less than or equal to the safety depth"
-      ],
+      "sxpo": ["shallow soundings, less than or equal to the safety depth"],
       "scrf": {
         "Z": "SNDG2"
       },
@@ -35322,9 +34289,7 @@
         "sbxc": 800,
         "sbxr": 750
       },
-      "sxpo": [
-        "shallow soundings, less than or equal to the safety depth"
-      ],
+      "sxpo": ["shallow soundings, less than or equal to the safety depth"],
       "scrf": {
         "Z": "SNDG2"
       },
@@ -35345,15 +34310,11 @@
         "sbxc": 800,
         "sbxr": 750
       },
-      "sxpo": [
-        "shallow soundings, less than or equal to the safety depth"
-      ],
+      "sxpo": ["shallow soundings, less than or equal to the safety depth"],
       "scrf": {
         "Z": "SNDG2"
       },
-      "svct": [
-        "SPZ;SW1;PU800,825;PD875,750;PD875,1000;"
-      ]
+      "svct": ["SPZ;SW1;PU800,825;PD875,750;PD875,1000;"]
     },
     {
       "rcid": 1892,
@@ -35368,9 +34329,7 @@
         "sbxc": 800,
         "sbxr": 750
       },
-      "sxpo": [
-        "shallow soundings, less than or equal to the safety depth"
-      ],
+      "sxpo": ["shallow soundings, less than or equal to the safety depth"],
       "scrf": {
         "Z": "SNDG2"
       },
@@ -35391,9 +34350,7 @@
         "sbxc": 800,
         "sbxr": 750
       },
-      "sxpo": [
-        "shallow soundings, less than or equal to the safety depth"
-      ],
+      "sxpo": ["shallow soundings, less than or equal to the safety depth"],
       "scrf": {
         "Z": "SNDG2"
       },
@@ -35415,15 +34372,11 @@
         "sbxc": 799,
         "sbxr": 600
       },
-      "sxpo": [
-        "shallow soundings, less than or equal to the safety depth"
-      ],
+      "sxpo": ["shallow soundings, less than or equal to the safety depth"],
       "scrf": {
         "A": "SNDG2"
       },
-      "svct": [
-        "SPA;SW1;PU925,898;PD925,600;PD799,774;PD954,774;"
-      ]
+      "svct": ["SPA;SW1;PU925,898;PD925,600;PD799,774;PD954,774;"]
     },
     {
       "rcid": 1895,
@@ -35438,9 +34391,7 @@
         "sbxc": 800,
         "sbxr": 750
       },
-      "sxpo": [
-        "shallow soundings, less than or equal to the safety depth"
-      ],
+      "sxpo": ["shallow soundings, less than or equal to the safety depth"],
       "scrf": {
         "Z": "SNDG2"
       },
@@ -35461,9 +34412,7 @@
         "sbxc": 800,
         "sbxr": 750
       },
-      "sxpo": [
-        "shallow soundings, less than or equal to the safety depth"
-      ],
+      "sxpo": ["shallow soundings, less than or equal to the safety depth"],
       "scrf": {
         "Z": "SNDG2"
       },
@@ -35485,15 +34434,11 @@
         "sbxc": 800,
         "sbxr": 750
       },
-      "sxpo": [
-        "shallow soundings, less than or equal to the safety depth"
-      ],
+      "sxpo": ["shallow soundings, less than or equal to the safety depth"],
       "scrf": {
         "Z": "SNDG2"
       },
-      "svct": [
-        "SPZ;SW1;PU800,750;PD925,750;PD850,900;PD850,1000;"
-      ]
+      "svct": ["SPZ;SW1;PU800,750;PD925,750;PD850,900;PD850,1000;"]
     },
     {
       "rcid": 1898,
@@ -35508,9 +34453,7 @@
         "sbxc": 800,
         "sbxr": 750
       },
-      "sxpo": [
-        "shallow soundings, less than or equal to the safety depth"
-      ],
+      "sxpo": ["shallow soundings, less than or equal to the safety depth"],
       "scrf": {
         "Z": "SNDG2"
       },
@@ -35532,9 +34475,7 @@
         "sbxc": 800,
         "sbxr": 750
       },
-      "sxpo": [
-        "shallow soundings, less than or equal to the safety depth"
-      ],
+      "sxpo": ["shallow soundings, less than or equal to the safety depth"],
       "scrf": {
         "Z": "SNDG2"
       },
@@ -35562,9 +34503,7 @@
       "scrf": {
         "Z": "SNDG2"
       },
-      "svct": [
-        "SPZ;SW1;PU525,970;PD730,970;"
-      ]
+      "svct": ["SPZ;SW1;PU525,970;PD730,970;"]
     },
     {
       "rcid": 1901,
@@ -35585,9 +34524,7 @@
       "scrf": {
         "Z": "SNDG2"
       },
-      "svct": [
-        "SPZ;SW1;PU340,928;PD340,1059;PD971,1059;PD971,928;"
-      ]
+      "svct": ["SPZ;SW1;PU340,928;PD340,1059;PD971,1059;PD971,928;"]
     },
     {
       "rcid": 1902,
@@ -35602,15 +34539,11 @@
         "sbxc": 6923,
         "sbxr": 1119
       },
-      "sxpo": [
-        "sounding of low accuracy"
-      ],
+      "sxpo": ["sounding of low accuracy"],
       "scrf": {
         "A": "SNDG1"
       },
-      "svct": [
-        "SPA;SW1;PU7350,1546;CI427;"
-      ]
+      "svct": ["SPA;SW1;PU7350,1546;CI427;"]
     },
     {
       "rcid": 1903,
@@ -35625,9 +34558,7 @@
         "sbxc": 1350,
         "sbxr": 1150
       },
-      "sxpo": [
-        "spring"
-      ],
+      "sxpo": ["spring"],
       "scrf": {
         "E": "CHGRD"
       },
@@ -35650,15 +34581,11 @@
         "sbxc": 91,
         "sbxr": 869
       },
-      "sxpo": [
-        "swept area"
-      ],
+      "sxpo": ["swept area"],
       "scrf": {
         "A": "CHGRF"
       },
-      "svct": [
-        "SPA;SW3;PU91,872;PD91,1173;PD1192,1173;PD1192,869;"
-      ]
+      "svct": ["SPA;SW3;PU91,872;PD91,1173;PD1192,1173;PD1192,869;"]
     },
     {
       "rcid": 1905,
@@ -35673,9 +34600,7 @@
         "sbxc": 1435,
         "sbxr": 1667
       },
-      "sxpo": [
-        "predicted tidal stream or current direction"
-      ],
+      "sxpo": ["predicted tidal stream or current direction"],
       "scrf": {
         "A": "NINFO"
       },
@@ -35703,9 +34628,7 @@
         "sbxc": 2043,
         "sbxr": 1650
       },
-      "sxpo": [
-        "actual tidal stream or current direction"
-      ],
+      "sxpo": ["actual tidal stream or current direction"],
       "scrf": {
         "f": "NINFO"
       },
@@ -35727,9 +34650,7 @@
         "sbxc": 1000,
         "sbxr": 2800
       },
-      "sxpo": [
-        "box for current strength"
-      ],
+      "sxpo": ["box for current strength"],
       "scrf": {
         "f": "NINFO"
       },
@@ -35750,9 +34671,7 @@
         "sbxc": 311,
         "sbxr": 581
       },
-      "sxpo": [
-        "point for which tide height information is available"
-      ],
+      "sxpo": ["point for which tide height information is available"],
       "scrf": {
         "A": "CHGRD"
       },
@@ -35774,15 +34693,11 @@
         "sbxc": 461,
         "sbxr": 466
       },
-      "sxpo": [
-        "point or area for which a tidal stream table is available"
-      ],
+      "sxpo": ["point or area for which a tidal stream table is available"],
       "scrf": {
         "A": "CHGRD"
       },
-      "svct": [
-        "SPA;SW1;PU461,749;PD744,466;PD1027,749;PD742,1026;PD461,749;"
-      ]
+      "svct": ["SPA;SW1;PU461,749;PD744,466;PD1027,749;PD742,1026;PD461,749;"]
     },
     {
       "rcid": 1910,
@@ -35797,15 +34712,11 @@
         "sbxc": 1424,
         "sbxr": 661
       },
-      "sxpo": [
-        "topmark for beacons, flag or other shape, paper-chart"
-      ],
+      "sxpo": ["topmark for beacons, flag or other shape, paper-chart"],
       "scrf": {
         "A": "CHBLK"
       },
-      "svct": [
-        "SPA;SW2;PU1424,1008;PD1424,661;"
-      ]
+      "svct": ["SPA;SW2;PU1424,1008;PD1424,661;"]
     },
     {
       "rcid": 1911,
@@ -35820,15 +34731,11 @@
         "sbxc": 1574,
         "sbxr": 737
       },
-      "sxpo": [
-        "topmark for buoys, flag or other shape, paper-chart"
-      ],
+      "sxpo": ["topmark for buoys, flag or other shape, paper-chart"],
       "scrf": {
         "A": "CHBLK"
       },
-      "svct": [
-        "SPA;SW2;PU1574,1101;PD1710,737;"
-      ]
+      "svct": ["SPA;SW2;PU1574,1101;PD1710,737;"]
     },
     {
       "rcid": 1912,
@@ -35843,9 +34750,7 @@
         "sbxc": 550,
         "sbxr": 550
       },
-      "sxpo": [
-        "timber yard"
-      ],
+      "sxpo": ["timber yard"],
       "scrf": {
         "W": "LANDF"
       },
@@ -35866,15 +34771,11 @@
         "sbxc": 1356,
         "sbxr": 1357
       },
-      "sxpo": [
-        "tank"
-      ],
+      "sxpo": ["tank"],
       "scrf": {
         "A": "LANDF"
       },
-      "svct": [
-        "SPA;SW1;PU1498,1499;CI142;"
-      ]
+      "svct": ["SPA;SW1;PU1498,1499;CI142;"]
     },
     {
       "rcid": 1914,
@@ -35889,15 +34790,11 @@
         "sbxc": 1356,
         "sbxr": 1357
       },
-      "sxpo": [
-        "conspicuous tank"
-      ],
+      "sxpo": ["conspicuous tank"],
       "scrf": {
         "A": "CHBLK"
       },
-      "svct": [
-        "SPA;SW2;PU1498,1499;CI142;"
-      ]
+      "svct": ["SPA;SW2;PU1498,1499;CI142;"]
     },
     {
       "rcid": 1915,
@@ -35912,9 +34809,7 @@
         "sbxc": 737,
         "sbxr": 1285
       },
-      "sxpo": [
-        "tank farm"
-      ],
+      "sxpo": ["tank farm"],
       "scrf": {
         "A": "LANDF"
       },
@@ -35939,9 +34834,7 @@
         "sbxc": 740,
         "sbxr": 1285
       },
-      "sxpo": [
-        "conspicuous tank farm"
-      ],
+      "sxpo": ["conspicuous tank farm"],
       "scrf": {
         "A": "CHBLK"
       },
@@ -35966,15 +34859,11 @@
         "sbxc": 1520,
         "sbxr": 785
       },
-      "sxpo": [
-        "topmark for buoys, cone point up, paper-chart"
-      ],
+      "sxpo": ["topmark for buoys, cone point up, paper-chart"],
       "scrf": {
         "C": "CHBLK"
       },
-      "svct": [
-        "SPC;ST0;PU1665,785;PM0;PD1520,950,1730,950,1665,785;PM2;FP;"
-      ]
+      "svct": ["SPC;ST0;PU1665,785;PM0;PD1520,950,1730,950,1665,785;PM2;FP;"]
     },
     {
       "rcid": 1918,
@@ -35989,15 +34878,11 @@
         "sbxc": 1560,
         "sbxr": 785
       },
-      "sxpo": [
-        "topmark for buoys, cone point down, paper-chart"
-      ],
+      "sxpo": ["topmark for buoys, cone point down, paper-chart"],
       "scrf": {
         "C": "CHBLK"
       },
-      "svct": [
-        "SPC;ST0;PU1560,785;PM0;PD1780,785,1620,940,1560,785;PM2;FP;"
-      ]
+      "svct": ["SPC;ST0;PU1560,785;PM0;PD1780,785,1620,940,1560,785;PM2;FP;"]
     },
     {
       "rcid": 1919,
@@ -36012,9 +34897,7 @@
         "sbxc": 1515,
         "sbxr": 545
       },
-      "sxpo": [
-        "topmark for buoys, 2 cones point upward, paper-chart"
-      ],
+      "sxpo": ["topmark for buoys, 2 cones point upward, paper-chart"],
       "scrf": {
         "C": "CHBLK"
       },
@@ -36035,9 +34918,7 @@
         "sbxc": 1555,
         "sbxr": 565
       },
-      "sxpo": [
-        "topmark for buoys, 2 cones point downward, paper-chart"
-      ],
+      "sxpo": ["topmark for buoys, 2 cones point downward, paper-chart"],
       "scrf": {
         "C": "CHBLK"
       },
@@ -36058,9 +34939,7 @@
         "sbxc": 1550,
         "sbxr": 555
       },
-      "sxpo": [
-        "topmark for buoys, 2 cones base to base, paper-chart"
-      ],
+      "sxpo": ["topmark for buoys, 2 cones base to base, paper-chart"],
       "scrf": {
         "C": "CHBLK"
       },
@@ -36081,9 +34960,7 @@
         "sbxc": 1510,
         "sbxr": 565
       },
-      "sxpo": [
-        "topmark for buoys, 2 cones point to point, paper-chart"
-      ],
+      "sxpo": ["topmark for buoys, 2 cones point to point, paper-chart"],
       "scrf": {
         "C": "CHBLK"
       },
@@ -36104,15 +34981,11 @@
         "sbxc": 1550,
         "sbxr": 775
       },
-      "sxpo": [
-        "topmark for buoys, sphere, paper-chart"
-      ],
+      "sxpo": ["topmark for buoys, sphere, paper-chart"],
       "scrf": {
         "C": "CHBLK"
       },
-      "svct": [
-        "SPC;PU1640,865;ST0;PM0;CI90;PM2;FP;"
-      ]
+      "svct": ["SPC;PU1640,865;ST0;PM0;CI90;PM2;FP;"]
     },
     {
       "rcid": 1924,
@@ -36127,15 +35000,11 @@
         "sbxc": 1550,
         "sbxr": 555
       },
-      "sxpo": [
-        "topmark for buoys, 2 spheres, paper-chart"
-      ],
+      "sxpo": ["topmark for buoys, 2 spheres, paper-chart"],
       "scrf": {
         "C": "CHBLK"
       },
-      "svct": [
-        "SPC;PU1640,865;ST0;PM0;CI90;PM2;FP;PU1680,645;PM0;CI90;PM2;FP;"
-      ]
+      "svct": ["SPC;PU1640,865;ST0;PM0;CI90;PM2;FP;PU1680,645;PM0;CI90;PM2;FP;"]
     },
     {
       "rcid": 1925,
@@ -36150,9 +35019,7 @@
         "sbxc": 1535,
         "sbxr": 730
       },
-      "sxpo": [
-        "topmark for buoys, cylinder, paper-chart"
-      ],
+      "sxpo": ["topmark for buoys, cylinder, paper-chart"],
       "scrf": {
         "C": "CHBLK"
       },
@@ -36173,9 +35040,7 @@
         "sbxc": 1510,
         "sbxr": 810
       },
-      "sxpo": [
-        "topmark for buoys, board, paper-chart"
-      ],
+      "sxpo": ["topmark for buoys, board, paper-chart"],
       "scrf": {
         "C": "CHBLK"
       },
@@ -36196,9 +35061,7 @@
         "sbxc": 1530,
         "sbxr": 765
       },
-      "sxpo": [
-        "topmark for buoys, cube point up, paper-chart"
-      ],
+      "sxpo": ["topmark for buoys, cube point up, paper-chart"],
       "scrf": {
         "C": "CHBLK"
       },
@@ -36219,9 +35082,7 @@
         "sbxc": 1422,
         "sbxr": 843
       },
-      "sxpo": [
-        "topmark for buoys, flag or other shape, paper-chart"
-      ],
+      "sxpo": ["topmark for buoys, flag or other shape, paper-chart"],
       "scrf": {
         "A": "CHBLK"
       },
@@ -36243,9 +35104,7 @@
         "sbxc": 1455,
         "sbxr": 843
       },
-      "sxpo": [
-        "topmark for buoys, T-Shape, paper-chart"
-      ],
+      "sxpo": ["topmark for buoys, T-Shape, paper-chart"],
       "scrf": {
         "A": "CHBLK"
       },
@@ -36267,15 +35126,11 @@
         "sbxc": 1390,
         "sbxr": 745
       },
-      "sxpo": [
-        "topmark for beacons, cone point up, paper-chart"
-      ],
+      "sxpo": ["topmark for beacons, cone point up, paper-chart"],
       "scrf": {
         "C": "CHBLK"
       },
-      "svct": [
-        "SPC;ST0;PU1500,745;PM0;PD1390,920,1610,920,1500,745;PM2;FP;"
-      ]
+      "svct": ["SPC;ST0;PU1500,745;PM0;PD1390,920,1610,920,1500,745;PM2;FP;"]
     },
     {
       "rcid": 1931,
@@ -36290,15 +35145,11 @@
         "sbxc": 1390,
         "sbxr": 750
       },
-      "sxpo": [
-        "topmark for beacons, cone point down, paper-chart"
-      ],
+      "sxpo": ["topmark for beacons, cone point down, paper-chart"],
       "scrf": {
         "C": "CHBLK"
       },
-      "svct": [
-        "SPC;ST0;PU1390,750;PM0;PD1610,750,1500,920,1390,750;PM2;FP;"
-      ]
+      "svct": ["SPC;ST0;PU1390,750;PM0;PD1610,750,1500,920,1390,750;PM2;FP;"]
     },
     {
       "rcid": 1932,
@@ -36313,9 +35164,7 @@
         "sbxc": 1390,
         "sbxr": 525
       },
-      "sxpo": [
-        "topmark for beacons, 2 cones point upward, paper-chart"
-      ],
+      "sxpo": ["topmark for beacons, 2 cones point upward, paper-chart"],
       "scrf": {
         "C": "CHBLK"
       },
@@ -36336,9 +35185,7 @@
         "sbxc": 1390,
         "sbxr": 530
       },
-      "sxpo": [
-        "topmark for beacons, 2 cones point downward, paper-chart"
-      ],
+      "sxpo": ["topmark for beacons, 2 cones point downward, paper-chart"],
       "scrf": {
         "C": "CHBLK"
       },
@@ -36359,9 +35206,7 @@
         "sbxc": 1390,
         "sbxr": 525
       },
-      "sxpo": [
-        "topmark for beacons, 2 cones base to base, paper-chart"
-      ],
+      "sxpo": ["topmark for beacons, 2 cones base to base, paper-chart"],
       "scrf": {
         "C": "CHBLK"
       },
@@ -36382,9 +35227,7 @@
         "sbxc": 1390,
         "sbxr": 530
       },
-      "sxpo": [
-        "topmark for beacons, 2 cones point to point, paper-chart"
-      ],
+      "sxpo": ["topmark for beacons, 2 cones point to point, paper-chart"],
       "scrf": {
         "C": "CHBLK"
       },
@@ -36405,15 +35248,11 @@
         "sbxc": 1390,
         "sbxr": 730
       },
-      "sxpo": [
-        "topmark for beacons, sphere, paper-chart"
-      ],
+      "sxpo": ["topmark for beacons, sphere, paper-chart"],
       "scrf": {
         "C": "CHBLK"
       },
-      "svct": [
-        "SPC;PU1500,840;ST0;PM0;CI110;PM2;FP;"
-      ]
+      "svct": ["SPC;PU1500,840;ST0;PM0;CI110;PM2;FP;"]
     },
     {
       "rcid": 1937,
@@ -36428,9 +35267,7 @@
         "sbxc": 1390,
         "sbxr": 455
       },
-      "sxpo": [
-        "topmark for beacons, 2 spheres, paper-chart"
-      ],
+      "sxpo": ["topmark for beacons, 2 spheres, paper-chart"],
       "scrf": {
         "C": "CHBLK"
       },
@@ -36451,9 +35288,7 @@
         "sbxc": 1425,
         "sbxr": 675
       },
-      "sxpo": [
-        "topmark for beacons, cylinder, paper-chart"
-      ],
+      "sxpo": ["topmark for beacons, cylinder, paper-chart"],
       "scrf": {
         "C": "CHBLK"
       },
@@ -36474,9 +35309,7 @@
         "sbxc": 1380,
         "sbxr": 785
       },
-      "sxpo": [
-        "topmark for beacons, board, paper-chart"
-      ],
+      "sxpo": ["topmark for beacons, board, paper-chart"],
       "scrf": {
         "C": "CHBLK"
       },
@@ -36497,9 +35330,7 @@
         "sbxc": 1370,
         "sbxr": 700
       },
-      "sxpo": [
-        "topmark for beacons, cube point up, paper-chart"
-      ],
+      "sxpo": ["topmark for beacons, cube point up, paper-chart"],
       "scrf": {
         "C": "CHBLK"
       },
@@ -36520,9 +35351,7 @@
         "sbxc": 1495,
         "sbxr": 757
       },
-      "sxpo": [
-        "topmark for buoys, x-shape, paper-chart"
-      ],
+      "sxpo": ["topmark for buoys, x-shape, paper-chart"],
       "scrf": {
         "A": "CHBLK"
       },
@@ -36544,15 +35373,11 @@
         "sbxc": 1390,
         "sbxr": 730
       },
-      "sxpo": [
-        "topmark for beacons, x-shape, paper-chart"
-      ],
+      "sxpo": ["topmark for beacons, x-shape, paper-chart"],
       "scrf": {
         "C": "CHBLK"
       },
-      "svct": [
-        "SPC;SW2;PU1390,730;PD1610,950;PU1610,730;PD1390,950;"
-      ]
+      "svct": ["SPC;SW2;PU1390,730;PD1610,950;PU1610,730;PD1390,950;"]
     },
     {
       "rcid": 1943,
@@ -36567,9 +35392,7 @@
         "sbxc": 1219,
         "sbxr": 680
       },
-      "sxpo": [
-        "topmark for beacons, upright cross, paper-chart"
-      ],
+      "sxpo": ["topmark for beacons, upright cross, paper-chart"],
       "scrf": {
         "A": "CHBLK"
       },
@@ -36591,9 +35414,7 @@
         "sbxc": 1372,
         "sbxr": 721
       },
-      "sxpo": [
-        "topmark for beacons, besom point down, paper-chart"
-      ],
+      "sxpo": ["topmark for beacons, besom point down, paper-chart"],
       "scrf": {
         "A": "CHBLK"
       },
@@ -36616,9 +35437,7 @@
         "sbxc": 1370,
         "sbxr": 401
       },
-      "sxpo": [
-        "topmark for beacons, besom point up, paper-chart"
-      ],
+      "sxpo": ["topmark for beacons, besom point up, paper-chart"],
       "scrf": {
         "A": "CHBLK"
       },
@@ -36641,9 +35460,7 @@
         "sbxc": 1221,
         "sbxr": 799
       },
-      "sxpo": [
-        "topmark for beacons, T-shape, paper-chart"
-      ],
+      "sxpo": ["topmark for beacons, T-shape, paper-chart"],
       "scrf": {
         "A": "CHBLK"
       },
@@ -36665,9 +35482,7 @@
         "sbxc": 577,
         "sbxr": 172
       },
-      "sxpo": [
-        "tower"
-      ],
+      "sxpo": ["tower"],
       "scrf": {
         "W": "LANDF"
       },
@@ -36689,9 +35504,7 @@
         "sbxc": 600,
         "sbxr": 250
       },
-      "sxpo": [
-        "water tower"
-      ],
+      "sxpo": ["water tower"],
       "scrf": {
         "W": "LANDF"
       },
@@ -36713,9 +35526,7 @@
         "sbxc": 575,
         "sbxr": 171
       },
-      "sxpo": [
-        "conspicuous tower"
-      ],
+      "sxpo": ["conspicuous tower"],
       "scrf": {
         "C": "CHBLK"
       },
@@ -36737,9 +35548,7 @@
         "sbxc": 550,
         "sbxr": 400
       },
-      "sxpo": [
-        "radio, television tower"
-      ],
+      "sxpo": ["radio, television tower"],
       "scrf": {
         "A": "LANDF"
       },
@@ -36766,9 +35575,7 @@
         "sbxc": 600,
         "sbxr": 250
       },
-      "sxpo": [
-        "conspicuous water tower"
-      ],
+      "sxpo": ["conspicuous water tower"],
       "scrf": {
         "C": "CHBLK"
       },
@@ -36790,9 +35597,7 @@
         "sbxc": 550,
         "sbxr": 400
       },
-      "sxpo": [
-        "conspicuous radio, television tower"
-      ],
+      "sxpo": ["conspicuous radio, television tower"],
       "scrf": {
         "A": "CHBLK"
       },
@@ -36819,9 +35624,7 @@
         "sbxc": 574,
         "sbxr": 348
       },
-      "sxpo": [
-        "general symbol for a tree"
-      ],
+      "sxpo": ["general symbol for a tree"],
       "scrf": {
         "A": "LANDF"
       },
@@ -36848,9 +35651,7 @@
         "sbxc": 550,
         "sbxr": 450
       },
-      "sxpo": [
-        "mangrove"
-      ],
+      "sxpo": ["mangrove"],
       "scrf": {
         "A": "LANDF"
       },
@@ -36902,9 +35703,7 @@
         "sbxc": 248,
         "sbxr": 1794
       },
-      "sxpo": [
-        "traffic crossing area"
-      ],
+      "sxpo": ["traffic crossing area"],
       "scrf": {
         "A": "TRFCF"
       },
@@ -36951,9 +35750,7 @@
         "sbxc": 1,
         "sbxr": 284
       },
-      "sxpo": [
-        "traffic roundabout"
-      ],
+      "sxpo": ["traffic roundabout"],
       "scrf": {
         "A": "TRFCF"
       },
@@ -37069,9 +35866,7 @@
         "sbxc": 1299,
         "sbxr": 1299
       },
-      "sxpo": [
-        "dangerous underwater rock of uncertain depth"
-      ],
+      "sxpo": ["dangerous underwater rock of uncertain depth"],
       "scrf": {
         "A": "DEPVS",
         "B": "CHBLK"
@@ -37111,9 +35906,7 @@
         "sbxc": 1297,
         "sbxr": 1336
       },
-      "sxpo": [
-        "rock which covers and uncovers or is awash at low water"
-      ],
+      "sxpo": ["rock which covers and uncovers or is awash at low water"],
       "scrf": {
         "A": "CHBLK"
       },
@@ -37136,9 +35929,7 @@
         "sbxc": 967,
         "sbxr": 1184
       },
-      "sxpo": [
-        "overfalls, eddies and breakers"
-      ],
+      "sxpo": ["overfalls, eddies and breakers"],
       "scrf": {
         "A": "CHGRD"
       },
@@ -37159,9 +35950,7 @@
         "sbxc": 250,
         "sbxr": 600
       },
-      "sxpo": [
-        "weed, kelp"
-      ],
+      "sxpo": ["weed, kelp"],
       "scrf": {
         "E": "CHGRD"
       },
@@ -37183,9 +35972,7 @@
         "sbxc": 600,
         "sbxr": 137
       },
-      "sxpo": [
-        "windmotor"
-      ],
+      "sxpo": ["windmotor"],
       "scrf": {
         "W": "LANDF"
       },
@@ -37207,9 +35994,7 @@
         "sbxc": 600,
         "sbxr": 137
       },
-      "sxpo": [
-        "conspicuous windmotor"
-      ],
+      "sxpo": ["conspicuous windmotor"],
       "scrf": {
         "C": "CHBLK"
       },
@@ -37231,9 +36016,7 @@
         "sbxc": 360,
         "sbxr": 78
       },
-      "sxpo": [
-        "wind generator farm"
-      ],
+      "sxpo": ["wind generator farm"],
       "scrf": {
         "A": "LANDF"
       },
@@ -37259,9 +36042,7 @@
         "sbxc": 360,
         "sbxr": 78
       },
-      "sxpo": [
-        "conspicuous wind generator farm"
-      ],
+      "sxpo": ["conspicuous wind generator farm"],
       "scrf": {
         "A": "CHBLK"
       },
@@ -37287,9 +36068,7 @@
         "sbxc": 600,
         "sbxr": 450
       },
-      "sxpo": [
-        "windmill"
-      ],
+      "sxpo": ["windmill"],
       "scrf": {
         "W": "LANDF"
       },
@@ -37310,9 +36089,7 @@
         "sbxc": 600,
         "sbxr": 450
       },
-      "sxpo": [
-        "conspicuous windmill"
-      ],
+      "sxpo": ["conspicuous windmill"],
       "scrf": {
         "C": "CHBLK"
       },
@@ -37358,9 +36135,7 @@
         "sbxc": 500,
         "sbxr": 600
       },
-      "sxpo": [
-        "non-dangerous wreck, depth unknown"
-      ],
+      "sxpo": ["non-dangerous wreck, depth unknown"],
       "scrf": {
         "E": "CHBLK"
       },
@@ -37381,9 +36156,7 @@
         "sbxc": 453,
         "sbxr": 540
       },
-      "sxpo": [
-        "dangerous wreck, depth unknown"
-      ],
+      "sxpo": ["dangerous wreck, depth unknown"],
       "scrf": {
         "A": "DEPVS",
         "C": "CHBLK"
@@ -37425,15 +36198,11 @@
         "sbxc": 0,
         "sbxr": 0
       },
-      "sxpo": [
-        "This object has been deleted by an automatic update"
-      ],
+      "sxpo": ["This object has been deleted by an automatic update"],
       "scrf": {
         "A": "CHCOR"
       },
-      "svct": [
-        "SPA;SW3;PU852,47;PD47,852;"
-      ]
+      "svct": ["SPA;SW3;PU852,47;PD47,852;"]
     },
     {
       "rcid": 4,
@@ -37454,10 +36223,7 @@
       "scrf": {
         "A": "CHCOR"
       },
-      "svct": [
-        "SPA;SW3;PU197,647;PD197,47;",
-        "SPA;SW3;PU197,797,180;CI150;"
-      ]
+      "svct": ["SPA;SW3;PU197,647;PD197,47;", "SPA;SW3;PU197,797,180;CI150;"]
     },
     {
       "rcid": 5,
@@ -37472,9 +36238,7 @@
         "sbxc": 0,
         "sbxr": 0
       },
-      "sxpo": [
-        "This object is a date dependent object"
-      ],
+      "sxpo": ["This object is a date dependent object"],
       "scrf": {
         "A": "CHMGD"
       },
@@ -37499,9 +36263,7 @@
         "sbxc": 912,
         "sbxr": 912
       },
-      "sxpo": [
-        "indication highlight for mariner's use"
-      ],
+      "sxpo": ["indication highlight for mariner's use"],
       "scrf": {
         "A": "CHYLW",
         "B": "BKAJ1"
@@ -37525,9 +36287,7 @@
         "lbxc": 306,
         "lbxr": 814
       },
-      "lxpo": [
-        "boundary of an anchorage area"
-      ],
+      "lxpo": ["boundary of an anchorage area"],
       "lcrf": {
         "A": "CHMGD"
       },
@@ -37583,9 +36343,7 @@
         "lbxc": 2105,
         "lbxr": 1470
       },
-      "lxpo": [
-        "jurisdiction boundary"
-      ],
+      "lxpo": ["jurisdiction boundary"],
       "lcrf": {
         "A": "CHGRD"
       },
@@ -37606,9 +36364,7 @@
         "lbxc": 200,
         "lbxr": 800
       },
-      "lxpo": [
-        "boundary of archipelagic sea lane"
-      ],
+      "lxpo": ["boundary of archipelagic sea lane"],
       "lcrf": {
         "A": "CHMGF"
       },
@@ -37631,9 +36387,7 @@
         "lbxc": 306,
         "lbxr": 814
       },
-      "lxpo": [
-        "boundary of a submarine cable area"
-      ],
+      "lxpo": ["boundary of a submarine cable area"],
       "lcrf": {
         "A": "CHMGD"
       },
@@ -37659,9 +36413,7 @@
         "lbxc": 306,
         "lbxr": 814
       },
-      "lxpo": [
-        "submarine cable"
-      ],
+      "lxpo": ["submarine cable"],
       "lcrf": {
         "A": "CHMGD"
       },
@@ -37685,15 +36437,11 @@
         "lbxc": 5179,
         "lbxr": 2251
       },
-      "lxpo": [
-        "this line has been deleted by a manual update"
-      ],
+      "lxpo": ["this line has been deleted by a manual update"],
       "lcrf": {
         "A": "CHCOR"
       },
-      "lvct": [
-        "SPA;SW1;PU5179,3055;PD5978,2251;"
-      ]
+      "lvct": ["SPA;SW1;PU5179,3055;PD5978,2251;"]
     },
     {
       "rcid": 1352,
@@ -37707,15 +36455,11 @@
         "lbxc": 5424,
         "lbxr": 2498
       },
-      "lxpo": [
-        "this line has been manually updated"
-      ],
+      "lxpo": ["this line has been manually updated"],
       "lcrf": {
         "A": "CHCOR"
       },
-      "lvct": [
-        "SPA;SW1;PU5574,2648;CI150;"
-      ]
+      "lvct": ["SPA;SW1;PU5574,2648;CI150;"]
     },
     {
       "rcid": 1353,
@@ -37729,9 +36473,7 @@
         "lbxc": 306,
         "lbxr": 814
       },
-      "lxpo": [
-        "boundary of area with a specific caution"
-      ],
+      "lxpo": ["boundary of area with a specific caution"],
       "lcrf": {
         "A": "CHMGD"
       },
@@ -37757,16 +36499,11 @@
         "lbxc": 306,
         "lbxr": 814
       },
-      "lxpo": [
-        "boundary of area to be navigated with caution"
-      ],
+      "lxpo": ["boundary of area to be navigated with caution"],
       "lcrf": {
         "A": "CHMGD"
       },
-      "lvct": [
-        "SPA;SW1;PU306,812;PD906,812;",
-        "PU606,812;SCEMAREMG1,2;"
-      ]
+      "lvct": ["SPA;SW1;PU306,812;PD906,812;", "PU606,812;SCEMAREMG1,2;"]
     },
     {
       "rcid": 1355,
@@ -37780,9 +36517,7 @@
         "lbxc": 0,
         "lbxr": 0
       },
-      "lxpo": [
-        "non-tidal current"
-      ],
+      "lxpo": ["non-tidal current"],
       "lcrf": {
         "A": "CHGRD"
       },
@@ -37835,9 +36570,7 @@
         "lbxc": 2421,
         "lbxr": 1415
       },
-      "lxpo": [
-        "two-way deep water route centreline, not based on fixed marks"
-      ],
+      "lxpo": ["two-way deep water route centreline, not based on fixed marks"],
       "lcrf": {
         "A": "TRFCD"
       },
@@ -37862,9 +36595,7 @@
         "lbxc": 2421,
         "lbxr": 1415
       },
-      "lxpo": [
-        "two-way deep water route centreline, based on fixed marks"
-      ],
+      "lxpo": ["two-way deep water route centreline, based on fixed marks"],
       "lcrf": {
         "A": "TRFCD"
       },
@@ -37887,9 +36618,7 @@
         "lbxc": 2421,
         "lbxr": 1415
       },
-      "lxpo": [
-        "one-way deep water route centreline, not based on fixed marks"
-      ],
+      "lxpo": ["one-way deep water route centreline, not based on fixed marks"],
       "lcrf": {
         "A": "TRFCD"
       },
@@ -37912,9 +36641,7 @@
         "lbxc": 2421,
         "lbxr": 1415
       },
-      "lxpo": [
-        "one-way deep water route centreline, based on fixed-marks"
-      ],
+      "lxpo": ["one-way deep water route centreline, based on fixed-marks"],
       "lcrf": {
         "A": "TRFCD"
       },
@@ -37936,9 +36663,7 @@
         "lbxc": 306,
         "lbxr": 814
       },
-      "lxpo": [
-        "boundary of a deep water route"
-      ],
+      "lxpo": ["boundary of a deep water route"],
       "lcrf": {
         "A": "TRFCD"
       },
@@ -37964,9 +36689,7 @@
         "lbxc": 446,
         "lbxr": 572
       },
-      "lxpo": [
-        "boundary of an area where entry is prohibited or restricted"
-      ],
+      "lxpo": ["boundary of an area where entry is prohibited or restricted"],
       "lcrf": {
         "A": "CHMGD"
       },
@@ -37994,9 +36717,7 @@
         "lbxc": 1459,
         "lbxr": 1555
       },
-      "lxpo": [
-        "electronic range/bearing line, dash"
-      ],
+      "lxpo": ["electronic range/bearing line, dash"],
       "lcrf": {
         "A": "NINFO"
       },
@@ -38017,16 +36738,11 @@
         "lbxc": 200,
         "lbxr": 800
       },
-      "lxpo": [
-        "boundary of an ESSA or PSSA"
-      ],
+      "lxpo": ["boundary of an ESSA or PSSA"],
       "lcrf": {
         "A": "CHMGF"
       },
-      "lvct": [
-        "SPA;SW1;PU200,800;PD500,800;PU350,950;",
-        "PD350,800;"
-      ]
+      "lvct": ["SPA;SW1;PU200,800;PD500,800;PU350,950;", "PD350,800;"]
     },
     {
       "rcid": 1365,
@@ -38040,9 +36756,7 @@
         "lbxc": 387,
         "lbxr": 853
       },
-      "lxpo": [
-        "ferry route"
-      ],
+      "lxpo": ["ferry route"],
       "lcrf": {
         "A": "CHMGD"
       },
@@ -38065,9 +36779,7 @@
         "lbxc": 387,
         "lbxr": 774
       },
-      "lxpo": [
-        "cable ferry route"
-      ],
+      "lxpo": ["cable ferry route"],
       "lcrf": {
         "A": "CHBLK"
       },
@@ -38090,16 +36802,11 @@
         "lbxc": 2105,
         "lbxr": 1470
       },
-      "lxpo": [
-        "fishing stakes"
-      ],
+      "lxpo": ["fishing stakes"],
       "lcrf": {
         "A": "CHGRD"
       },
-      "lvct": [
-        "SPA;SW1;PU2105,1468;PD2307,1468;",
-        "PU2307,1468;SCEMFSHFA1,2;"
-      ]
+      "lvct": ["SPA;SW1;PU2105,1468;PD2307,1468;", "PU2307,1468;SCEMFSHFA1,2;"]
     },
     {
       "rcid": 1368,
@@ -38143,9 +36850,7 @@
         "lbxc": 5476,
         "lbxr": 2607
       },
-      "lxpo": [
-        "safety contour of low accuracy in position"
-      ],
+      "lxpo": ["safety contour of low accuracy in position"],
       "lcrf": {
         "A": "DEPSC"
       },
@@ -38165,9 +36870,7 @@
         "lbxc": 5476,
         "lbxr": 2607
       },
-      "lxpo": [
-        "contour of low accuracy in position"
-      ],
+      "lxpo": ["contour of low accuracy in position"],
       "lcrf": {
         "A": "DEPCN"
       },
@@ -38209,9 +36912,7 @@
         "lbxc": 5476,
         "lbxr": 2607
       },
-      "lxpo": [
-        "area of wrecks or obstructions of low accuracy"
-      ],
+      "lxpo": ["area of wrecks or obstructions of low accuracy"],
       "lcrf": {
         "A": "CHGRD"
       },
@@ -38231,9 +36932,7 @@
         "lbxc": 5476,
         "lbxr": 2607
       },
-      "lxpo": [
-        "danger line of low accuracy surrounding a foul area"
-      ],
+      "lxpo": ["danger line of low accuracy surrounding a foul area"],
       "lcrf": {
         "A": "CHBLK"
       },
@@ -38287,10 +36986,7 @@
       "lcrf": {
         "A": "CHGRD"
       },
-      "lvct": [
-        "SPA;SW1;PU306,812;PD906,812;",
-        "PU606,812;SCEMAREGR1,2;"
-      ]
+      "lvct": ["SPA;SW1;PU306,812;PD906,812;", "PU606,812;SCEMAREGR1,2;"]
     },
     {
       "rcid": 1376,
@@ -38304,9 +37000,7 @@
         "lbxc": 0,
         "lbxr": 800
       },
-      "lxpo": [
-        "new object"
-      ],
+      "lxpo": ["new object"],
       "lcrf": {
         "A": "CHMGD"
       },
@@ -38327,16 +37021,11 @@
         "lbxc": 788,
         "lbxr": 635
       },
-      "lxpo": [
-        "boundary of non-HO data"
-      ],
+      "lxpo": ["boundary of non-HO data"],
       "lcrf": {
         "A": "NINFO"
       },
-      "lvct": [
-        "SPA;SW1;PU788,935;PD1088,635;",
-        "SPA;SW1;PU789,636;PD1389,636;"
-      ]
+      "lvct": ["SPA;SW1;PU788,935;PD1088,635;", "SPA;SW1;PU789,636;PD1389,636;"]
     },
     {
       "rcid": 1378,
@@ -38406,16 +37095,11 @@
         "lbxc": 2087,
         "lbxr": 2104
       },
-      "lxpo": [
-        "oil, gas pipeline, submerged or on land"
-      ],
+      "lxpo": ["oil, gas pipeline, submerged or on land"],
       "lcrf": {
         "A": "CHMGD"
       },
-      "lvct": [
-        "SPA;SW1;PU2087,2199;PD2484,2199;",
-        "PU2484,2199;SCEMPIPSL1,2;"
-      ]
+      "lvct": ["SPA;SW1;PU2087,2199;PD2484,2199;", "PU2484,2199;SCEMPIPSL1,2;"]
     },
     {
       "rcid": 1381,
@@ -38429,16 +37113,11 @@
         "lbxc": 2087,
         "lbxr": 2140
       },
-      "lxpo": [
-        "water pipeline, sewer, etc."
-      ],
+      "lxpo": ["water pipeline, sewer, etc."],
       "lcrf": {
         "A": "CHGRD"
       },
-      "lvct": [
-        "SPA;SW1;PU2087,2197;PD2485,2197;",
-        "PU2531,2197;SCEMPIPSL2,2;"
-      ]
+      "lvct": ["SPA;SW1;PU2087,2197;PD2485,2197;", "PU2531,2197;SCEMPIPSL2,2;"]
     },
     {
       "rcid": 1383,
@@ -38452,9 +37131,7 @@
         "lbxc": 306,
         "lbxr": 814
       },
-      "lxpo": [
-        "boundary of a precautionary area"
-      ],
+      "lxpo": ["boundary of a precautionary area"],
       "lcrf": {
         "A": "CHMGD"
       },
@@ -38505,9 +37182,7 @@
         "lbxc": 1600,
         "lbxr": 1470
       },
-      "lxpo": [
-        "regulated recommended route centreline, details not defined"
-      ],
+      "lxpo": ["regulated recommended route centreline, details not defined"],
       "lcrf": {
         "A": "TRFCD"
       },
@@ -38618,10 +37293,7 @@
       "lcrf": {
         "A": "TRFCD"
       },
-      "lvct": [
-        "SPA;SW1;PU1600,1470;PD3900,1470;",
-        "PU2650,1470;SCEMRCRTC2,2;"
-      ]
+      "lvct": ["SPA;SW1;PU1600,1470;PD3900,1470;", "PU2650,1470;SCEMRCRTC2,2;"]
     },
     {
       "rcid": 1390,
@@ -38689,9 +37361,7 @@
         "lbxc": 1596,
         "lbxr": 1415
       },
-      "lxpo": [
-        "non-regulated recommended two-way track, based on fixed-marks"
-      ],
+      "lxpo": ["non-regulated recommended two-way track, based on fixed-marks"],
       "lcrf": {
         "A": "CHGRD"
       },
@@ -38738,16 +37408,11 @@
         "lbxc": 1596,
         "lbxr": 1415
       },
-      "lxpo": [
-        "non-regulated recommended one-way track, based on fixed marks"
-      ],
+      "lxpo": ["non-regulated recommended one-way track, based on fixed marks"],
       "lcrf": {
         "A": "CHGRD"
       },
-      "lvct": [
-        "SPA;SW1;PU1612,1415;PD3325,1415;",
-        "PU2732,1415;SCEMRECTR2,2;"
-      ]
+      "lvct": ["SPA;SW1;PU1612,1415;PD3325,1415;", "PU2732,1415;SCEMRECTR2,2;"]
     },
     {
       "rcid": 1395,
@@ -38761,16 +37426,11 @@
         "lbxc": 2105,
         "lbxr": 1470
       },
-      "lxpo": [
-        "boundary of a restricted area"
-      ],
+      "lxpo": ["boundary of a restricted area"],
       "lcrf": {
         "A": "CHMGD"
       },
-      "lvct": [
-        "SPA;SW2;PU2105,1468;PD2409,1468;",
-        "PU2257,1468;SCEMRESAR1,2;"
-      ]
+      "lvct": ["SPA;SW2;PU2105,1468;PD2409,1468;", "PU2257,1468;SCEMRESAR1,2;"]
     },
     {
       "rcid": 1396,
@@ -38808,9 +37468,7 @@
         "lbxc": 306,
         "lbxr": 812
       },
-      "lxpo": [
-        "boundary of an area for which there is tidal information"
-      ],
+      "lxpo": ["boundary of an area for which there is tidal information"],
       "lcrf": {
         "A": "CHGRD"
       },
@@ -38842,9 +37500,7 @@
       "lcrf": {
         "A": "CHCOR"
       },
-      "lvct": [
-        "SPA;SW3;PU169,169,180;CI169;"
-      ]
+      "lvct": ["SPA;SW3;PU169,169,180;CI169;"]
     },
     {
       "rcid": 2,
@@ -38858,15 +37514,11 @@
         "lbxc": 0,
         "lbxr": 0
       },
-      "lxpo": [
-        "This object has been deleted by an automatic update"
-      ],
+      "lxpo": ["This object has been deleted by an automatic update"],
       "lcrf": {
         "A": "CHCOR"
       },
-      "lvct": [
-        "SPA;SW3;PU411,0;PD9,403;"
-      ]
+      "lvct": ["SPA;SW3;PU411,0;PD9,403;"]
     },
     {
       "rcid": 3420,
@@ -38880,17 +37532,12 @@
         "lbxc": 264,
         "lbxr": 587
       },
-      "lxpo": [
-        "indication highlight for mariner's use"
-      ],
+      "lxpo": ["indication highlight for mariner's use"],
       "lcrf": {
         "A": "CHYLW",
         "B": "BKAJ1"
       },
-      "lvct": [
-        "SPB;SW4;PU124,597;PD402,597;",
-        "SPA;SW2;PU064,587;PD462,587;"
-      ]
+      "lvct": ["SPB;SW4;PU124,597;PD402,597;", "SPA;SW2;PU064,587;PD462,587;"]
     }
   ],
   "unknown": []

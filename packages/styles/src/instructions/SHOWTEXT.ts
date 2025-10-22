@@ -3,7 +3,10 @@ import { colours } from "@enc-tiles/s52";
 import sprintf from "./sprintf.js";
 import { Reference } from "./parser.js";
 
-export type TextLayerSpecification = Pick<SymbolLayerSpecification, 'type' | 'layout' | 'paint' | 'metadata'>;
+export type TextLayerSpecification = Pick<
+  SymbolLayerSpecification,
+  "type" | "layout" | "paint" | "metadata"
+>;
 
 export enum HJUST {
   /** 1. CENTRE – The pivot point is located at the centre of the overall length of text string */
@@ -11,7 +14,7 @@ export enum HJUST {
   /** 2. RIGHT - The pivot point is located at the right side of the last character of text string */
   RIGHT = 2,
   /** 3. LEFT (default) - This is the default value.The pivot point is located at the left side of the first character of text string */
-  LEFT = 3
+  LEFT = 3,
 }
 
 export enum VJUST {
@@ -20,7 +23,7 @@ export enum VJUST {
   /** 2. CENTRE - The pivot point is located at the centre line of the text string */
   CENTRE = 2,
   /** 3. TOP The pivot point is located at the top line of the text string */
-  TOP = 3
+  TOP = 3,
 }
 
 export enum SPACE {
@@ -32,7 +35,7 @@ export enum SPACE {
 
   /** 3. Standard (with word wrap) - the standard spacing in accordance with the typeface given in CHARS must be used; text longer than 8 characters
    must be broken into separate lines by whole words. */
-  WRAP = 3
+  WRAP = 3,
 }
 /**
  * Parameters:
@@ -90,22 +93,22 @@ export function showText(
   hjust: HJUST = HJUST.LEFT,
   vjust: VJUST = VJUST.BOTTOM,
   space: SPACE = SPACE.STANDARD,
-  chars: string = '15110',
+  chars: string = "15110",
   xoffs: number = 0,
   yoffs: number = 0,
   colour?: Reference,
-  display?: string
+  display?: string,
 ): TextLayerSpecification {
   // TODO: make configurable
   const fonts: Record<string, string[]> = {
-    '141': ['Metropolis Light'],
-    '151': ['Metropolis Regular'],
-    '161': ['Metropolis Bold'],
+    "141": ["Metropolis Light"],
+    "151": ["Metropolis Regular"],
+    "161": ["Metropolis Bold"],
 
     // '241': 'TODO Sans Serif Light',
     // '251': 'TODO Sans Serif Medium',
     // '261': 'TODO Sans Serif Bold',
-    '242': ['Metropolis Light Italic'],
+    "242": ["Metropolis Light Italic"],
   };
 
   let font = fonts[chars.slice(0, 3)];
@@ -113,61 +116,68 @@ export function showText(
 
   if (!font) {
     console.warn(`Unknown font code: ${chars}`);
-    font = fonts['151'];
+    font = fonts["151"];
   }
 
   let textField: string | ExpressionSpecification;
-  if (typeof text === 'string') {
+  if (typeof text === "string") {
     textField = text;
   } else if (text instanceof Reference) {
-    textField = ['get', text.name];
+    textField = ["get", text.name];
   } else {
     textField = text as ExpressionSpecification;
   }
 
   return {
-    type: 'symbol',
+    type: "symbol",
     metadata: {
       // MapLibre doesn't have the notion of layer groups, so just pass as metadata for now and allow
       // client implementations to use this.
-      's52:display': display
+      "s52:display": display,
     },
     layout: {
-      'text-field': textField,
-      'text-anchor': textAnchor(hjust, vjust),
-      'text-font': font!,
-      'text-size': isNaN(fontSize) ? 10 : fontSize,
-      'text-offset': [xoffs ?? 0, yoffs ?? 0],
-      'symbol-placement': 'point',
-      ...(space === SPACE.WRAP ? { 'text-max-width': 8 } : {}),
+      "text-field": textField,
+      "text-anchor": textAnchor(hjust, vjust),
+      "text-font": font!,
+      "text-size": isNaN(fontSize) ? 10 : fontSize,
+      "text-offset": [xoffs ?? 0, yoffs ?? 0],
+      "symbol-placement": "point",
+      ...(space === SPACE.WRAP ? { "text-max-width": 8 } : {}),
     },
     paint: {
       // FIXME: make theme configurable
-      'text-color': colours.DAY[colour?.name ?? 'CHBLK'],
-      'text-halo-color': 'rgba(255, 255, 255, 0.5)',
-      'text-halo-width': 2,
+      "text-color": colours.DAY[colour?.name ?? "CHBLK"],
+      "text-halo-color": "rgba(255, 255, 255, 0.5)",
+      "text-halo-width": 2,
     },
   };
 }
 // Type is not exposed, so have to reach in to get it
-type TextAnchor = Required<Required<SymbolLayerSpecification>['layout']>['text-anchor'];
+type TextAnchor = Required<
+  Required<SymbolLayerSpecification>["layout"]
+>["text-anchor"];
 /* Translate HJUST and VJUST to maplibre-gl text-anchor values */
 function textAnchor(hjust: HJUST, vjust: VJUST): TextAnchor {
-  const h = hjust === HJUST.LEFT ? 'left' : hjust === HJUST.CENTRE ? 'center' : 'right';
-  const v = vjust === VJUST.TOP ? 'top' : vjust === VJUST.CENTRE ? 'center' : 'bottom';
+  const h =
+    hjust === HJUST.LEFT ? "left" : hjust === HJUST.CENTRE ? "center" : "right";
+  const v =
+    vjust === VJUST.TOP ? "top" : vjust === VJUST.CENTRE ? "center" : "bottom";
 
-  if (h === 'center' && v === 'center') {
-    return 'center';
-  } else if (h === 'center') {
+  if (h === "center" && v === "center") {
+    return "center";
+  } else if (h === "center") {
     return v;
-  } else if (v === 'center') {
+  } else if (v === "center") {
     return h;
   } else {
     return `${v}-${h}`;
   }
 }
 
-export function TX(string: string | Reference, ...args: any[]): TextLayerSpecification {
+export function TX(
+  string: string | Reference,
+  ...args: any[]
+): TextLayerSpecification {
   return showText(string, ...args);
 }
 
@@ -180,22 +190,28 @@ export function TE(
   return showText(textField, ...args);
 }
 
-export function formatAttribute(format: string, attribute: string): string | ExpressionSpecification {
-  const parts = sprintf(format).map(token => {
+export function formatAttribute(
+  format: string,
+  attribute: string,
+): string | ExpressionSpecification {
+  const parts = sprintf(format).map((token) => {
     if (token.type === "text") {
       return token.value;
     } else {
-      if (token.specifier === 's') {
-        return ['get', attribute] as ExpressionSpecification;
+      if (token.specifier === "s") {
+        return ["get", attribute] as ExpressionSpecification;
       } else {
         return [
-          'number-format',
-          ['get', attribute],
-          { 'min-fraction-digits': token.precision, 'max-fraction-digits': token.precision }
+          "number-format",
+          ["get", attribute],
+          {
+            "min-fraction-digits": token.precision,
+            "max-fraction-digits": token.precision,
+          },
         ] as ExpressionSpecification;
       }
     }
   });
 
-  return (parts.length === 1 && parts[0]) ? parts[0] : ['format', ...parts];
+  return parts.length === 1 && parts[0] ? parts[0] : ["format", ...parts];
 }

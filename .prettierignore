@@ -1,0 +1,6 @@
+node_modules
+dist
+packages/s52/data
+packages/s52/symbols
+packages/s52/sprites
+packages/s52/{data,colours,symbols}.json

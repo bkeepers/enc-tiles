@@ -1,5 +1,5 @@
 import { FillLayerSpecification } from "maplibre-gl";
-import { colours } from '@enc-tiles/s52';
+import { colours } from "@enc-tiles/s52";
 import { Reference } from "./parser.js";
 
 /**
@@ -17,12 +17,14 @@ import { Reference } from "./parser.js";
  * Parameters:
  * PATTERN: the name of the pattern
  */
-export function AP(pattern: Reference): Pick<FillLayerSpecification, 'type' | 'paint'> {
+export function AP(
+  pattern: Reference,
+): Pick<FillLayerSpecification, "type" | "paint"> {
   return {
-    type: 'fill',
+    type: "fill",
     paint: {
-      'fill-pattern': pattern.name,
-    }
+      "fill-pattern": pattern.name,
+    },
   };
 }
 
@@ -32,7 +34,7 @@ export const TRANSP = {
   1: 0.75,
   2: 0.5,
   3: 0.25,
-}
+};
 
 /**
  * Showarea (pattern fill).
@@ -49,13 +51,16 @@ export const TRANSP = {
  * 2(50)% where 2 out of every 4 pixels use TRNSP
  * 3(75)% where 3 out of every 4 pixels use TRNSP
  */
-export function AC(colour: Reference, transp: number = 0): Pick<FillLayerSpecification, 'type' | 'paint'> {
+export function AC(
+  colour: Reference,
+  transp: number = 0,
+): Pick<FillLayerSpecification, "type" | "paint"> {
   const opacity = TRANSP[transp] ?? 1.0;
   return {
-    type: 'fill',
+    type: "fill",
     paint: {
-      'fill-color': colours.DAY[colour.name],
-      'fill-opacity': opacity,
-    }
-  }
+      "fill-color": colours.DAY[colour.name],
+      "fill-opacity": opacity,
+    },
+  };
 }

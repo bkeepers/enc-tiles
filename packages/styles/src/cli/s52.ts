@@ -12,8 +12,8 @@ const { values } = parseArgs({
       type: "string",
       short: "o",
       default: "-",
-    }
-  }
+    },
+  },
 });
 
 if (!values.url) {
@@ -24,9 +24,10 @@ if (!values.url) {
 const style = s52style({
   source: {
     type: "vector",
-    url: values.url
-  }
-})
+    url: values.url,
+  },
+});
 
-const output = values.output === "-" ? process.stdout : createWriteStream(values.output);
+const output =
+  values.output === "-" ? process.stdout : createWriteStream(values.output);
 output.write(JSON.stringify(style, null, 2));
