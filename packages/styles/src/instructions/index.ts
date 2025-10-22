@@ -15,7 +15,7 @@ export * from "./SHOWTEXT.js"
 
 const commands = { AC, AP, CS, LC, LS, SY, TE, TX };
 
-export function instructionsToStyles(instruction: string | undefined): LayerSpecification[] {
+export function instructionsToStyles(instruction: string | undefined): Partial<LayerSpecification>[] {
   if (typeof instruction !== 'string') return [];
 
   return parse(instruction).flatMap(instruction => {

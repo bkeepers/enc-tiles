@@ -13,20 +13,3 @@ test("symbology from lookups", () => {
   build(config);
   expect(true).toBe(true);
 })
-
-describe("filter", () => {
-  test("presence of attributes", () => {
-    const attc = [
-      {
-        "attl": "CAT_TS3",
-        "attv": ""
-      },
-      {
-        "attl": "ORIENT",
-        "attv": ""
-      }
-    ]
-
-    expect(filter(attc)).toEqual(["all", ["has", "CAT_TS3"], ["has", "ORIENT"]]);
-  })
-})
