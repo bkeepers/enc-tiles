@@ -1,10 +1,9 @@
-
 import { ExpressionSpecification, LayerSpecification } from "maplibre-gl";
 import { Reference } from "./parser.js";
-import { colours } from '@enc-tiles/s52';
+import { colours } from "@enc-tiles/s52";
 import { LineStyles } from "./SHOWLINE.js";
 
-const procs = { DEPARE03, DEPCNT03, RESTRN01 }
+const procs = { DEPARE03, DEPCNT03, RESTRN01 };
 
 export function CS(ref: Reference) {
   if (ref.name in procs) {
@@ -16,50 +15,59 @@ export function CS(ref: Reference) {
 
 /** DEPARE03 - 13.2.1 Depth area colour fill and dredged area pattern fill */
 export function DEPARE03(): Partial<LayerSpecification>[] {
-  return [{
-    type: 'fill',
-    paint: {
-      'fill-color': [
-        'let', 'drval1', ['coalesce', ['get', 'DRVAL1'], -1],
-        [
-          'let', 'drval2', ['coalesce', ['get', 'DRVAL2'], ['+', ['var', 'drval1'], 0.01]],
-          SEABED01()
-        ]
-      ],
-      // TODO: shallow pattern
-      // 'fill-pattern': DIAMOND1
-    }
-  }];
+  return [
+    {
+      type: "fill",
+      paint: {
+        "fill-color": [
+          "let",
+          "drval1",
+          ["coalesce", ["get", "DRVAL1"], -1],
+          [
+            "let",
+            "drval2",
+            ["coalesce", ["get", "DRVAL2"], ["+", ["var", "drval1"], 0.01]],
+            SEABED01(),
+          ],
+        ],
+        // TODO: shallow pattern
+        // 'fill-pattern': DIAMOND1
+      },
+    },
+  ];
 }
 
 /** DEPCNT03 - 13.2.2 Depth contours, including safety contour */
 export function DEPCNT03(): Partial<LayerSpecification>[] {
   // MapLibre doesn't express data expressions in `line-dasharray`, so need to split into two layers with filters
-  const qualityExpression: ExpressionSpecification = ['all', ['has', 'QUAPOS'], ['in', ['get', 'QUAPOS'], ['literal', ['1', '10', '11']]]]
+  const qualityExpression: ExpressionSpecification = [
+    "all",
+    ["has", "QUAPOS"],
+    ["in", ["get", "QUAPOS"], ["literal", ["1", "10", "11"]]],
+  ];
   return [
     {
-      type: 'line',
+      type: "line",
       filter: qualityExpression,
       paint: {
-        'line-dasharray': LineStyles.DASH,
-        'line-width': 1,
-        'line-color': colours.DAY.DEPCN,
-      }
+        "line-dasharray": LineStyles.DASH,
+        "line-width": 1,
+        "line-color": colours.DAY.DEPCN,
+      },
     },
     {
-      type: 'line',
+      type: "line",
       filter: ["!", qualityExpression],
       paint: {
-        'line-width': 1,
-        'line-color': colours.DAY.DEPCN,
-      }
+        "line-width": 1,
+        "line-color": colours.DAY.DEPCN,
+      },
     },
     {
-      type: 'symbol',
-
+      type: "symbol",
     },
     // TODO: add user pref to display contour labels
-    ...SAFECON01()
+    ...SAFECON01(),
   ];
 }
 
@@ -87,30 +95,34 @@ export function RESTRN01(): Partial<LayerSpecification>[] {
 export function SAFECON01(): Partial<LayerSpecification>[] {
   return [
     {
-      type: 'symbol',
+      type: "symbol",
       filter: [
-        'all',
-        ['has', 'VALDCO'],
-        ['>', ['get', 'VALDCO'], 0],
-        ['<', ['get', 'VALDCO'], 99999],
+        "all",
+        ["has", "VALDCO"],
+        [">", ["get", "VALDCO"], 0],
+        ["<", ["get", "VALDCO"], 99999],
       ],
       layout: {
-        'symbol-placement': 'line',
-        'text-size': 12,
-        'text-field': [
-          'case',
-          ['<', ['get', 'VALDCO'], 31],
-          ["number-format", ["get", "VALDCO"], { "min-fraction-digits": 0, "max-fraction-digits": 0 }],
-          ["number-format", ["floor", ["get", "VALDCO"]], {}]
+        "symbol-placement": "line",
+        "text-size": 12,
+        "text-field": [
+          "case",
+          ["<", ["get", "VALDCO"], 31],
+          [
+            "number-format",
+            ["get", "VALDCO"],
+            { "min-fraction-digits": 0, "max-fraction-digits": 0 },
+          ],
+          ["number-format", ["floor", ["get", "VALDCO"]], {}],
         ],
-        'text-font': ['Metropolis Regular'],
+        "text-font": ["Metropolis Regular"],
       },
       paint: {
-        'text-halo-color': 'rgba(255, 255, 255, 0.5)',
-        'text-halo-width': 1,
-        'text-color': colours.DAY.CHBLK
-      }
-    }
+        "text-halo-color": "rgba(255, 255, 255, 0.5)",
+        "text-halo-width": 1,
+        "text-color": colours.DAY.CHBLK,
+      },
+    },
   ];
 }
 
@@ -125,12 +137,28 @@ export function SEABED01({
 } = {}): ExpressionSpecification {
   return [
     "case",
-    ["all", [">=", ["var", "drval1"], deepDepth], [">", ["var", "drval2"], deepDepth]], theme.DEPDW,
-    ["all", [">=", ["var", "drval1"], safetyDepth], [">", ["var", "drval2"], safetyDepth]], theme.DEPMD,
-    ["all", [">=", ["var", "drval1"], shallowDepth], [">", ["var", "drval2"], shallowDepth]], theme.DEPMS,
-    ["all", [">=", ["var", "drval1"], 0], [">", ["var", "drval2"], 0]], theme.DEPVS,
-    theme.DEPIT
-  ]
+    [
+      "all",
+      [">=", ["var", "drval1"], deepDepth],
+      [">", ["var", "drval2"], deepDepth],
+    ],
+    theme.DEPDW,
+    [
+      "all",
+      [">=", ["var", "drval1"], safetyDepth],
+      [">", ["var", "drval2"], safetyDepth],
+    ],
+    theme.DEPMD,
+    [
+      "all",
+      [">=", ["var", "drval1"], shallowDepth],
+      [">", ["var", "drval2"], shallowDepth],
+    ],
+    theme.DEPMS,
+    ["all", [">=", ["var", "drval1"], 0], [">", ["var", "drval2"], 0]],
+    theme.DEPVS,
+    theme.DEPIT,
+  ];
 }
 
 /** SNDFRM04 - 13.2.15 Symbolizing soundings, including safety depth */

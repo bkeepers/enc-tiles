@@ -1,12 +1,19 @@
-import '@maplibre/maplibre-gl-inspect/dist/maplibre-gl-inspect.css';
+import "@maplibre/maplibre-gl-inspect/dist/maplibre-gl-inspect.css";
 import "maplibre-gl/dist/maplibre-gl.css";
-import { addProtocol, Map, NavigationControl, FullscreenControl, Popup } from "maplibre-gl";
-import MaplibreInspect from '@maplibre/maplibre-gl-inspect';
+import {
+  addProtocol,
+  Map,
+  NavigationControl,
+  FullscreenControl,
+  Popup,
+} from "maplibre-gl";
+import MaplibreInspect from "@maplibre/maplibre-gl-inspect";
 import { Protocol, PMTiles } from "pmtiles";
 import createStyle from "@enc-tiles/styles";
 
 const tileset = import.meta.env.VITE_TILESET;
-const tilesUrl = import.meta.env.VITE_TILES_URL ?? (window.location.origin + "/tiles/");
+const tilesUrl =
+  import.meta.env.VITE_TILES_URL ?? window.location.origin + "/tiles/";
 
 // add the PMTiles plugin to the maplibre-gl global.
 const protocol = new Protocol({ metadata: true });

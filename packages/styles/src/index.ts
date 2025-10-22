@@ -1,12 +1,15 @@
-import { Mode } from '@enc-tiles/s52';
-import type { StyleSpecification, VectorSourceSpecification } from 'maplibre-gl';
-import { build, LayerConfig } from './symbolology/index.js';
+import { Mode } from "@enc-tiles/s52";
+import type {
+  StyleSpecification,
+  VectorSourceSpecification,
+} from "maplibre-gl";
+import { build, LayerConfig } from "./symbolology/index.js";
 
 export interface StyleOptions {
-  source: VectorSourceSpecification
-  name?: string
-  mode?: Mode
-  sprite?: string
+  source: VectorSourceSpecification;
+  name?: string;
+  mode?: Mode;
+  sprite?: string;
 }
 
 export default function ({
@@ -15,7 +18,6 @@ export default function ({
   mode = "DAY",
   sprite,
 }: StyleOptions): StyleSpecification {
-
   const config: LayerConfig = {
     mode,
     source: "enc",
@@ -29,11 +31,11 @@ export default function ({
   return {
     version: 8,
     name,
-    sprite: [...(sprite ? [sprite] : []), mode.toLowerCase()].join('/'),
+    sprite: [...(sprite ? [sprite] : []), mode.toLowerCase()].join("/"),
     glyphs: "http://fonts.openmaptiles.org/{fontstack}/{range}.pbf",
     sources: {
-      [config.source]: source
+      [config.source]: source,
     },
-    layers
-  }
+    layers,
+  };
 }

@@ -17,8 +17,8 @@ function cieToRgb(x: number, y: number, L: number): RGB {
   const rgb = [
     3.2406 * X - 1.5372 * Y - 0.4986 * Z,
     -0.9689 * X + 1.8758 * Y + 0.0415 * Z,
-    0.0557 * X - 0.2040 * Y + 1.0570 * Z,
-  ]
+    0.0557 * X - 0.204 * Y + 1.057 * Z,
+  ];
 
   return rgb.map((i) => {
     // clamp negative
@@ -26,12 +26,15 @@ function cieToRgb(x: number, y: number, L: number): RGB {
     // gamma correct
     c = c <= 0.0031308 ? 12.92 * c : 1.055 * Math.pow(c, 1 / 2.4) - 0.055;
     // scale to 8-bit
-    return Math.round(Math.min(1, c) * 255)
+    return Math.round(Math.min(1, c) * 255);
   }) as RGB;
 }
 
 function rgbToHex([r, g, b]: RGB): string {
-  return `#${[r, g, b].map(v => v.toString(16).padStart(2, "0")).join("").toUpperCase()}`;
+  return `#${[r, g, b]
+    .map((v) => v.toString(16).padStart(2, "0"))
+    .join("")
+    .toUpperCase()}`;
 }
 
 // Return a vite plugin that generates a colours.json file
@@ -39,11 +42,21 @@ export default {
   name: "generate-colours",
   async buildStart() {
     // Convert PresLib colors to hex strings
-    const colours = Object.fromEntries(data.map(({ ctus, entries }) => {
-      return [ctus, Object.fromEntries(entries.map((color) => {
-        return [color.ctok, rgbToHex(cieToRgb(color.chrx, color.chry, color.clum))]
-      }))]
-    }));
+    const colours = Object.fromEntries(
+      data.map(({ ctus, entries }) => {
+        return [
+          ctus,
+          Object.fromEntries(
+            entries.map((color) => {
+              return [
+                color.ctok,
+                rgbToHex(cieToRgb(color.chrx, color.chry, color.clum)),
+              ];
+            }),
+          ),
+        ];
+      }),
+    );
 
     await writeFile("colours.json", JSON.stringify(colours, null, 2));
   },

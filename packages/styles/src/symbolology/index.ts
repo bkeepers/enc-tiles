@@ -1,8 +1,13 @@
-import s52, { colours, Mode } from '@enc-tiles/s52';
-import type { BackgroundLayerSpecification, ExpressionFilterSpecification, ExpressionSpecification, LayerSpecification } from "maplibre-gl";
+import s52, { colours, Mode } from "@enc-tiles/s52";
+import type {
+  BackgroundLayerSpecification,
+  ExpressionFilterSpecification,
+  ExpressionSpecification,
+  LayerSpecification,
+} from "maplibre-gl";
 import { LookupEntry } from "@enc-tiles/dai";
-import { instructionsToStyles } from '../instructions/index.js';
-import * as filters from '../filters.js';
+import { instructionsToStyles } from "../instructions/index.js";
+import * as filters from "../filters.js";
 
 export interface LayerConfig {
   mode: Mode;
@@ -24,11 +29,12 @@ export enum SymbolType {
   SIMPLIFIED = "simplified",
 }
 
-const filterGeometryType: Record<LookupEntry["ftyp"], ExpressionSpecification> = {
-  "A": ["==", ["geometry-type"], "Polygon"],
-  "L": ["==", ["geometry-type"], "LineString"],
-  "P": ["==", ["geometry-type"], "Point"],
-}
+const filterGeometryType: Record<LookupEntry["ftyp"], ExpressionSpecification> =
+  {
+    A: ["==", ["geometry-type"], "Polygon"],
+    L: ["==", ["geometry-type"], "LineString"],
+    P: ["==", ["geometry-type"], "Point"],
+  };
 
 export function build(config: LayerConfig): LayerSpecification[] {
   return [
@@ -41,7 +47,9 @@ export function build(config: LayerConfig): LayerSpecification[] {
             filters.scaleFilter(),
             filterGeometryType[lookup.ftyp],
             ...filters.attributeFilters(lookup.attc),
-            ...('filter' in layer ? [layer.filter as ExpressionFilterSpecification] : [])
+            ...("filter" in layer
+              ? [layer.filter as ExpressionFilterSpecification]
+              : []),
           ),
           layout: {
             ...layer.layout,
@@ -49,50 +57,57 @@ export function build(config: LayerConfig): LayerSpecification[] {
           },
           source: "enc",
           "source-layer": lookup.obcl,
-          id: [lookup.obcl, layer.type, lookup.rcid, i, j].join('-'),
-        }
+          id: [lookup.obcl, layer.type, lookup.rcid, i, j].join("-"),
+        };
       });
-    })
+    }),
   ];
 }
 
 function background({ mode }: LayerConfig): BackgroundLayerSpecification {
   return {
-    id: 'background',
-    type: 'background',
+    id: "background",
+    type: "background",
     paint: {
-      'background-color': colours[mode].NODTA,
-    }
-  }
+      "background-color": colours[mode].NODTA,
+    },
+  };
 }
-
 
 /**
  * From Section 12 (p 110):
  * > The ECDIS must provide the mariner with the ability to select between "paper chart" and "simplified" point
  * > symbols and also between "plain boundaries" and "symbolized boundaries" area symbols."
  */
-export function getLookups({ boundaries = BoundaryType.PLAIN, symbols = SymbolType.PAPER } = {}) {
+export function getLookups({
+  boundaries = BoundaryType.PLAIN,
+  symbols = SymbolType.PAPER,
+} = {}) {
   const sets = [
-    'LINES',
-    boundaries === BoundaryType.PLAIN ? 'PLAIN_BOUNDARIES' : 'SYMBOLIZED_BOUNDARIES',
-    symbols === SymbolType.SIMPLIFIED ? 'SIMPLIFIED' : 'PAPER_CHART'
+    "LINES",
+    boundaries === BoundaryType.PLAIN
+      ? "PLAIN_BOUNDARIES"
+      : "SYMBOLIZED_BOUNDARIES",
+    symbols === SymbolType.SIMPLIFIED ? "SIMPLIFIED" : "PAPER_CHART",
   ];
 
-  return s52.lookups.filter(l => sets.includes(l.tnam)) as LookupEntry[];
+  return s52.lookups.filter((l) => sets.includes(l.tnam)) as LookupEntry[];
 }
 
-const TypePriority = { symbol: 1, line: 2, fill: 3 }
+const TypePriority = { symbol: 1, line: 2, fill: 3 };
 
 /**
  * Calculate a sort key for a layer based on its display priority and type. (Section 10.3.4.1, p 70)
  *
  * @returns a sort key number (0-99), higher numbers are drawn on top of lower numbers
  */
-export function sortKey(priority: number, layer: Partial<LayerSpecification>): number {
+export function sortKey(
+  priority: number,
+  layer: Partial<LayerSpecification>,
+): number {
   // Point objects on top of line objects on top of area objects
   let typePriority = TypePriority[layer.type!] ?? 0;
   // Text must be drawn last
-  if (layer.layout?.['text-field']) typePriority += 1;
-  return (priority * 10) + typePriority;
+  if (layer.layout?.["text-field"]) typePriority += 1;
+  return priority * 10 + typePriority;
 }

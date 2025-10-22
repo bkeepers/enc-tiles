@@ -1,12 +1,12 @@
 import { LineLayerSpecification } from "maplibre-gl";
-import { colours } from '@enc-tiles/s52';
+import { colours } from "@enc-tiles/s52";
 import { Reference } from "./parser.js";
 
 export const LineStyles = {
   SOLD: [], // (_________)
   DASH: [3.6, 1.8], // (-----) dash: 3.6 mm; space: 1.8 mm
-  DOTT: [0.6, 1.2]  // (.........) dot: 0.6 mm; space: 1.2 mm
-}
+  DOTT: [0.6, 1.2], // (.........) dot: 0.6 mm; space: 1.2 mm
+};
 
 /**
  * LS – Showline (complex linestyle)
@@ -25,15 +25,19 @@ export const LineStyles = {
  * WIDTH Line width parameter. Units are 0.32 mm (approximately pixel diameter)
  * COLOUR Line colour parameter. A valid colour token as described in section 7
  */
-export function LS(style: Reference, width: number, colour: Reference): Pick<LineLayerSpecification, 'type' | 'paint'> {
+export function LS(
+  style: Reference,
+  width: number,
+  colour: Reference,
+): Pick<LineLayerSpecification, "type" | "paint"> {
   return {
-    type: 'line',
+    type: "line",
     paint: {
-      'line-dasharray': LineStyles[style.name] ?? [],
-      'line-width': width,
-      'line-color': colours.DAY[colour.name],
-    }
-  }
+      "line-dasharray": LineStyles[style.name] ?? [],
+      "line-width": width,
+      "line-color": colours.DAY[colour.name],
+    },
+  };
 }
 
 /**
@@ -46,11 +50,13 @@ export function LS(style: Reference, width: number, colour: Reference): Pick<Lin
  * LINNAM: Name of complex linestyle. This parameter will symbolise the line using the
  * complex linestyle named by the LINNAM parameter.
  */
-export function LC(linnam: Reference): Pick<LineLayerSpecification, 'type' | 'paint'> {
+export function LC(
+  linnam: Reference,
+): Pick<LineLayerSpecification, "type" | "paint"> {
   return {
-    type: 'line',
+    type: "line",
     paint: {
-      'line-pattern': linnam.name,
-    }
-  }
+      "line-pattern": linnam.name,
+    },
+  };
 }

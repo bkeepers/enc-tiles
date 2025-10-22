@@ -1,4 +1,4 @@
-import data from '../colours.json' assert { type: "json" };
+import data from "../colours.json" assert { type: "json" };
 
 export type Mode = "DAY" | "DUSK" | "NIGHT";
 export type ColourName = keyof typeof data.DAY;
