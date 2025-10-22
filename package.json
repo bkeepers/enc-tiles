@@ -1,7 +1,10 @@
 {
   "name": "@enc-tiles/dev",
   "devDependencies": {
+    "@maplibre/maplibre-gl-inspect": "^1.7.1",
     "@types/node": "^24.7.2",
+    "maplibre-gl": "^5.9.0",
+    "pmtiles": "^4.3.0",
     "publint": "^0.3.14",
     "typescript": "^5.9.3",
     "vite": "^7.1.9",
@@ -12,6 +15,7 @@
   ],
   "scripts": {
     "prepare": "npm run --workspaces --if-present build",
-    "test": "npm run --workspaces --if-present test -- --run"
+    "test": "npm run --workspaces --if-present test -- --run",
+    "start": "vite dev"
   }
 }
