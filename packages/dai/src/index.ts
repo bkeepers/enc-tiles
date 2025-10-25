@@ -361,9 +361,7 @@ function parseLookup(fields: FieldRaw[]): LookupEntry {
   const attc: { attl: string; attv: string }[] = [];
 
   for (const f of fields) {
-    if (f.tag !== "ATTC") {
-      continue;
-    }
+    if (f.tag !== "ATTC") continue;
     if (!f.raw) continue;
     for (const token of parseUSList(f.raw)) {
       if (!token) continue;
