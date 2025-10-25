@@ -43,7 +43,9 @@ export function attributeFilters(
 ): ExpressionFilterSpecification[] {
   if (conditions.length === 0) return [];
   const filters: ExpressionFilterSpecification[] = conditions.map((c) => {
-    if (c.attv) {
+    if (c.attv === "?") {
+      return ["!", ["has", c.attl]];
+    } else if (c.attv) {
       return ["==", ["get", c.attl], c.attv];
     } else {
       return ["has", c.attl];

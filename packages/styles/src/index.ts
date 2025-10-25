@@ -34,7 +34,10 @@ export default function ({
     sprite: [...(sprite ? [sprite] : []), mode.toLowerCase()].join("/"),
     glyphs: "http://fonts.openmaptiles.org/{fontstack}/{range}.pbf",
     sources: {
-      [config.source]: source,
+      [config.source]: {
+        promoteId: "LNAM",
+        ...source,
+      },
     },
     layers,
   };

@@ -361,19 +361,14 @@ function parseLookup(fields: FieldRaw[]): LookupEntry {
   const attc: { attl: string; attv: string }[] = [];
 
   for (const f of fields) {
-    if (f.tag !== "ATTC") continue;
+    if (f.tag !== "ATTC") {
+      continue;
+    }
     if (!f.raw) continue;
     for (const token of parseUSList(f.raw)) {
       if (!token) continue;
-      const m = token.match(/^([A-Za-z]{5,6})(.*)$/); // ATTL=6 letters typically, some catnot are lowercase in data
-      if (m) {
-        const attl = m[1]!.toUpperCase();
-        const attv = m[2] ?? "";
-        attc.push({ attl, attv });
-      } else {
-        // fallback: entire token as label
-        attc.push({ attl: token.toUpperCase(), attv: "" });
-      }
+      const [attl, attv] = takeFixed(token, 6);
+      attc.push({ attl, attv });
     }
   }
   const inst = fields.find((f) => f.tag === "INST")?.raw ?? undefined; // symbology instruction string

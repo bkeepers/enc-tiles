@@ -19,4 +19,22 @@ describe("attributeFilters", () => {
       ["has", "ORIENT"],
     ]);
   });
+
+  test("exclusion of attributes", () => {
+    const attc = [
+      {
+        attl: "DRVAL1",
+        attv: "?",
+      },
+      {
+        attl: "DRVAL2",
+        attv: "?",
+      },
+    ];
+
+    expect(attributeFilters(attc)).toEqual([
+      ["!", ["has", "DRVAL1"]],
+      ["!", ["has", "DRVAL2"]],
+    ]);
+  });
 });
