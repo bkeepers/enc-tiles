@@ -23,7 +23,7 @@
     }
   },
   "scripts": {
-    "prepare": "tsc -b",
+    "build": "tsc -b",
     "test": "vitest"
   },
   "bin": {

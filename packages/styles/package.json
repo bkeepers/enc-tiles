@@ -25,7 +25,7 @@
   "type": "module",
   "main": "dist/index.js",
   "scripts": {
-    "prepare": "tsc -b",
+    "build": "tsc -b",
     "test": "vitest",
     "demo": "tileserver-gl --config demo/config.json"
   },
