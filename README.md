@@ -19,6 +19,11 @@ Open [http://localhost:5173](http://localhost:5173) in your browser to view the 
 
 [Inspect tiles using pmtiles.io](https://pmtiles.io/#url=https%3A%2F%2Fpub-0b8220da652f4a95a2293d0f61351a33.r2.dev%2Fnoaa.pmtiles&map=3.05/39.23/-73.65&inspectFeatures=true).
 
+## Prior Art
+
+- https://github.com/LarsSchy/SMAC-M
+- https://github.com/manimaul/njord
+
 ## License
 
 This project is licensed under the [Apache License 2.0](./LICENSE).
