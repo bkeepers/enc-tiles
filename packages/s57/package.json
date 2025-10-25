@@ -1,0 +1,27 @@
+{
+  "name": "@enc-tiles/s57",
+  "version": "1.0.0",
+  "description": "S-57 tile encoder",
+  "keywords": [
+    "s-57",
+    "iho",
+    "enc",
+    "nautical",
+    "charts"
+  ],
+  "homepage": "https://github.com/bkeepers/enc-tiles#readme",
+  "bugs": {
+    "url": "https://github.com/bkeepers/enc-tiles/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/bkeepers/enc-tiles.git"
+  },
+  "license": "Apache-2.0",
+  "author": "Brandon Keepers",
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "test": "vitest"
+  }
+}
