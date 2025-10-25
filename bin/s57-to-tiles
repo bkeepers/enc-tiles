@@ -85,7 +85,7 @@ esac
 
 ogr2ogr \
   -f $format \
-  -splitlistfields \
+  -mapFieldType StringList=String,IntegerList=String \
   -dsco MINZOOM=$minzoom \
   -dsco MAXZOOM=$maxzoom \
   $out $in
