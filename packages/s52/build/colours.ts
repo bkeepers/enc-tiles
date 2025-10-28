@@ -5,7 +5,7 @@ const data = s52.colours;
 type RGB = [number, number, number];
 
 /** Convert CIE (x, y, L) to sRGB [0–255, 0–255, 0–255] */
-function cieToRgb(x: number, y: number, L: number): RGB {
+export function cieToRgb(x: number, y: number, L: number): RGB {
   if (y === 0) return [0, 0, 0]; // avoid div/0
 
   // xyL -> XYZ
@@ -30,7 +30,7 @@ function cieToRgb(x: number, y: number, L: number): RGB {
   }) as RGB;
 }
 
-function rgbToHex([r, g, b]: RGB): string {
+export function rgbToHex([r, g, b]: RGB): string {
   return `#${[r, g, b]
     .map((v) => v.toString(16).padStart(2, "0"))
     .join("")
