@@ -2063,12 +2063,12 @@
       "tnam": "PLAIN_BOUNDARIES",
       "attc": [
         {
-          "attl": "DRVAL",
-          "attv": "1?"
+          "attl": "DRVAL1",
+          "attv": "?"
         },
         {
-          "attl": "DRVAL",
-          "attv": "2?"
+          "attl": "DRVAL2",
+          "attv": "?"
         }
       ],
       "inst": "AC(NODTA);AP(PRTSUR01);LS(SOLD,2,CHGRD)",
@@ -4744,8 +4744,8 @@
       "tnam": "PLAIN_BOUNDARIES",
       "attc": [
         {
-          "attl": "CAT_TS1",
-          "attv": ""
+          "attl": "CAT_TS",
+          "attv": "1"
         },
         {
           "attl": "ORIENT",
@@ -4766,8 +4766,8 @@
       "tnam": "PLAIN_BOUNDARIES",
       "attc": [
         {
-          "attl": "CAT_TS2",
-          "attv": ""
+          "attl": "CAT_TS",
+          "attv": "2"
         },
         {
           "attl": "ORIENT",
@@ -4788,8 +4788,8 @@
       "tnam": "PLAIN_BOUNDARIES",
       "attc": [
         {
-          "attl": "CAT_TS3",
-          "attv": ""
+          "attl": "CAT_TS",
+          "attv": "3"
         },
         {
           "attl": "ORIENT",
@@ -5835,12 +5835,12 @@
       "tnam": "SYMBOLIZED_BOUNDARIES",
       "attc": [
         {
-          "attl": "DRVAL",
-          "attv": "1?"
+          "attl": "DRVAL1",
+          "attv": "?"
         },
         {
-          "attl": "DRVAL",
-          "attv": "2?"
+          "attl": "DRVAL2",
+          "attv": "?"
         }
       ],
       "inst": "AC(NODTA);AP(PRTSUR01);LS(SOLD,2,CHGRD)",
@@ -8516,8 +8516,8 @@
       "tnam": "SYMBOLIZED_BOUNDARIES",
       "attc": [
         {
-          "attl": "CAT_TS1",
-          "attv": ""
+          "attl": "CAT_TS",
+          "attv": "1"
         },
         {
           "attl": "ORIENT",
@@ -8538,8 +8538,8 @@
       "tnam": "SYMBOLIZED_BOUNDARIES",
       "attc": [
         {
-          "attl": "CAT_TS2",
-          "attv": ""
+          "attl": "CAT_TS",
+          "attv": "2"
         },
         {
           "attl": "ORIENT",
@@ -8560,8 +8560,8 @@
       "tnam": "SYMBOLIZED_BOUNDARIES",
       "attc": [
         {
-          "attl": "CAT_TS3",
-          "attv": ""
+          "attl": "CAT_TS",
+          "attv": "3"
         },
         {
           "attl": "ORIENT",
@@ -17296,8 +17296,8 @@
       "tnam": "SIMPLIFIED",
       "attc": [
         {
-          "attl": "CAT_TS1",
-          "attv": ""
+          "attl": "CAT_TS",
+          "attv": "1"
         },
         {
           "attl": "ORIENT",
@@ -17318,8 +17318,8 @@
       "tnam": "SIMPLIFIED",
       "attc": [
         {
-          "attl": "CAT_TS2",
-          "attv": ""
+          "attl": "CAT_TS",
+          "attv": "2"
         },
         {
           "attl": "ORIENT",
@@ -17340,8 +17340,8 @@
       "tnam": "SIMPLIFIED",
       "attc": [
         {
-          "attl": "CAT_TS3",
-          "attv": ""
+          "attl": "CAT_TS",
+          "attv": "3"
         },
         {
           "attl": "ORIENT",
@@ -17672,7 +17672,7 @@
       "tnam": "SIMPLIFIED",
       "attc": [
         {
-          "attl": "CATNOT",
+          "attl": "catnot",
           "attv": "1"
         }
       ],
@@ -17690,7 +17690,7 @@
       "tnam": "SIMPLIFIED",
       "attc": [
         {
-          "attl": "CATNOT",
+          "attl": "catnot",
           "attv": "2"
         }
       ],
@@ -22886,8 +22886,8 @@
       "tnam": "PAPER_CHART",
       "attc": [
         {
-          "attl": "CAT_TS1",
-          "attv": ""
+          "attl": "CAT_TS",
+          "attv": "1"
         },
         {
           "attl": "ORIENT",
@@ -22908,8 +22908,8 @@
       "tnam": "PAPER_CHART",
       "attc": [
         {
-          "attl": "CAT_TS2",
-          "attv": ""
+          "attl": "CAT_TS",
+          "attv": "2"
         },
         {
           "attl": "ORIENT",
@@ -22930,8 +22930,8 @@
       "tnam": "PAPER_CHART",
       "attc": [
         {
-          "attl": "CAT_TS3",
-          "attv": ""
+          "attl": "CAT_TS",
+          "attv": "3"
         },
         {
           "attl": "ORIENT",
@@ -23262,7 +23262,7 @@
       "tnam": "PAPER_CHART",
       "attc": [
         {
-          "attl": "CATNOT",
+          "attl": "catnot",
           "attv": "1"
         }
       ],
@@ -23280,7 +23280,7 @@
       "tnam": "PAPER_CHART",
       "attc": [
         {
-          "attl": "CATNOT",
+          "attl": "catnot",
           "attv": "2"
         }
       ],
