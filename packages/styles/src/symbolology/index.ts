@@ -33,6 +33,27 @@ export interface LayerConfig {
   textGroups?: Set<TextGroup>;
 }
 
+/**
+ * Extra, non-MapLibre keys a conditional symbology procedure may set on the
+ * layers it returns. They are consumed and stripped by `lookupToLayers`.
+ */
+export interface CSPLayerExtras {
+  /**
+   * Restrict this layer to the listed S-57 object classes.
+   *
+   * One CSP can be referenced by look-up table entries for more than one class
+   * -- CS(OBSTRN07) is shared by OBSTRN and UWTROC, which S-52 symbolizes
+   * differently -- and the class is *not* recoverable from a MapLibre filter:
+   * the tiler writes one source-layer per class and excludes OBJL, so the
+   * class is the source-layer name rather than a feature property.
+   * `lookupToLayers` knows the calling look-up's class, so the gate lives
+   * there.
+   */
+  objectClasses?: string[];
+}
+
+export type CSPLayer = Partial<LayerSpecification> & CSPLayerExtras;
+
 export enum BoundaryType {
   PLAIN = "plain",
   SYMBOLIZED = "symbolized",
@@ -136,49 +157,56 @@ export function lookupToLayers(
   config: LayerConfig,
 ): LayerSpecification[] {
   const baseId = lookupId(lookup);
-  return instructionsToStyles(lookup.inst, config).map((layer, index) => {
-    const visibility = layerVisibility(lookup, layer, config);
+  return instructionsToStyles(lookup.inst, config)
+    .filter((layer) => {
+      // Drop layers a CSP restricted to other object classes (see CSPLayerExtras).
+      const { objectClasses } = layer as CSPLayer;
+      return !objectClasses || objectClasses.includes(lookup.obcl);
+    })
+    .map((cspLayer, index) => {
+      const { objectClasses: _objectClasses, ...layer } = cspLayer as CSPLayer;
+      const visibility = layerVisibility(lookup, layer, config);
 
-    // CSP layers can set source-layer to reference synthetic tile layers
-    // (e.g. _LIGHTS_SECTORS). When present, skip the lookup-derived filter
-    // since the synthetic layer has its own schema.
-    const sourceLayer =
-      (layer as LayerSpecification)["source-layer"] ?? lookup.obcl;
-    const isSyntheticLayer = sourceLayer !== lookup.obcl;
+      // CSP layers can set source-layer to reference synthetic tile layers
+      // (e.g. _LIGHTS_SECTORS). When present, skip the lookup-derived filter
+      // since the synthetic layer has its own schema.
+      const sourceLayer =
+        (layer as LayerSpecification)["source-layer"] ?? lookup.obcl;
+      const isSyntheticLayer = sourceLayer !== lookup.obcl;
 
-    return {
-      ...layer,
-      metadata: {
-        s52: lookup,
-      },
-      ...(isSyntheticLayer
-        ? {
-            filter: filters.all(
-              ...("filter" in layer
-                ? [layer.filter as ExpressionFilterSpecification]
-                : []),
-            ),
-          }
-        : {
-            filter: filters.all(
-              filters.scaleFilter(),
-              filterGeometryType[lookup.ftyp],
-              ...filters.attributeFilters(lookup.attc),
-              ...("filter" in layer
-                ? [layer.filter as ExpressionFilterSpecification]
-                : []),
-            ),
-          }),
-      layout: {
-        ...layer.layout,
-        [`${layer.type}-sort-key`]: sortKey(lookup.dpri, layer),
-        ...(visibility === "none" ? { visibility } : {}),
-      },
-      source: "enc",
-      "source-layer": sourceLayer,
-      id: `${baseId}-${index}`,
-    };
-  });
+      return {
+        ...layer,
+        metadata: {
+          s52: lookup,
+        },
+        ...(isSyntheticLayer
+          ? {
+              filter: filters.all(
+                ...("filter" in layer
+                  ? [layer.filter as ExpressionFilterSpecification]
+                  : []),
+              ),
+            }
+          : {
+              filter: filters.all(
+                filters.scaleFilter(),
+                filterGeometryType[lookup.ftyp],
+                ...filters.attributeFilters(lookup.attc),
+                ...("filter" in layer
+                  ? [layer.filter as ExpressionFilterSpecification]
+                  : []),
+              ),
+            }),
+        layout: {
+          ...layer.layout,
+          [`${layer.type}-sort-key`]: sortKey(lookup.dpri, layer),
+          ...(visibility === "none" ? { visibility } : {}),
+        },
+        source: "enc",
+        "source-layer": sourceLayer,
+        id: `${baseId}-${index}`,
+      };
+    });
 }
 
 function background({ mode }: LayerConfig): BackgroundLayerSpecification {

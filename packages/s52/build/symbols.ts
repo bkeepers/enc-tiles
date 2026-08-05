@@ -31,6 +31,42 @@ const styles = {
   ),
 };
 
+/**
+ * DELIBERATE DEVIATION FROM THE STOCK S-101 PORTRAYAL — light flare legibility.
+ *
+ * The S-101 light flares are built as a 50%-opacity colour fill plus a fully
+ * opaque black OUTLW outline stroked at 0.32 mm. The flare is a long, thin
+ * teardrop, so its outline is enormous relative to its area: at the stock
+ * values the black outline lays down slightly MORE ink than the colour
+ * (perimeter 15.75 mm x 0.32 mm = 5.04 vs area 9.27 mm^2 x 0.5 = 4.63).
+ * Rasterized to a 10 x 28 px sprite that reads as a gray sliver — red, green
+ * and yellow flares are indistinguishable from each other over the pale DAY
+ * chart background.
+ *
+ * We therefore thin the outline and raise the fill opacity for the flare
+ * symbols in DAY and DUSK, which puts ~4.4x more colour than black in the
+ * sprite while keeping a hairline edge so the flare still reads against light
+ * water. NIGHT is left stock: its background is dark, the outline provides the
+ * separation the fill cannot, and the flares are legible as shipped.
+ *
+ * Scope is exactly the four symbols built this way. LIGHTS81/82 are in the
+ * LIGHTS family but are plain unfilled CHMGD strokes, so they are untouched.
+ */
+const FLARE_SYMBOLS = new Set(["LIGHTS11", "LIGHTS12", "LIGHTS13", "LITDEF11"]);
+const FLARE_OUTLINE_STROKE_WIDTH = "0.12";
+const FLARE_FILL_OPACITY = "0.9";
+
+function flareLegibility(svg) {
+  svg
+    .querySelectorAll("[fill-opacity]")
+    .forEach((el) => el.setAttribute("fill-opacity", FLARE_FILL_OPACITY));
+  svg
+    .querySelectorAll(".sOUTLW[stroke-width]")
+    .forEach((el) =>
+      el.setAttribute("stroke-width", FLARE_OUTLINE_STROKE_WIDTH),
+    );
+}
+
 // Return a vite plugin that generates a symbols.json file and styled SVGs
 export default {
   name: "build-symbols",
@@ -59,6 +95,10 @@ export default {
       for (const mode of Object.keys(styles)) {
         const output = process(input, [
           styles[mode],
+          // Legibility fix-up, day/dusk only — see FLARE_SYMBOLS above.
+          ...(mode !== "night" && FLARE_SYMBOLS.has(name)
+            ? [flareLegibility]
+            : []),
           (svg) => {
             // This only needs extracted once
             if (symbols[name]) return;

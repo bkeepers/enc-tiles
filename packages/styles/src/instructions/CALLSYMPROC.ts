@@ -12,7 +12,7 @@ import {
   quaposLowQuality,
   scaleFilter,
 } from "../filters.js";
-import type { LayerConfig } from "../symbolology/index.js";
+import type { CSPLayer, LayerConfig } from "../symbolology/index.js";
 
 const procs = {
   DEPARE03,
@@ -698,12 +698,19 @@ function LITDSN02(config: LayerConfig): Partial<LayerSpecification>[] {
  * Geometry: Point, Line, Area
  *
  * Point obstructions (Continuation A):
- *   - Isolated danger → ISODGR01
- *   - UWTROC: WATLEV 3 → UWTROC03, else → UWTROC04
+ *   - Isolated danger (UDWHAZ05) → ISODGR01, for both classes
+ *   - UWTROC with VALSOU: deeper than SAFETY_DEPTH → DANGER02 + sounding;
+ *     at or shoaler than SAFETY_DEPTH → WATLEV 4,5 → UWTROC04 (no sounding),
+ *     else → DANGER01 + sounding
+ *   - UWTROC without VALSOU: WATLEV 3 → UWTROC03, else → UWTROC04
  *   - OBSTRN with VALSOU: shallow → DANGER01, deep → DANGER02
  *   - OBSTRN with CATOBS 6 (foul area): WATLEV 1,2 → OBSTRN11, WATLEV 4,5 → OBSTRN03, else → DANGER01
  *   - OBSTRN without VALSOU: CATOBS 6 → OBSTRN01, WATLEV 1,2 → OBSTRN11,
  *     WATLEV 4,5 → UWTROC04, else → DANGER01
+ *
+ * The UWTROC branches are gated with `objectClasses` rather than a filter: the
+ * two classes are separate source-layers in the tiles and carry no attribute
+ * that distinguishes them. See CSPLayerExtras.
  *
  * Line obstructions (Continuation B):
  *   - Isolated danger → ISODGR01 + dotted CHBLK
@@ -718,10 +725,17 @@ function LITDSN02(config: LayerConfig): Partial<LayerSpecification>[] {
  *   - WATLEV 4 → DEPIT fill + dashed CSTLN
  *   - Default → DEPVS fill + dotted CHBLK
  */
-export function OBSTRN07(config: LayerConfig): Partial<LayerSpecification>[] {
+export function OBSTRN07(config: LayerConfig): CSPLayer[] {
   const { mode, safetyDepth } = config;
   const isDanger = isolatedDanger(config);
   const notDanger = notIsolatedDanger(config);
+
+  /** WATLEV 4 (covers and uncovers) or 5 (awash). */
+  const awash: ExpressionFilterSpecification = [
+    "in",
+    ["get", "WATLEV"],
+    ["literal", [4, 5]],
+  ];
 
   return [
     // ─── Point obstructions (Continuation A) ───
@@ -733,14 +747,83 @@ export function OBSTRN07(config: LayerConfig): Partial<LayerSpecification>[] {
       layout: iconLayout("ISODGR01"),
     },
 
-    // Not isolated danger, no VALSOU, UWTROC class
-    // The lookup table separates UWTROC and OBSTRN into different source-layers,
-    // so we use the source-layer name to distinguish them. UWTROC without VALSOU:
-    // WATLEV 3 → UWTROC03, else → UWTROC04
-    // (Features with VALSOU are handled by the VALSOU branches below)
+    // ── UWTROC (underwater/awash rock) ──
+    // Rocks reach this procedure through their own look-up entries
+    // (rcid 952 SIMPLIFIED / 1300 PAPER_CHART, both CS(OBSTRN07), point only),
+    // but S-52 gives them a different Continuation A path from obstructions,
+    // so these branches are restricted to the UWTROC class and the equivalent
+    // OBSTRN branches below are restricted to OBSTRN.
 
-    // Has VALSOU, not isolated danger, CATOBS 6 (foul area)
+    // Has VALSOU, VALSOU <= SAFETY_DEPTH, WATLEV 4,5 → UWTROC04 (no sounding)
     {
+      objectClasses: ["UWTROC"],
+      type: "symbol",
+      filter: [
+        "all",
+        ["==", ["geometry-type"], "Point"],
+        notDanger,
+        ["has", "VALSOU"],
+        ["<=", ["get", "VALSOU"], safetyDepth],
+        awash,
+      ],
+      layout: iconLayout("UWTROC04"),
+    },
+
+    // Has VALSOU, VALSOU <= SAFETY_DEPTH, any other WATLEV → DANGER01 + sounding
+    {
+      objectClasses: ["UWTROC"],
+      type: "symbol",
+      filter: [
+        "all",
+        ["==", ["geometry-type"], "Point"],
+        notDanger,
+        ["has", "VALSOU"],
+        ["<=", ["get", "VALSOU"], safetyDepth],
+        ["!", awash],
+      ],
+      layout: iconLayout("DANGER01"),
+    },
+
+    // Sounding text on rocks, except the WATLEV 4,5 case above where S-52
+    // explicitly sets SOUNDING = FALSE.
+    {
+      objectClasses: ["UWTROC"],
+      ...SNDFRM04(config, "VALSOU", [
+        "all",
+        ["==", ["geometry-type"], "Point"],
+        notDanger,
+        ["has", "VALSOU"],
+        ["!", ["all", ["<=", ["get", "VALSOU"], safetyDepth], awash]],
+      ]),
+    },
+
+    // No VALSOU → WATLEV 3 (always under water) → UWTROC03, else UWTROC04.
+    // UWTROC03 is the dangerous-rock symbol (rock with dots); UWTROC04 is the
+    // rock-awash symbol, and S-52 uses it as the default for every other
+    // WATLEV including a missing one.
+    {
+      objectClasses: ["UWTROC"],
+      type: "symbol",
+      filter: [
+        "all",
+        ["==", ["geometry-type"], "Point"],
+        notDanger,
+        ["!", ["has", "VALSOU"]],
+      ],
+      layout: iconLayout([
+        "case",
+        ["==", ["get", "WATLEV"], 3],
+        "UWTROC03",
+        "UWTROC04",
+      ] as ExpressionSpecification),
+    },
+
+    // ── OBSTRN (obstruction) ──
+
+    // Has VALSOU, not isolated danger, CATOBS 6 (foul area).
+    // CATOBS is an OBSTRN attribute, so these never match a rock anyway.
+    {
+      objectClasses: ["OBSTRN"],
       type: "symbol",
       filter: [
         "all",
@@ -753,6 +836,7 @@ export function OBSTRN07(config: LayerConfig): Partial<LayerSpecification>[] {
       layout: iconLayout("OBSTRN11"),
     },
     {
+      objectClasses: ["OBSTRN"],
       type: "symbol",
       filter: [
         "all",
@@ -767,6 +851,7 @@ export function OBSTRN07(config: LayerConfig): Partial<LayerSpecification>[] {
 
     // Has VALSOU, not isolated danger, not CATOBS 6, VALSOU <= safetyDepth → DANGER01
     {
+      objectClasses: ["OBSTRN"],
       type: "symbol",
       filter: [
         "all",
@@ -779,7 +864,8 @@ export function OBSTRN07(config: LayerConfig): Partial<LayerSpecification>[] {
       layout: iconLayout("DANGER01"),
     },
 
-    // Has VALSOU, not isolated danger, not CATOBS 6, VALSOU > safetyDepth → DANGER02
+    // Has VALSOU, not isolated danger, not CATOBS 6, VALSOU > safetyDepth → DANGER02.
+    // Shared by both classes: S-52 sends deep rocks here too.
     {
       type: "symbol",
       filter: [
@@ -794,15 +880,19 @@ export function OBSTRN07(config: LayerConfig): Partial<LayerSpecification>[] {
     },
 
     // Sounding text on point obstructions with VALSOU (SNDFRM04)
-    SNDFRM04(config, "VALSOU", [
-      "all",
-      ["==", ["geometry-type"], "Point"],
-      notDanger,
-      ["has", "VALSOU"],
-    ]),
+    {
+      objectClasses: ["OBSTRN"],
+      ...SNDFRM04(config, "VALSOU", [
+        "all",
+        ["==", ["geometry-type"], "Point"],
+        notDanger,
+        ["has", "VALSOU"],
+      ]),
+    },
 
     // No VALSOU, not isolated danger → symbol by CATOBS/WATLEV
     {
+      objectClasses: ["OBSTRN"],
       type: "symbol",
       filter: [
         "all",
