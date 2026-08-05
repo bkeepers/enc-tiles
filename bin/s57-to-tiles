@@ -81,11 +81,14 @@ for table in $tables; do
     -sql "ALTER TABLE \"${table}\" ADD COLUMN INTU INTEGER DEFAULT ${intu}"
 done
 
-# UDWHAZ05: Store the DRVAL1 of the containing DEPARE on WRECKS and OBSTRN.
-# The style uses this at render time to evaluate isolated danger status
-# against the user's configured safety contour.
+# UDWHAZ05: Store the DRVAL1 of the containing DEPARE on WRECKS, OBSTRN and
+# UWTROC. The style uses this at render time to evaluate isolated danger status
+# against the user's configured safety contour. UWTROC shares CS(OBSTRN07) with
+# OBSTRN, so its branches read _DEPARE_DRVAL1 exactly as the obstruction ones
+# do -- omit it here and every rock branch that consults the column throws and
+# falls through to the generic symbol.
 if echo "$tables" | grep -q '^DEPARE$'; then
-  for hazard_table in WRECKS OBSTRN; do
+  for hazard_table in WRECKS OBSTRN UWTROC; do
     echo "$tables" | grep -q "^${hazard_table}$" || continue
     ogrinfo --quiet "$gpkg" -dialect sqlite \
       -sql "ALTER TABLE \"${hazard_table}\" ADD COLUMN _DEPARE_DRVAL1 REAL"
@@ -176,18 +179,24 @@ if [ -n "$coverage" ] && [ -f "$coverage" ]; then
   if [ -s "$cov_geojson" ]; then
     ogr2ogr -f GPKG "$gpkg" "$cov_geojson" -append -nln quilting 2>/dev/null
 
-    # Spatial functions here take SpatiaLite geometries, not raw GPKG blobs, so
-    # every geometry argument goes through CastAutomagic() and every geometry
-    # written back through AsGPB() — same convention as the preprocessing
-    # statements above. Errors are deliberately NOT suppressed: a clip that
-    # silently no-ops leaves coarse charts bleeding through the detailed ones,
-    # which is invisible here and only shows up as a chart defect much later.
+    # The geometry expressions in this block are deliberately left un-cast.
+    # GDAL's SQLite dialect already hands GPKG geometry columns to the
+    # SpatiaLite spatial functions and takes the result back, so ST_Difference()
+    # here returns something the geom column accepts as-is. Wrapping the
+    # write-back in AsGPB() double-encodes it -- AsGPB() of an already-GPKG blob
+    # is NULL -- and the empty-geometry sweep at the bottom of the loop then
+    # deletes every row the clip touched, so the clip erases the chart instead
+    # of trimming it. Do not add AsGPB()/CastAutomagic() here without a
+    # round-trip that proves the geometry survives; plotroom's pipeline/Dockerfile
+    # runs exactly that probe at image-build time.
+    #
+    # Errors are deliberately NOT suppressed: a clip that silently no-ops leaves
+    # coarse charts bleeding through the detailed ones, which is invisible here
+    # and only shows up as a chart defect much later.
 
-    # Pre-compute the union of all higher-INTU coverage into a single mask.
-    # quilt_mask is a scratch table, not a registered GPKG geometry table, so it
-    # holds the SpatiaLite geometry directly.
+    # Pre-compute the union of all higher-INTU coverage into a single mask
     ogrinfo --quiet "$gpkg" -dialect sqlite -sql \
-      "CREATE TABLE quilt_mask AS SELECT ST_Union(CastAutomagic(geom)) as geom FROM quilting"
+      "CREATE TABLE quilt_mask AS SELECT ST_Union(geom) as geom FROM quilting"
 
     has_mask=$(ogrinfo -q "$gpkg" -dialect sqlite \
       -sql "SELECT COUNT(*) FROM quilt_mask WHERE geom IS NOT NULL" \
@@ -204,7 +213,7 @@ if [ -n "$coverage" ] && [ -f "$coverage" ]; then
 
         # Detect geometry types present in this table
         geom_types=$(ogrinfo -q "$gpkg" -dialect sqlite \
-          -sql "SELECT DISTINCT GeometryType(CastAutomagic(geom)) FROM \"${table}\" WHERE geom IS NOT NULL" \
+          -sql "SELECT DISTINCT GeometryType(geom) FROM \"${table}\" WHERE geom IS NOT NULL" \
           | grep -oE 'POLYGON|LINESTRING|POINT|MULTI' || true)
 
         [ -z "$geom_types" ] && continue
@@ -212,10 +221,9 @@ if [ -n "$coverage" ] && [ -f "$coverage" ]; then
         # Clip polygons and lines: trim geometry to exclude masked area
         if echo "$geom_types" | grep -qE 'POLYGON|LINESTRING'; then
           ogrinfo --quiet "$gpkg" -dialect sqlite -sql "
-            UPDATE \"${table}\" SET geom = AsGPB(ST_Difference(
-              CastAutomagic(\"${table}\".geom), CastAutomagic((SELECT geom FROM quilt_mask))))
-            WHERE ST_Intersects(CastAutomagic(\"${table}\".geom), CastAutomagic((SELECT geom FROM quilt_mask)))
-              AND GeometryType(CastAutomagic(\"${table}\".geom)) IN ('POLYGON', 'MULTIPOLYGON', 'LINESTRING', 'MULTILINESTRING')
+            UPDATE \"${table}\" SET geom = ST_Difference(\"${table}\".geom, (SELECT geom FROM quilt_mask))
+            WHERE ST_Intersects(\"${table}\".geom, (SELECT geom FROM quilt_mask))
+              AND GeometryType(\"${table}\".geom) IN ('POLYGON', 'MULTIPOLYGON', 'LINESTRING', 'MULTILINESTRING')
           "
         fi
 
@@ -223,14 +231,14 @@ if [ -n "$coverage" ] && [ -f "$coverage" ]; then
         if echo "$geom_types" | grep -q 'POINT'; then
           ogrinfo --quiet "$gpkg" -dialect sqlite -sql "
             DELETE FROM \"${table}\"
-            WHERE GeometryType(CastAutomagic(geom)) IN ('POINT', 'MULTIPOINT')
-              AND ST_Within(CastAutomagic(\"${table}\".geom), CastAutomagic((SELECT geom FROM quilt_mask)))
+            WHERE GeometryType(geom) IN ('POINT', 'MULTIPOINT')
+              AND ST_Within(\"${table}\".geom, (SELECT geom FROM quilt_mask))
           "
         fi
 
         # Clean up empty geometries
         ogrinfo --quiet "$gpkg" -dialect sqlite -sql "
-          DELETE FROM \"${table}\" WHERE geom IS NULL OR ST_IsEmpty(CastAutomagic(geom)) = 1
+          DELETE FROM \"${table}\" WHERE geom IS NULL OR ST_IsEmpty(geom) = 1
         "
       done
     fi
