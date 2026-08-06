@@ -4871,19 +4871,19 @@
   "FSHFAC04": {
     "description": "pattern of symbols for an area with fish traps, fish weirs, tunny nets",
     "width": 123,
-    "height": 302,
+    "height": 504,
     "offset": [
       61.5,
-      151
+      252
     ]
   },
   "FSHHAV02": {
     "description": "pattern of symbols for a fish haven",
     "width": 132,
-    "height": 175,
+    "height": 614,
     "offset": [
       66,
-      87.5
+      307
     ]
   },
   "ICEARE04": {
@@ -4943,10 +4943,10 @@
   "SNDWAV01": {
     "description": "pattern of symbols for sand waves",
     "width": 120,
-    "height": 248,
+    "height": 660,
     "offset": [
       60,
-      124
+      330
     ]
   },
   "TSSJCT02": {

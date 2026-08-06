@@ -136,56 +136,150 @@ function svgDocument({ minX, minY, width, height, title, desc, body }) {
 }
 
 /**
- * Build a repeating tile for an `af:symbolFill` area pattern.
+ * How many lattice rows a pattern tile may span.
  *
- * The definition places one symbol at every point of the lattice spanned by v1
- * and v2. MapLibre's `fill-pattern` repeats a rectangle, so the tile is v1.x
- * wide and tall enough to close the lattice (two rows for the usual staggered
- * layout, where v2.x is half of v1.x). Neighbouring lattice points are drawn as
- * well and clipped by the SVG viewport, so symbols that straddle a tile edge
- * reappear on the opposite one.
+ * Every extra row multiplies the rasterized sprite's height, so this is the
+ * budget within which `patternLattice` looks for a vertical repeat. Eight rows
+ * is the point where the tallest S-101 fill (SNDWAV01, 21.83 mm rows) reaches
+ * ~175 mm — a 660 px sprite, the largest in the atlas but still ordinary.
  */
-export function buildPatternSvg(pattern) {
+const MAX_PATTERN_ROWS = 8;
+
+/** Leftover x (mm) below which a lattice row count is an exact repeat. */
+const LATTICE_CLOSURE_TOLERANCE = 1e-9;
+
+/**
+ * Rows (and the whole number of v1 steps they span) that close an
+ * `af:symbolFill` lattice vertically.
+ *
+ * The tile is one v1 wide, so its vertical period must be a lattice vector
+ * that is purely vertical: `rows*v2 - columns*v1 = (0, rows*v2.y)`, which needs
+ * `rows*v2.x == columns*v1.x` for whole `rows` and `columns`. That is the
+ * denominator of `v2.x / v1.x` as a fraction in lowest terms.
+ *
+ * Only 4 of the 21 synthesized fills have a ratio whose denominator is small.
+ * The rest are ratios of two 2-decimal millimetre figures that reduce to
+ * denominators in the thousands (DQUALA11's 16.97/30.97 is 1697/3097, already
+ * in lowest terms), so an exact repeat is not reachable at any sane tile size.
+ * We therefore take the best rational approximation within
+ * MAX_PATTERN_ROWS and SNAP the row stagger onto it — the returned `step` is
+ * v2 with its x moved by up to a few tenths of a millimetre so the lattice
+ * closes exactly.
+ *
+ * Snapping is the cheap error. Rounding `v1.x / v2.x` to whole rows (what this
+ * did before) leaves the tile's vertical period off the lattice entirely, so
+ * the fill shears sideways by the leftover at EVERY vertical repeat — a
+ * visible 1.00 mm jog in MARSHES1 and 5.22 mm in FSHFAC04, repeating forever
+ * down the area. Moving the stagger instead keeps a true lattice; it is just a
+ * marginally different one from the published portrayal, and the difference is
+ * invisible in a scattered decorative fill.
+ */
+function latticeRows(v1x, v2x) {
+  let best = { rows: 1, columns: 0, residual: Infinity };
+  for (let rows = 1; rows <= MAX_PATTERN_ROWS; rows++) {
+    const columns = Math.round((rows * v2x) / v1x);
+    const residual = Math.abs(rows * v2x - columns * v1x);
+    if (residual < best.residual) best = { rows, columns, residual };
+    if (best.residual <= LATTICE_CLOSURE_TOLERANCE) break;
+  }
+  return best;
+}
+
+/**
+ * The lattice of one `af:symbolFill` pattern and the tile derived from it.
+ *
+ * v1 is normalized to point right and v2 to point down (negating a basis
+ * vector spans the same lattice), so the tile is `v1.x` wide and `rows` rows
+ * tall. `step` is the snapped v2 that placements must use — see `latticeRows`.
+ *
+ * Exported so the sprite tests can assert the tile actually closes.
+ */
+export function patternLattice(name) {
   const definition = parseXml(
-    readFileSync(resolve(PATTERN_DEFINITIONS, `${pattern.name}.xml`), "utf8"),
+    readFileSync(resolve(PATTERN_DEFINITIONS, `${name}.xml`), "utf8"),
   );
 
   const reference = definition
     .querySelector("symbol")
     ?.getAttribute("reference");
   if (!reference) {
-    throw new Error(`Pattern ${pattern.name} references no symbol`);
+    throw new Error(`Pattern ${name} references no symbol`);
   }
 
-  const v = ["v1", "v2"].map((tag) => {
+  const [rawV1, rawV2] = ["v1", "v2"].map((tag) => {
     const element = definition.querySelector(tag);
     return {
       x: number(element?.querySelector("x")),
       y: number(element?.querySelector("y")),
     };
   });
-  const [v1, v2] = v;
+  const v1 = rawV1.x < 0 ? { x: -rawV1.x, y: -rawV1.y } : rawV1;
+  const v2 = rawV2.y < 0 ? { x: -rawV2.x, y: -rawV2.y } : rawV2;
 
-  const { content, minX, minY, width, height } = symbolBox(reference);
+  const box = symbolBox(reference);
+  if (!(box.width > 0) || !(box.height > 0)) {
+    throw new Error(`Pattern ${name} references an empty symbol: ${reference}`);
+  }
 
-  // Fall back to the symbol's own extent for a degenerate lattice.
-  const tileWidth = Math.abs(v1.x) > 0.001 ? Math.abs(v1.x) : width;
-  const rowHeight = Math.abs(v2.y) > 0.001 ? Math.abs(v2.y) : height;
-  // Staggered rows only close after as many rows as v1.x/v2.x.
-  const rows =
-    Math.abs(v2.x) > 0.001 && Math.abs(Math.abs(v2.x) - tileWidth) > 0.001
-      ? Math.max(1, Math.round(tileWidth / Math.abs(v2.x)))
-      : 1;
-  const tileHeight = rows * rowHeight;
+  // A degenerate lattice (no horizontal vector, or no vertical one) has no
+  // period to close; fall back to the symbol's own extent, as before.
+  const horizontal = v1.x > 0.001;
+  const tileWidth = horizontal ? v1.x : box.width;
+  const rowHeight = v2.y > 0.001 ? v2.y : box.height;
+  const { rows, columns } = horizontal
+    ? latticeRows(tileWidth, v2.x)
+    : { rows: 1, columns: 0 };
 
-  // Enough neighbours that anything overhanging a tile edge is drawn.
-  const spread =
-    Math.ceil(Math.max(width, height) / Math.min(tileWidth, tileHeight)) + 1;
+  return {
+    ...box,
+    reference,
+    v1: horizontal ? v1 : { x: 0, y: 0 },
+    // rows*step.x is columns*v1.x exactly, so (0, rows*step.y) is a lattice
+    // vector and the tile's top edge lands on the same x positions as its
+    // bottom edge.
+    step: { x: horizontal ? (columns * tileWidth) / rows : 0, y: rowHeight },
+    rows,
+    tileWidth,
+    tileHeight: rows * rowHeight,
+  };
+}
+
+/**
+ * Build a repeating tile for an `af:symbolFill` area pattern.
+ *
+ * The definition places one symbol at every point of the lattice spanned by v1
+ * and v2. MapLibre's `fill-pattern` repeats a rectangle, so the tile is one v1
+ * wide and `rows` lattice rows tall — `patternLattice` picks `rows` so that
+ * the tile's height is itself a lattice vector. Neighbouring lattice points are
+ * drawn as well and clipped by the SVG viewport, so symbols that straddle a
+ * tile edge reappear on the opposite one.
+ */
+export function buildPatternSvg(pattern) {
+  const {
+    content,
+    minX,
+    minY,
+    width,
+    height,
+    v1,
+    step,
+    tileWidth,
+    tileHeight,
+  } = patternLattice(pattern.name);
+
+  // Solve the index range per row instead of guessing a fixed spread: a tile
+  // several rows tall puts its top row many v1 steps from the origin, and a
+  // fixed i-window dropped every symbol in those rows.
   const placements = [];
-  for (let j = -spread; j <= rows + spread; j++) {
-    for (let i = -spread; i <= spread + 1; i++) {
-      const x = i * v1.x + j * v2.x;
-      const y = i * v1.y + j * v2.y;
+  const jMin = Math.floor((-minY - height) / step.y) - 1;
+  const jMax = Math.ceil((tileHeight - minY) / step.y) + 1;
+  for (let j = jMin; j <= jMax; j++) {
+    const rowX = j * step.x;
+    const iMin = v1.x ? Math.floor((-minX - width - rowX) / v1.x) - 1 : 0;
+    const iMax = v1.x ? Math.ceil((tileWidth - minX - rowX) / v1.x) + 1 : 0;
+    for (let i = iMin; i <= iMax; i++) {
+      const x = i * v1.x + rowX;
+      const y = i * v1.y + j * step.y;
       if (x + minX > tileWidth || x + minX + width < 0) continue;
       if (y + minY > tileHeight || y + minY + height < 0) continue;
       placements.push(

@@ -358,6 +358,38 @@ fi
 
 # Step 4: Generate tiles. List attributes are already comma-separated strings
 # from the GeoJSON export. Each input filename becomes the layer name.
+#
+# Tile resolution: ONE extent, for every tile, at every zoom, in every INTU
+# band. That uniformity is the requirement, not the 14 itself.
+#
+# tippecanoe has three resolution knobs and they default apart: -d/--full-detail
+# (12) is the grid at THIS cell's own maxzoom, -D/--low-detail (12) the grid at
+# every zoom below it, and -m/--minimum-detail (7) the floor it silently drops
+# to when a tile trips the feature limit. Setting only --full-detail made the
+# extent depend on the cell's band: an INTU-5 cell (maxzoom 11) wrote its z11 at
+# 16384, while an INTU-6 cell (maxzoom 12) wrote its z11 -- below that cell's
+# maxzoom -- at 4096. tile-join then merges both cells' features into ONE layer
+# of one tile, and an MVT layer carries a single `extent`: two coordinate spaces
+# cannot both be right, and nothing in the format or in tile-join's contract
+# promises the loser gets rescaled rather than read against the wrong extent and
+# landing 4x off. Pinning all three knobs to the same value removes the question.
+#
+# Why 14 (16384 units) rather than the default 12 (4096): band-5 cells stop at
+# maxzoom 11 and clients overzoom 3-5 levels past that. At a 4096-unit grid,
+# quantization opens ~1-unit slivers between adjacent DEPARE polygons that reach
+# 4-8 px on screen by z16-17, showing the basemap through depth-area seams. The
+# 16384-unit grid keeps them sub-pixel to roughly z16.
+#
+# The cost, stated honestly. Finer quantization lengthens the varint coordinate
+# stream at every zoom BELOW maxzoom, which until now was 4096, and collapses
+# fewer coincident points; those tiles get bigger. They are also the small ones,
+# so the archive should grow by little -- but that has not been measured over a
+# full region, so treat it as unquantified rather than negligible. Pinning
+# --minimum-detail also removes tippecanoe's escape hatch: a tile that trips the
+# feature limit can no longer be rewritten at coarser detail, so it fails the
+# run loudly instead of quietly emitting exactly the odd-extent tile this block
+# exists to prevent. --no-tile-size-limit already disables the size half of that
+# same fallback.
 tippecanoe \
   -o "$output" \
   --force \
@@ -365,7 +397,9 @@ tippecanoe \
   --no-tile-size-limit \
   --minimum-zoom="$minzoom" \
   --maximum-zoom="$maxzoom" \
-  --full-detail=14    `# 16384-unit grid at maxzoom (default 12 = 4096). Clients overzoom 3-5 levels past maxzoom, and 4096-grid quantization opens ~1-unit slivers between DEPARE polygons that reach 4-8 px on screen; 4x finer quantization keeps them sub-pixel to ~z16` \
+  --full-detail=14    `# grid at this cell's own maxzoom` \
+  --low-detail=14     `# grid at every zoom below it -- must equal --full-detail` \
+  --minimum-detail=14 `# no silent downgrade when a tile trips the feature limit` \
   --exclude=LNAM_REFS `# feature-to-feature cross-references` \
   --exclude=FFPT_RIND `# feature-to-feature pointer update instruction` \
   --exclude=PRIM      `# geometry primitive type (redundant: encoded in geometry)` \

@@ -124,6 +124,8 @@ describe("isolated dangers: fail-safe DEPTH_VALUE (no VALSOU)", () => {
     ["WRECKS", { WATLEV: 3 }], // DEPVAL02 → 0
     ["WRECKS", { WATLEV: 5 }], // DEPVAL02 → 0
     ["WRECKS", { CATWRK: 1 }], // DEPVAL02 → 20.1 (> safety contour)
+    // WRECKS05 tests CATWRK before WATLEV, so this is 20.1 and not 0.
+    ["WRECKS", { CATWRK: 1, WATLEV: 3 }], // DEPVAL02 → 20.1
     ["OBSTRN", { WATLEV: 3 }], // OBSTRN07 → 0.01
     ["OBSTRN", { CATOBS: 6 }], // OBSTRN07 → 0.01
     ["OBSTRN", { WATLEV: 5 }], // OBSTRN07 → 0
@@ -140,6 +142,34 @@ describe("isolated dangers: fail-safe DEPTH_VALUE (no VALSOU)", () => {
       // a danger; every other stand-in depth is at or above it.
       const expected = !(hazard === "WRECKS" && attrs["CATWRK"] === 1);
       expect(isDanger).toBe(expected);
+    });
+  }
+});
+
+describe("DEPVAL02 ladder order: CATWRK 1 outranks WATLEV", () => {
+  // The commonest coding of a deep, surveyed, non-dangerous wreck: "not
+  // dangerous to surface navigation" (CATWRK 1), "always under water"
+  // (WATLEV 3), no least-depth sounding. WRECKS05 reaches the CATWRK arm
+  // first, so DEPTH_VALUE is 20.1 m -- deeper than any safety contour a user
+  // can pick -- and the wreck keeps its ordinary symbol.
+  //
+  // With the arms the other way round the WATLEV 3 arm scored it 0 m, which
+  // made every such wreck an isolated danger at EVERY safety setting, drawn
+  // from the display-base, SCAMIN-immune ISODGR01 family.
+  const feature = { CATWRK: 1, WATLEV: 3, ...WATER.safe };
+
+  for (const contour of [10, 5]) {
+    test(`safety contour ${contour} m: WRECKS symbol, not ISODGR01`, () => {
+      const style = buildStyle({
+        ...options,
+        safetyContour: contour,
+        safetyDepth: contour,
+      });
+      const matches = hits(style, "WRECKS", feature);
+      expect(icons(matches)).not.toContain("ISODGR01");
+      expect(
+        icons(matches).some((i) => i === "WRECKS04" || i === "WRECKS05"),
+      ).toBe(true);
     });
   }
 });

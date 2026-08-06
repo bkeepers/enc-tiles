@@ -2080,8 +2080,18 @@ export type HazardClass = "OBSTRN" | "UWTROC" | "WRECKS";
  *   an always-submerged feature (WATLEV 3), else 0 for an awash one
  *   (WATLEV 5), else DEPTH_UNKNOWN.
  *
- *   WRECKS (DEPVAL02): VALSOU, else 0 when WATLEV is 3 or 5, else 20.1 for a
- *   non-dangerous wreck (CATWRK 1), else DEPTH_UNKNOWN.
+ *   WRECKS (DEPVAL02): VALSOU, else 20.1 for a non-dangerous wreck
+ *   (CATWRK 1), else 0 when WATLEV is 3 or 5, else DEPTH_UNKNOWN.
+ *
+ * The CATWRK arm comes BEFORE the WATLEV one, which is the order WRECKS05
+ * reaches them: the flowchart tests "CATWRK = 1" first and only the branch
+ * where it is not 1 goes on to consult WATLEV (the procedure's own note on the
+ * DEPTH_UNKNOWN arm reads "... OR CATWRK is not equal 1"). Testing WATLEV
+ * first inverts the outcome for the commonest coding of a deep, surveyed,
+ * non-dangerous wreck -- CATWRK 1 + WATLEV 3 (always submerged) + no VALSOU --
+ * which then scores 0 m instead of 20.1 m and is flagged as an isolated danger
+ * at EVERY safety contour. That draws ISODGR01 from the display-base,
+ * SCAMIN-immune layer family, so it cannot be turned off or scaled away.
  */
 export function depthValue(hazard: HazardClass): ExpressionSpecification {
   const valsou: ExpressionSpecification = [
@@ -2095,10 +2105,10 @@ export function depthValue(hazard: HazardClass): ExpressionSpecification {
       "case",
       ["has", "VALSOU"],
       valsou,
-      ["in", ["get", "WATLEV"], ["literal", [3, 5]]],
-      0,
       ["==", ["get", "CATWRK"], 1],
       20.1,
+      ["in", ["get", "WATLEV"], ["literal", [3, 5]]],
+      0,
       DEPTH_UNKNOWN,
     ];
   }
