@@ -81,14 +81,14 @@ describe("the evidence", () => {
 
   test("INFORM is enough on its own, with no file to read", () => {
     const [feature] = run([
-      area({ LNAM: "bbb", INFORM: "Precautionary Area — see note" }),
+      area({ LNAM: "bbb", INFORM: "Separation zone — see note" }),
     ]);
     expect(feature.properties._TSSNOTE).toBe(1);
   });
 
   test("a comma-separated TXTDSC list is followed to the end", () => {
     note("FIRST.TXT", "Anchorage regulations apply.\n");
-    note("SECOND.TXT", "The precautionary area at the junction.\n");
+    note("SECOND.TXT", "One-way traffic lane at the junction.\n");
     const [feature] = run([
       area({ LNAM: "ccc", TXTDSC: "FIRST.TXT,SECOND.TXT" }),
     ]);
@@ -99,6 +99,21 @@ describe("the evidence", () => {
     note("OTHER.TXT", "Submarines exercise in this area.\n");
     const [feature] = run([area({ LNAM: "ddd", TXTDSC: "OTHER.TXT" })]);
     expect(feature.properties).not.toHaveProperty("_TSSNOTE");
+  });
+
+  test("the object class alone is not evidence of a scheme", () => {
+    // "Precautionary area" is what the feature IS, not what it belongs to: a
+    // standalone caution area's own note says it too. Matching on it matched
+    // the feature against its own name and grouped every such area with the
+    // traffic scheme, where it hides with the scheme and takes its warning off
+    // the chart.
+    note("SELF.TXT", "This precautionary area surrounds the outfall.\n");
+    const [cited, informed] = run([
+      area({ LNAM: "hhh", TXTDSC: "SELF.TXT" }),
+      area({ LNAM: "iii", INFORM: "Precautionary Area" }),
+    ]);
+    expect(cited.properties).not.toHaveProperty("_TSSNOTE");
+    expect(informed.properties).not.toHaveProperty("_TSSNOTE");
   });
 });
 

@@ -42,6 +42,24 @@
 // coarser zoom is still on the chart, and skipping it would let a deeper hazard
 // claim the cell it is already occupying and double the density there.
 //
+// WHAT THE RULE DOES NOT BOUND
+//
+// The competition is per S-57 CELL, because that is the unit this runs on: one
+// invocation of bin/s57-to-tiles converts one .000 and passes it that cell's
+// hazard files. Two charts that cover neighbouring water -- or the same water
+// at a different band -- are two separate runs that never see each other's
+// features, so each holds its own contest and each stamps its own winner.
+//
+// So "one symbol per 64 px" is true of a chart cell and NOT of the screen. What
+// a mariner sees at a given zoom is the union of every chart cell in view, and
+// two hazards a hundred metres apart on opposite sides of a cell boundary both
+// win their square and both draw. The bound is the number of chart cells the
+// viewport touches, which is small in open water and largest exactly where the
+// cells are smallest -- an approaches chart series around a harbour entrance.
+// Nothing here fixes that, and it is not worth fixing at this end: the honest
+// place for a cross-cell rule is after tile-join, where the features of every
+// contributing cell finally exist in one place.
+//
 // EFFECTIVE DEPTH
 //
 // VALSOU, in metres, and shallower is more dangerous -- so a drying height

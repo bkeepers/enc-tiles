@@ -525,13 +525,26 @@ export function spriteSources(data) {
 }
 
 /**
+ * The line styles that are legitimately their own drawing.
+ *
+ * Both are dash patterns the S-101 portrayal catalogue never gave a `LineStyle`
+ * definition to, and for both the same-named `Symbols/<name>.svg` IS the line
+ * style rather than a point icon that happens to share the name. They are named
+ * here, one by one, because the same "fall back to the drawing" branch applied
+ * to anything else silently substitutes a POINT SYMBOL for a line style — see
+ * `sourceSvg`.
+ */
+const DRAWN_LINESTYLES = new Set(["LOWACC01", "NEWOBJ01"]);
+
+/**
  * The unstyled SVG for one sprite source, drawn or synthesized.
  *
- * Returns undefined when S-101 carries neither a drawing nor a definition for
- * it. That is exactly one entry today (LOWACC11, which the DAI still lists but
- * the S-101 portrayal catalogue dropped) and nothing in the style references
- * it; synthesizing a stand-in would put a wrong image in the atlas rather than
- * an absent one.
+ * Returns undefined when neither an S-101 definition nor a drawing this may
+ * legitimately take is available. That is exactly one entry today (LOWACC11,
+ * which the DAI still lists but the S-101 portrayal catalogue dropped) and
+ * nothing in the style references it; synthesizing a stand-in would put a wrong
+ * image in the atlas rather than an absent one, and an absent one is what the
+ * build's "no drawing" warning is for.
  */
 export function sourceSvg(source) {
   if (source.kind === "symbol") {
@@ -540,22 +553,29 @@ export function sourceSvg(source) {
     return drawn;
   }
 
-  // A pattern or line style is built from its own S-101 definition, and only
-  // falls back to a same-named SVG when the catalogue carries no definition for
-  // it. The name spaces overlap (see SPRITE_PREFIX), so `<name>.svg` for a
-  // pattern or line style is normally the *symbol* of that name: taking it was
-  // the second half of the shadowing bug. `Symbols/AIRARE02.svg` describes
-  // itself as "symbol for airport as a point" and was being tiled edge to edge
-  // over airport areas in place of the 38.24 x 38.04 mm AIRARE02P lattice, and
-  // all 15 line styles that share a name with a symbol drew that symbol.
+  // A pattern or line style is built from its own S-101 definition. The name
+  // spaces overlap (see SPRITE_PREFIX), so `<name>.svg` for a pattern or line
+  // style is normally the *symbol* of that name: taking it was the second half
+  // of the shadowing bug. `Symbols/AIRARE02.svg` describes itself as "symbol
+  // for airport as a point" and was being tiled edge to edge over airport areas
+  // in place of the 38.24 x 38.04 mm AIRARE02P lattice, and all 15 line styles
+  // that share a name with a symbol drew that symbol.
   //
-  // Two line styles (LOWACC01, NEWOBJ01) genuinely have no S-101 definition and
-  // keep using their drawing. LOWACC11 has neither and is the one entry that
-  // returns undefined.
+  // WHICH IS WHY THE FALLBACK IS AN ALLOW-LIST AND NOT A CATCH-ALL. Reaching
+  // for the drawing whenever a definition is missing is silent in exactly the
+  // wrong way: a point symbol used as a line style or an area fill is a
+  // well-formed SVG with a plausible viewBox, so it passes every check the
+  // build makes, and it is the point-symbol geometry — not centred on the line,
+  // not mirrored along it, not on the lattice — that ships. An unlisted source
+  // with no definition therefore returns undefined and trips the build's
+  // missing-sprite warning, where a human decides whether the drawing is really
+  // the line style (DRAWN_LINESTYLES) or the catalogue lost an entry.
   const definitions =
     source.kind === "pattern" ? PATTERN_DEFINITIONS : LINESTYLE_DEFINITIONS;
   if (!existsSync(resolve(definitions, `${source.name}.xml`))) {
-    return readSymbolSvg(source.name);
+    return source.kind === "linestyle" && DRAWN_LINESTYLES.has(source.name)
+      ? readSymbolSvg(source.name)
+      : undefined;
   }
 
   return source.kind === "pattern"

@@ -28,7 +28,11 @@
 //     name more than one file, comma-separated.
 //
 // Measured on Puget Sound: 43 of 43 PRCARE features that belong to a scheme are
-// identified by this test, with no false positives.
+// identified by this test, with no false positives. Re-measured when the test
+// was narrowed to scheme vocabulary (see TSS_NOTE), over the eight downloaded
+// Puget cells: 31 PRCARE features, 30 stamped, the SAME 30 the wider expression
+// stamped. The one that is not stamped is the Turn Point special operating
+// area, which is a standalone caution and the case this exists to tell apart.
 //
 // NEVER FATAL. A cell whose .TXT files were not shipped, or are unreadable, or
 // are in an encoding this cannot make sense of, is a cell that gets no stamps --
@@ -38,11 +42,29 @@
 import { readFileSync, writeFileSync } from "fs";
 import { join } from "path";
 
-// What a TSS-attached precautionary area's description says. Both phrasings are
-// what NOAA's own note files use; the test is deliberately narrow, because the
-// cost of a false positive is a standalone caution area that hides with the
-// traffic scheme and takes its warning off the chart with it.
-const TSS_NOTE = /traffic separation scheme|precautionary area/i;
+// What a TSS-attached precautionary area's description says: SCHEME vocabulary,
+// every alternation naming something only a traffic separation scheme has.
+//
+// The test is deliberately narrow, because the cost of a false positive is a
+// standalone caution area that hides with the traffic scheme and takes its
+// warning off the chart with it.
+//
+// `precautionary area` USED TO BE AN ALTERNATION HERE AND IS NOT ANY MORE. It
+// names the OBJECT CLASS, not the scheme: a standalone caution area's own note
+// says "precautionary area" too, because that is what the area IS. Matching on
+// it matched a feature against its own name, and any PRCARE whose note
+// mentioned itself qualified whether or not a scheme was anywhere near it.
+//
+// MEASURED over the 54 companion .TXT files shipped with the Puget Sound cells
+// (US3WA1EF and the seven US4WA1* cells): 15 files match, exactly the same 15
+// the old expression matched, and not one file in the corpus matches
+// `precautionary area` without also carrying scheme vocabulary. Dropping it
+// costs nothing measurable here and removes the one alternation that could not
+// tell the two kinds of area apart. Of those 15 files: 15 say "traffic
+// separation scheme", 13 "traffic lane", 11 "separation zone", 11 "one-way
+// traffic", 3 "TSS".
+const TSS_NOTE =
+  /traffic separation scheme|\bTSS\b|separation zone|traffic lane|one-way traffic/i;
 
 const args = process.argv.slice(2);
 let encDir = null;

@@ -154,6 +154,28 @@ describe("sprite sources", () => {
     expect(caution).toContain("boundary of area with a specific caution");
   });
 
+  test("only the two named line styles may fall back to a drawing", () => {
+    // LOWACC01 and NEWOBJ01 have no S-101 definition and their same-named SVG
+    // really is the line style, so they draw from it.
+    for (const name of ["LOWACC01", "NEWOBJ01"]) {
+      const svgText = sourceSvg({ kind: "linestyle", name }) as string;
+      expect(svgText, `${name} draws from its own SVG`).toContain("<svg");
+      expect(svgText).toBe(readSymbolSvg(name));
+    }
+
+    // Anything else with no definition returns undefined rather than the
+    // same-named POINT symbol. A point symbol passes every check the build
+    // makes — well-formed, non-zero viewBox, draws something — and then ships
+    // uncentred and unmirrored along the line, which is exactly the failure
+    // this is here to prevent. Undefined trips the build's "no drawing"
+    // warning instead, and a human decides which it was.
+    expect(readSymbolSvg("BOYCAR01"), "the buoy drawing exists").toContain(
+      "<svg",
+    );
+    expect(sourceSvg({ kind: "linestyle", name: "BOYCAR01" })).toBeUndefined();
+    expect(sourceSvg({ kind: "pattern", name: "BOYCAR01" })).toBeUndefined();
+  });
+
   test(
     "every source resolves to a drawing with a non-zero viewBox",
     () => {

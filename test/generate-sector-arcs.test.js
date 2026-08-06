@@ -49,7 +49,7 @@ function light(properties, lon = 0, lat = 0) {
   };
 }
 
-function run(features, { minzoom = 0, maxzoom = 12 } = {}) {
+function run(features, { minzoom = 0, maxzoom = 12, topZoom = null } = {}) {
   const input = join(work, "LIGHTS.geojson");
   const output = join(work, "_LIGHTS_SECTORS.geojson");
   writeFileSync(input, JSON.stringify({ type: "FeatureCollection", features }));
@@ -63,6 +63,7 @@ function run(features, { minzoom = 0, maxzoom = 12 } = {}) {
       String(minzoom),
       "--maxzoom",
       String(maxzoom),
+      ...(topZoom === null ? [] : ["--top-zoom", String(topZoom)]),
     ],
     { encoding: "utf8" },
   );
@@ -169,6 +170,92 @@ describe("tippecanoe confinement", () => {
     for (const feature of output.features) {
       expect(feature.properties._zmax).toBe(11 + OVERZOOM_LEVELS);
     }
+  });
+});
+
+describe("the publication ceiling", () => {
+  // What bin/s57-to-tiles passes as --top-zoom. The national join is capped at
+  // the MINIMUM band maxzoom across its member regions and deletes every tile
+  // above it, so this is the deepest zoom a published archive holds.
+  const PUBLICATION_MAXZOOM = 11;
+  // The band ladder in bin/s57-to-tiles, INTU 1 through 6.
+  const BAND_MAXZOOMS = [4, 6, 8, 10, 11, 12];
+  // Past here the browser is overzooming whatever any ladder says; the style
+  // still asks its question at every one of these zooms.
+  const DEEPEST_DISPLAY_ZOOM = 17;
+
+  // 48°N, the latitude of the seeded regions. The rest of this file works on
+  // the equator so the sizes are readable, but there a 25 mm leg does not fit
+  // under MAX_FIGURE_METRES until z8 and a band-1 cell (whose whole ladder tops
+  // out at z7) emits nothing at all — a true statement about the equator and a
+  // useless one about a chart.
+  const CHART_LAT = 48;
+
+  test.each(BAND_MAXZOOMS)(
+    "a maxzoom-%i cell promises only copies that survive the join",
+    (maxzoom) => {
+      const output = run([light(SECTOR, 0, CHART_LAT)], {
+        maxzoom,
+        topZoom: PUBLICATION_MAXZOOM,
+      });
+      const copies = output.features.filter(
+        (f) => f.properties._z !== undefined,
+      );
+      expect(copies.length).toBeGreaterThan(0);
+
+      // Simulate `tile-join --maximum-zoom=11`: every tile above the ceiling is
+      // deleted, and with it every copy stamped into one. A band-6 cell's
+      // z12..z15 copies all lived in its z12 tile, which is how its sectors
+      // went blank from z12 up on us.pmtiles.
+      const survivors = copies.filter(
+        (f) => f.tippecanoe.maxzoom <= PUBLICATION_MAXZOOM,
+      );
+      const present = [...new Set(survivors.map((f) => f.properties._z))];
+
+      const promised = [...new Set(copies.map((f) => f.properties._zmax))];
+      expect(promised, "one _zmax for the whole cell").toHaveLength(1);
+      const zmax = promised[0];
+      expect(zmax).toBe(
+        Math.min(maxzoom + OVERZOOM_LEVELS, PUBLICATION_MAXZOOM),
+      );
+
+      // The style's own selection, run at every zoom the layer draws at:
+      // `_z == min(floor(zoom), _zmax)` must name a copy that is still there.
+      // Below the shallowest copy there is deliberately nothing (see
+      // MAX_FIGURE_METRES), which is an absent legend and not a wrong one.
+      for (let z = Math.min(...present); z <= DEEPEST_DISPLAY_ZOOM; z++) {
+        expect(
+          present,
+          `maxzoom-${maxzoom} cell at z${z} selects _z=${Math.min(z, zmax)}`,
+        ).toContain(Math.min(z, zmax));
+      }
+    },
+  );
+
+  test("a coarse band's copies all sit above its own maxzoom", () => {
+    // The MAX_FIGURE_METRES floor does not move with the band, so a band-1 cell
+    // gets no copy at any zoom its own chart is native to: its one copy is z7,
+    // riding the z4 tile into the overzoomed levels. Pinned because it looks
+    // like a bug in a tile dump and is not one.
+    const output = run([light(SECTOR, 0, CHART_LAT)], {
+      maxzoom: 4,
+      topZoom: PUBLICATION_MAXZOOM,
+    });
+    expect([...new Set(output.features.map((f) => f.properties._z))]).toEqual([
+      4 + OVERZOOM_LEVELS,
+    ]);
+    for (const feature of output.features) {
+      expect(feature.tippecanoe).toEqual({ minzoom: 4, maxzoom: 4 });
+    }
+  });
+
+  test("without a ceiling the band's own overzoom range is unchanged", () => {
+    // The flag defaults to "no ceiling": a standalone run over one cell, and
+    // every caller that predates it, still gets maxzoom + OVERZOOM_LEVELS.
+    const output = run([light(SECTOR)], { maxzoom: 12 });
+    const zooms = output.features.map((f) => f.properties._z);
+    expect(Math.max(...zooms)).toBe(12 + OVERZOOM_LEVELS);
+    expect(output.features[0].properties._zmax).toBe(12 + OVERZOOM_LEVELS);
   });
 });
 

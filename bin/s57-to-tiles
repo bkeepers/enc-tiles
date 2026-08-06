@@ -144,6 +144,26 @@ case "$intu" in
   *) echo "Unknown INTU: $intu"; exit 1 ;;
 esac
 
+# The deepest zoom a PUBLISHED tileset holds, which is not the same number as
+# the ladder above.
+#
+# A cell is tiled to its own band maxzoom, but the archive a browser mounts is
+# the national join, and that join is capped at the MINIMUM band maxzoom across
+# its member regions -- 11 today, because only a berthing-band region reaches
+# z12 and letting --overzoom synthesize z12 for the regions that do not was what
+# OOM-killed the join. Every tile above the cap is deleted from the published
+# archive.
+#
+# It matters here because a derived layer can carry a PROMISE about zooms in its
+# attributes, and a promise about a deleted tile is a zoom at which nothing
+# draws: bin/generate-sector-arcs stamps `_zmax`, the style matches `_z` exactly
+# against min(floor(zoom), _zmax), and a band-6 cell promising z12..z15 copies
+# that the join had deleted blanked its sectors from z12 up.
+#
+# When every band-6 region reaches z12 the join's minimum moves and so does
+# this, in one place.
+publication_maxzoom=11
+
 mkdir -p "$(dirname "$output")"
 
 tmpdir=$(mktemp -d)
@@ -447,7 +467,8 @@ lights_geojson="$tmpdir/LIGHTS.geojson"
 sectors_geojson="$tmpdir/_LIGHTS_SECTORS.geojson"
 if [ -f "$lights_geojson" ]; then
   node "$SCRIPT_DIR/generate-sector-arcs" "$lights_geojson" "$sectors_geojson" \
-    --minzoom "$minzoom" --maxzoom "$maxzoom"
+    --minzoom "$minzoom" --maxzoom "$maxzoom" \
+    --top-zoom "$publication_maxzoom"
   if [ -s "$sectors_geojson" ]; then
     geojson_files+=("$sectors_geojson")
   fi

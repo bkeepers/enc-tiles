@@ -2,7 +2,8 @@
 
 // Generates sector arc and leg line geometries from LIGHTS features in a GeoJSON file.
 //
-// Usage: bin/generate-sector-arcs <lights.geojson> <output.geojson> [--minzoom N] [--maxzoom N]
+// Usage: bin/generate-sector-arcs <lights.geojson> <output.geojson>
+//          [--minzoom N] [--maxzoom N] [--top-zoom N]
 //
 // Reads LIGHTS point features with SECTR1/SECTR2 attributes and produces
 // LineString features for:
@@ -29,12 +30,19 @@
 // each copy is confined to its own zoom's tiles by a per-feature `tippecanoe`
 // member (`{minzoom: z, maxzoom: z}`) -- the same "one field per zoom, tagged
 // minzoom=maxzoom=z, coarse fields swap out as finer ones arrive" pattern
-// seascape uses for its sounding lattice. Tile weight stays flat: a z9 tile
-// carries the z9 copy and nothing else. Feature COUNT grows by roughly the
-// number of zoom levels, which is affordable precisely because these are
-// three-to-a-hundred-point line strings.
+// seascape uses for its sounding lattice.
 //
-// Two bounds on the range.
+// WHAT THIS COSTS PER TILE. Below the band maxzoom it is one copy per tile: a
+// z9 tile of a band-5 cell carries the z9 copy and nothing else. The
+// band-maxzoom tile is the exception and carries OVERZOOM_LEVELS + 1 of them
+// (the maxzoom copy plus every overzoom copy, which have nowhere else to live
+// -- see the first bound below), so the deepest real tile's share of this layer
+// multiplies by four. It is affordable because these are three-to-a-hundred-
+// point line strings and because a cell has tens of sectored lights, not
+// thousands; it is NOT flat, and a claim that it was is what this paragraph
+// replaces.
+//
+// Three bounds on the range.
 //
 // * OVERZOOM_LEVELS at the top. tippecanoe writes no tile above the cell's band
 //   maxzoom, and both `tile-join --overzoom` and the browser fill those levels
@@ -44,6 +52,26 @@
 //   into the levels they were sized for. They are told apart at draw time by
 //   `_z`, which is why the style selects on it (see `sectorArcLayers`); without
 //   that selection all four would draw at once.
+// * --top-zoom, THE PUBLICATION CEILING, over the top of it. The tileset a
+//   browser actually mounts is the national join, and that join is capped at
+//   the MINIMUM band maxzoom across its inputs (z11 today: only a berthing-band
+//   region reaches z12, and synthesizing z12 for the six regions that do not was
+//   what OOM-killed the join). Every tile above the cap is deleted, and with it
+//   every copy stamped into one. A band-6 cell's z12..z15 copies all live in its
+//   z12 tile, so on the published archive they do not exist -- and because the
+//   style matches `_z` EXACTLY against `min(floor(zoom), _zmax)`, a `_zmax` of
+//   15 asked at z12 for a copy nothing could serve and the sectors of every
+//   band-6 cell went blank from z12 up. So the caller passes the ceiling, no
+//   copy is authored above it, and `_zmax` is the deepest copy that survives
+//   publication rather than the deepest one the band could in principle carry.
+//   The cost is paid at the top of the ladder, deliberately and uniformly: past
+//   the ceiling EVERY band's figure rides the browser's scaling, because past
+//   the ceiling every cell is being served from the same overzoomed z11 tile.
+//   Keeping the band-5 overzoom copies while the band-6 ones died would have
+//   drawn a correctly sized arc on one cell and an 8x one on the cell next to it
+//   at the same zoom, which is worse than both being scaled together. Raising
+//   the ceiling (when every band-6 region reaches z12) restores per-zoom sizing
+//   up to the new one; it is a single named variable in bin/s57-to-tiles.
 // * MAX_FIGURE_METRES at the bottom. Small zooms are the same arithmetic run
 //   the other way: a 20 mm arc is ~5900 km at z0. SCAMIN would usually withhold
 //   it, but `scaleFilter` passes any feature that carries no SCAMIN at all, so
@@ -51,6 +79,18 @@
 //   emitted, and no copy exists below the smallest zoom that fits -- which is
 //   what the layer was already worth at those scales, the old copies being
 //   sized for maxzoom and therefore sub-pixel.
+//
+//   WORTH NAMING, because it is a GAP and not a rounding: that floor is a
+//   latitude away from moving and does not move with the band at all. A 25 mm
+//   leg first fits under the cap at z7 at 48N and not until z8 on the equator,
+//   so a band-1 cell (maxzoom 4) contributes exactly one copy at 48N -- z7,
+//   riding its z4 tile into the overzoomed levels -- and none whatever on the
+//   equator, and a band-2 cell (maxzoom 6) contributes two or three. Neither
+//   band gets a copy at any zoom its own chart is native to, so on those cells
+//   the sector legend does not appear until the zoom where a 25 mm figure is
+//   under 50 km. That is the right reading (an overview chart has no room for a
+//   sector legend beside every light) but there is no z0..z6 copy to fall back
+//   to, and a tile dump of a band-1 cell showing only `_z: 7` is correct.
 
 import { readFileSync, writeFileSync } from "fs";
 
@@ -58,6 +98,11 @@ const args = process.argv.slice(2);
 let inputPath, outputPath;
 let minzoom = 0,
   maxzoom = 16;
+// The publication ceiling, when the caller knows one. Null means "no ceiling
+// above the band's own overzoom range", which is the right default for a
+// standalone run over one cell: it reproduces the behaviour of every caller
+// that predates the flag.
+let topZoomOption = null;
 
 // Parse args
 const positional = [];
@@ -66,6 +111,8 @@ for (let i = 0; i < args.length; i++) {
     minzoom = parseInt(args[++i]);
   } else if (args[i] === "--maxzoom" && args[i + 1]) {
     maxzoom = parseInt(args[++i]);
+  } else if (args[i] === "--top-zoom" && args[i + 1]) {
+    topZoomOption = parseInt(args[++i]);
   } else {
     positional.push(args[i]);
   }
@@ -75,7 +122,8 @@ outputPath = positional[1];
 
 if (!inputPath || !outputPath) {
   console.error(
-    "Usage: generate-sector-arcs <lights.geojson> <output.geojson> [--minzoom N] [--maxzoom N]",
+    "Usage: generate-sector-arcs <lights.geojson> <output.geojson> " +
+      "[--minzoom N] [--maxzoom N] [--top-zoom N]",
   );
   process.exit(1);
 }
@@ -187,9 +235,19 @@ function isFaintOrObscured(litvis) {
   return codes.some((v) => v === 3 || v === 7 || v === 8);
 }
 
-// The deepest zoom that gets a copy. Past the band maxzoom the copies share the
-// band-maxzoom tile; see the header.
-const topZoom = maxzoom + OVERZOOM_LEVELS;
+// The deepest zoom that gets a copy, and therefore the `_zmax` every copy
+// carries. Past the band maxzoom the copies share the band-maxzoom tile; see
+// the header.
+//
+// Bounded by the publication ceiling when the caller passes one. A copy above
+// the ceiling would be stamped into a tile the national join deletes, so it is
+// not written -- and, more to the point, `_zmax` must not PROMISE it: the style
+// matches `_z` exactly against `min(floor(zoom), _zmax)`, so a `_zmax` naming a
+// copy that did not survive is a zoom at which nothing draws.
+const topZoom = Math.min(
+  maxzoom + OVERZOOM_LEVELS,
+  topZoomOption ?? Number.POSITIVE_INFINITY,
+);
 
 // The zooms whose copy of an `mm`-sized figure is small enough to be worth
 // writing, shallowest first. The size shrinks by half per level, so the cap can
