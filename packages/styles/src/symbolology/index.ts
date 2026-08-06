@@ -35,6 +35,23 @@ export interface LayerConfig {
    * stable across the setting. S-52 default: off.
    */
   shallowWaterDangers?: boolean;
+  /**
+   * Whether UDWHAZ05 may substitute the magenta isolated-danger mark
+   * (ISODGR01) for a hazard's ordinary symbol at all. **Defaults to true** --
+   * an omitted or undefined value keeps S-52 behaviour, so only an explicit
+   * `false` turns the substitution off.
+   *
+   * With it false the procedure is skipped entirely, both families alike: no
+   * ISODGR01 is drawn anywhere, and every WRECKS/OBSTRN/UWTROC feature takes
+   * the ordinary branch it would have taken had it never qualified. This is
+   * NOT an S-52 option -- it exists so a screenshot or a presentation can show
+   * the chart's own symbology without the danger marks over it, and a chart
+   * being used for navigation should leave it alone.
+   *
+   * Like `shallowWaterDangers` it only changes filters: the same layers are
+   * emitted in the same order in both states, so layer ids do not shift.
+   */
+  isolatedDangerMarks?: boolean;
   boundaries?: BoundaryType;
   symbols?: SymbolType;
   /** Display categories to show. Omit to show all. */

@@ -2137,15 +2137,41 @@ const underwater: ExpressionFilterSpecification = [
 ];
 
 /**
+ * A filter no feature can satisfy: `any` of an empty list is false, in both
+ * MapLibre's expression and legacy filter grammars.
+ *
+ * Used to switch a branch of UDWHAZ05 off without removing its layers, so the
+ * positional layer ids (`${lookupId}-${index}`) stay put.
+ */
+const NEVER: ExpressionFilterSpecification = ["any"];
+
+/**
+ * Whether the isolated-danger substitution runs at all.
+ *
+ * Absent means yes: `isolatedDangerMarks` is an opt-OUT (see LayerConfig), so
+ * a caller that has never heard of it gets S-52 behaviour.
+ */
+function isolatedDangerMarksEnabled(config: LayerConfig): boolean {
+  return config.isolatedDangerMarks !== false;
+}
+
+/**
  * UDWHAZ05 isolated danger in **safe water**: a shoal hazard
  * (DEPTH_VALUE <= SAFETY_CONTOUR) whose surrounding depth is at or beyond the
  * safety contour. These are the display-base ISODGR01 layers (viewing group
  * 14010, ScaleMinimum infinite).
+ *
+ * Returns `NEVER` when `isolatedDangerMarks` is off. The gate lives here, in
+ * the two predicates, rather than at the ISODGR01 layers: they are not the
+ * only thing that consults it. `notIsolatedDanger` guards every ordinary
+ * symbol and every hazard sounding, so gating only the marks would leave the
+ * ordinary symbol suppressed on a hazard whose replacement is no longer drawn.
  */
 export function isolatedDanger(
   config: LayerConfig,
   hazard: HazardClass,
 ): ExpressionFilterSpecification {
+  if (!isolatedDangerMarksEnabled(config)) return NEVER;
   return [
     "all",
     ["<=", depthValue(hazard), config.safetyContour],
@@ -2166,11 +2192,15 @@ export function isolatedDanger(
  * exclusive with `isolatedDanger`, mirroring the if/elseif in UDWHAZ05.lua.
  * (One feature can touch both a deep and a shallow area, so MAX and MINPOS can
  * satisfy both tests at once.)
+ *
+ * Also `NEVER` when `isolatedDangerMarks` is off: that option turns the whole
+ * procedure off, not just its display-base half.
  */
 export function shallowWaterDanger(
   config: LayerConfig,
   hazard: HazardClass,
 ): ExpressionFilterSpecification {
+  if (!isolatedDangerMarksEnabled(config)) return NEVER;
   return [
     "all",
     ["<=", depthValue(hazard), config.safetyContour],
@@ -2190,7 +2220,9 @@ export function shallowWaterDanger(
  *
  * A shallow-water danger only displaces the ordinary symbol when the
  * `shallowWaterDangers` option is on; with it off, S-52's DANGER01/DANGER02
- * path stays in force for those features.
+ * path stays in force for those features. With `isolatedDangerMarks` off both
+ * predicates are `NEVER`, so this is false for every feature and the ordinary
+ * path is in force for all of them.
  */
 export function isolatedDangerShown(
   config: LayerConfig,
@@ -2232,8 +2264,9 @@ export function UDWHAZ05(config: LayerConfig, hazard: HazardClass): CSPLayer[] {
  * shallow-water one.
  *
  * Both are emitted unconditionally so that layer ids -- which are positional
- * (`${lookupId}-${index}`) -- do not shift when the `shallowWaterDangers`
- * option changes.
+ * (`${lookupId}-${index}`) -- do not shift when the `shallowWaterDangers` or
+ * `isolatedDangerMarks` option changes. With `isolatedDangerMarks` off both
+ * filters reduce to `NEVER` and the pair draws nothing.
  */
 function isolatedDangerLayers(
   config: LayerConfig,

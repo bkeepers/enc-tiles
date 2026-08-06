@@ -35,6 +35,12 @@ const options = {
 
 const withoutShallow = buildStyle(options);
 const withShallow = buildStyle({ ...options, shallowWaterDangers: true });
+/** `isolatedDangerMarks: false` — the whole procedure off, both families. */
+const withoutMarks = buildStyle({
+  ...options,
+  shallowWaterDangers: true,
+  isolatedDangerMarks: false,
+});
 
 const HAZARDS = ["WRECKS", "OBSTRN", "UWTROC"] as const;
 
@@ -222,6 +228,84 @@ describe("isolated dangers: shallow-water family", () => {
       expect(ids(withShallow)).toEqual(ids(withoutShallow));
     });
   }
+});
+
+describe("isolatedDangerMarks: false turns the whole procedure off", () => {
+  // Not an S-52 option. The escape hatch for screenshots and presentations:
+  // no magenta mark anywhere, every hazard on its ordinary branch.
+  for (const hazard of HAZARDS) {
+    test(`${hazard} shoal hazard in SAFE water draws its ordinary symbol, not ISODGR01`, () => {
+      const feature = { VALSOU: 5, WATLEV: 3, ...WATER.safe };
+      // The same feature is a display-base isolated danger with the option on.
+      expect(icons(hits(withShallow, hazard, feature))).toContain("ISODGR01");
+
+      const matches = hits(withoutMarks, hazard, feature);
+      expect(icons(matches)).not.toContain("ISODGR01");
+      expect(icons(matches)).toContain("DANGER01");
+      expect(hasSounding(matches)).toBe(true);
+    });
+
+    test(`${hazard} shoal hazard in UNSAFE water is not marked either`, () => {
+      const feature = { VALSOU: 5, WATLEV: 3, ...WATER.unsafe };
+      // Continuation A would mark this one, since shallowWaterDangers is on.
+      expect(icons(hits(withShallow, hazard, feature))).toContain("ISODGR01");
+
+      const matches = hits(withoutMarks, hazard, feature);
+      expect(icons(matches)).not.toContain("ISODGR01");
+      expect(icons(matches)).toContain("DANGER01");
+      expect(hasSounding(matches)).toBe(true);
+    });
+
+    test(`${hazard} layer ids are identical with the marks on and off`, () => {
+      const ids = (style: ReturnType<typeof buildStyle>) =>
+        style.layers
+          .filter(
+            (l) =>
+              (l as { "source-layer"?: string })["source-layer"] === hazard,
+          )
+          .map((l) => l.id);
+      expect(ids(withoutMarks)).toEqual(ids(withShallow));
+    });
+  }
+
+  test("no ISODGR01 layer matches any feature of the full quadrant matrix", () => {
+    const geometries: Record<string, GeometryType[]> = {
+      WRECKS: ["Point", "Polygon"],
+      OBSTRN: ["Point", "LineString", "Polygon"],
+      UWTROC: ["Point"],
+    };
+    for (const hazard of HAZARDS) {
+      for (const depth of [{ VALSOU: 5 }, { VALSOU: 20 }, { VALSOU: 0 }, {}]) {
+        for (const water of Object.values(WATER)) {
+          for (const watlev of [undefined, 1, 2, 3, 4, 5]) {
+            for (const geometry of geometries[hazard]!) {
+              const properties = {
+                ...depth,
+                ...water,
+                ...(watlev === undefined ? {} : { WATLEV: watlev }),
+              };
+              const matches = hits(withoutMarks, hazard, properties, geometry);
+              expect(
+                icons(matches),
+                `${hazard} ${geometry} ${JSON.stringify(properties)}`,
+              ).not.toContain("ISODGR01");
+              // And the feature still draws something.
+              expect(matches.length).toBeGreaterThan(0);
+            }
+          }
+        }
+      }
+    }
+  });
+
+  test("the option is opt-out: an undefined value keeps S-52 behaviour", () => {
+    const explicit = buildStyle({ ...options, isolatedDangerMarks: true });
+    const feature = { VALSOU: 5, WATLEV: 3, ...WATER.safe };
+    for (const style of [withoutShallow, explicit]) {
+      expect(icons(hits(style, "WRECKS", feature))).toContain("ISODGR01");
+    }
+    expect(JSON.stringify(explicit)).toEqual(JSON.stringify(withoutShallow));
+  });
 });
 
 describe("isolated dangers: unjoined and NULL join values", () => {

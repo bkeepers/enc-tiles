@@ -1,0 +1,429 @@
+#!/usr/bin/env node
+
+// Derives the _TSS_ANCHORS layer: one point per traffic-lane leg, at which the
+// style draws the lane's direction arrow.
+//
+// Usage:
+//   bin/generate-tss-anchors <output.geojson> --class TSSLPT:TSSLPT.geojson \
+//     [--class TSSRON:TSSRON.geojson] [--class DWRTPT:DWRTPT.geojson]
+//
+// Why this layer exists:
+//
+//   A traffic separation scheme's lane is one thing on the water and many
+//   polygons in the data. S-57 splits a single lane leg at every cell boundary
+//   it crosses, and the parts are separate features with DIFFERENT LNAMs, so
+//   nothing in the tiles says they are the same leg. Drawing the arrow from
+//   TSSLPT directly therefore draws one arrow per part.
+//
+//   Worse, that is not even the whole of it: tippecanoe writes a copy of a
+//   feature into every tile its geometry touches, so a lane part spanning four
+//   tiles arrives as four features with the same LNAM. A renderer cannot
+//   collapse those at runtime -- it only ever sees the tile in front of it,
+//   symbol placement is per tile, and MapLibre's `promoteId` dedup does not
+//   cross tile boundaries. Deduplication has to happen where the whole
+//   geometry is still in one piece, which is here.
+//
+//   So: group the parts back into legs, and emit ONE point per leg. A point
+//   lands in exactly one tile at any zoom, which is what makes the arrow
+//   appear once.
+//
+// Grouping is by (class, ORIENT rounded to the nearest degree, spatial
+// contiguity). ORIENT is the leg's own traffic direction and is what
+// distinguishes the two lanes of a separation scheme where they run side by
+// side; contiguity is what re-joins the parts of one lane without joining the
+// two lanes to each other. Class is part of the key because it is carried on
+// the output and a TSSLPT and a DWRTPT that happen to abut are not one leg.
+//
+// Each output feature carries:
+//
+//   CLASS    the S-57 class the group came from (TSSLPT, TSSRON, DWRTPT)
+//   ORIENT   the group's traffic direction, degrees true, integer
+//   AREA     the group's summed area in square degrees, longitude scaled by
+//            cos(latitude), so the style can rank legs across latitudes
+//
+// A long leg gets more than one anchor. A single arrow in the middle of a lane
+// that runs the length of a strait tells the mariner nothing at either end, so
+// anchors repeat every ANCHOR_SPACING_NM along the leg's own axis -- which for
+// a traffic lane IS its ORIENT direction, no principal-axis fit needed.
+//
+// What this does NOT fix: the script runs per cell, so a leg that crosses a
+// CELL boundary still gets one anchor from each cell. Those are removed by the
+// same quilt clip that removes everything else the neighbouring chart covers,
+// or they survive as two arrows on one long lane, which is the behaviour the
+// spacing rule produces anyway.
+
+import { readFileSync, writeFileSync } from "fs";
+
+const args = process.argv.slice(2);
+const inputs = [];
+const positional = [];
+
+for (let i = 0; i < args.length; i++) {
+  if (args[i] === "--class" && args[i + 1]) {
+    const value = args[++i];
+    const separator = value.indexOf(":");
+    inputs.push({
+      className: value.slice(0, separator),
+      path: value.slice(separator + 1),
+    });
+  } else positional.push(args[i]);
+}
+
+const outputPath = positional[0];
+if (!outputPath || inputs.length === 0) {
+  console.error(
+    "Usage: generate-tss-anchors <output.geojson> --class <CLASS>:<file.geojson> [--class ...]",
+  );
+  process.exit(1);
+}
+
+/**
+ * One anchor per this many nautical miles of leg length, minimum one.
+ *
+ * 8 nm is roughly one arrow per screen-height at the zoom a traffic scheme
+ * becomes legible (z11-z12), which is the spacing a paper chart uses. The
+ * count is rounded rather than floored so the actual spacing lands as close to
+ * this as the leg allows: a 20 nm leg gets 3 anchors 6.7 nm apart, not 2 at
+ * 10 nm.
+ */
+const ANCHOR_SPACING_NM = 8;
+
+/** Degrees of latitude per nautical mile. */
+const DEGREES_PER_NM = 1 / 60;
+
+/**
+ * How close two polygons have to come to count as parts of one leg.
+ *
+ * The parts of a split lane are built from the same S-57 edge primitives and
+ * come out of ogr2ogr with coincident coordinates, but the quilt clip runs
+ * before this and re-derives the geometry arithmetically, so an exact-vertex
+ * test is not safe. 1e-6 degrees is ~0.1 m -- far below the width of any lane
+ * and far above the clip's rounding.
+ */
+const TOUCH_TOLERANCE = 1e-6;
+
+function readFeatures(path) {
+  let text;
+  try {
+    text = readFileSync(path, "utf8");
+  } catch (err) {
+    return [];
+  }
+  if (!text.trim()) return [];
+  return JSON.parse(text).features ?? [];
+}
+
+/** The polygons of a geometry, each as an array of rings. */
+function polygons(geometry) {
+  if (!geometry) return [];
+  if (geometry.type === "Polygon") return [geometry.coordinates];
+  if (geometry.type === "MultiPolygon") return geometry.coordinates;
+  return [];
+}
+
+function ringArea(ring) {
+  let sum = 0;
+  for (let i = 1; i < ring.length; i++) {
+    sum += ring[i - 1][0] * ring[i][1] - ring[i][0] * ring[i - 1][1];
+  }
+  return sum / 2;
+}
+
+/** Signed-area centroid of a ring. */
+function ringCentroid(ring) {
+  let x = 0;
+  let y = 0;
+  let area = 0;
+  for (let i = 1; i < ring.length; i++) {
+    const [x0, y0] = ring[i - 1];
+    const [x1, y1] = ring[i];
+    const cross = x0 * y1 - x1 * y0;
+    area += cross;
+    x += (x0 + x1) * cross;
+    y += (y0 + y1) * cross;
+  }
+  area /= 2;
+  if (area === 0) return ring[0];
+  return [x / (6 * area), y / (6 * area)];
+}
+
+/** Area in square degrees, longitude scaled by cos(latitude). */
+function polygonArea(polygon) {
+  const latitude = (ringCentroid(polygon[0])[1] * Math.PI) / 180;
+  const scale = Math.max(Math.cos(latitude), 0.01);
+  let total = 0;
+  // Holes wind the other way, so the signed sum subtracts them.
+  for (const ring of polygon)
+    total += Math.abs(ringArea(ring)) * scale * (ring === polygon[0] ? 1 : -1);
+  return Math.abs(total);
+}
+
+function bbox(polygon) {
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (const [x, y] of polygon[0]) {
+    if (x < minX) minX = x;
+    if (x > maxX) maxX = x;
+    if (y < minY) minY = y;
+    if (y > maxY) maxY = y;
+  }
+  return { minX, minY, maxX, maxY };
+}
+
+function distanceToSegment(point, a, b) {
+  const dx = b[0] - a[0];
+  const dy = b[1] - a[1];
+  const lengthSquared = dx * dx + dy * dy;
+  let t = 0;
+  if (lengthSquared > 0) {
+    t = ((point[0] - a[0]) * dx + (point[1] - a[1]) * dy) / lengthSquared;
+    t = Math.max(0, Math.min(1, t));
+  }
+  const px = a[0] + t * dx - point[0];
+  const py = a[1] + t * dy - point[1];
+  return Math.sqrt(px * px + py * py);
+}
+
+/** Whether any vertex of `from` lies within the tolerance of a ring of `to`. */
+function vertexNear(from, to) {
+  for (const ring of from) {
+    for (const point of ring) {
+      for (const other of to) {
+        for (let i = 1; i < other.length; i++) {
+          if (
+            distanceToSegment(point, other[i - 1], other[i]) <= TOUCH_TOLERANCE
+          )
+            return true;
+        }
+      }
+    }
+  }
+  return false;
+}
+
+/**
+ * Whether two polygons are parts of one leg.
+ *
+ * Touching, not overlapping: the split parts of a lane share an edge. The
+ * bounding-box gate is what keeps this from being quadratic over every vertex
+ * pair in a scheme -- lane parts are long and thin and mostly nowhere near
+ * each other.
+ */
+function touches(a, b) {
+  const [ba, bb] = [bbox(a), bbox(b)];
+  if (ba.maxX + TOUCH_TOLERANCE < bb.minX) return false;
+  if (bb.maxX + TOUCH_TOLERANCE < ba.minX) return false;
+  if (ba.maxY + TOUCH_TOLERANCE < bb.minY) return false;
+  if (bb.maxY + TOUCH_TOLERANCE < ba.minY) return false;
+  return vertexNear(a, b) || vertexNear(b, a);
+}
+
+/** Union-find over the members of one (class, ORIENT) bucket. */
+function contiguousGroups(members) {
+  const parent = members.map((_, index) => index);
+  const find = (index) => {
+    let root = index;
+    while (parent[root] !== root) root = parent[root];
+    while (parent[index] !== root) {
+      const next = parent[index];
+      parent[index] = root;
+      index = next;
+    }
+    return root;
+  };
+  for (let i = 0; i < members.length; i++) {
+    for (let j = i + 1; j < members.length; j++) {
+      if (find(i) === find(j)) continue;
+      if (touches(members[i].polygon, members[j].polygon)) {
+        parent[find(i)] = find(j);
+      }
+    }
+  }
+  const groups = new Map();
+  for (let i = 0; i < members.length; i++) {
+    const root = find(i);
+    const bucket = groups.get(root);
+    if (bucket) bucket.push(members[i]);
+    else groups.set(root, [members[i]]);
+  }
+  return [...groups.values()];
+}
+
+/**
+ * A local frame in which one unit is one degree of latitude in both axes, then
+ * rotated so `t` runs along the leg's ORIENT and `s` across it.
+ *
+ * ORIENT is degrees clockwise from true north, so the along-axis unit vector
+ * is (sin, cos) once longitude has been scaled by cos(latitude).
+ */
+function frame(orient, latitude) {
+  const scale = Math.max(Math.cos((latitude * Math.PI) / 180), 0.01);
+  const radians = ((orient ?? 0) * Math.PI) / 180;
+  const sin = Math.sin(radians);
+  const cos = Math.cos(radians);
+  return {
+    forward([longitude, lat]) {
+      const x = longitude * scale;
+      return [x * cos - lat * sin, x * sin + lat * cos]; // [s, t]
+    },
+    inverse([s, t]) {
+      const x = t * sin + s * cos;
+      const lat = t * cos - s * sin;
+      return [x / scale, lat];
+    },
+  };
+}
+
+/**
+ * The widest interior span of `polygon` on the line t = station, as [s0, s1].
+ *
+ * The same even-odd scanline bin/generate-labels uses for its point-on-surface,
+ * rotated onto the leg's axis. Holes are handled by the pairing: crossings
+ * sorted along s alternate in/out.
+ */
+function spanAt(polygon, station) {
+  const crossings = [];
+  for (const ring of polygon) {
+    for (let i = 1; i < ring.length; i++) {
+      const [s0, t0] = ring[i - 1];
+      const [s1, t1] = ring[i];
+      if (t0 > station !== t1 > station) {
+        crossings.push(s0 + ((station - t0) * (s1 - s0)) / (t1 - t0));
+      }
+    }
+  }
+  crossings.sort((a, b) => a - b);
+  let best;
+  let width = -1;
+  for (let i = 0; i + 1 < crossings.length; i += 2) {
+    if (crossings[i + 1] - crossings[i] > width) {
+      width = crossings[i + 1] - crossings[i];
+      best = [crossings[i], crossings[i + 1]];
+    }
+  }
+  return best === undefined ? undefined : { span: best, width };
+}
+
+/**
+ * Where the arrows go for one group: `count` stations evenly spread along the
+ * group's extent, each placed at the middle of the widest water span the group
+ * has at that station.
+ *
+ * The mid-span point is deliberately NOT a pole of inaccessibility. On a lane
+ * 30 nm long and 1 nm wide the pole is a single point at the widest bulge; the
+ * mid-span at a station is the leg's centre line, which is where an arrow
+ * belongs and is equally guaranteed to be inside the polygon.
+ */
+function anchorStations(projected, extent, count) {
+  const { tMin, tMax } = extent;
+  if (!Number.isFinite(tMin)) return [];
+
+  const points = [];
+  for (let i = 0; i < count; i++) {
+    const station = tMin + ((tMax - tMin) * (i + 0.5)) / count;
+    let best;
+    for (const polygon of projected) {
+      const found = spanAt(polygon, station);
+      if (found && (!best || found.width > best.width)) best = found;
+    }
+    if (best) points.push([(best.span[0] + best.span[1]) / 2, station]);
+  }
+  return points;
+}
+
+/** The group's extent along its own axis. */
+function axisExtent(projected) {
+  let tMin = Infinity;
+  let tMax = -Infinity;
+  for (const polygon of projected) {
+    for (const ring of polygon) {
+      for (const [, t] of ring) {
+        if (t < tMin) tMin = t;
+        if (t > tMax) tMax = t;
+      }
+    }
+  }
+  return { tMin, tMax };
+}
+
+/** That extent in nautical miles. */
+function axisLengthNm({ tMin, tMax }) {
+  return Number.isFinite(tMin) ? (tMax - tMin) / DEGREES_PER_NM : 0;
+}
+
+// ---- 1. bucket every polygon by (class, ORIENT) ----------------------------
+
+const buckets = new Map();
+
+for (const { className, path } of inputs) {
+  for (const feature of readFeatures(path)) {
+    const raw = Number(feature.properties?.ORIENT);
+    // Rounded to a whole degree: that is the resolution the two lanes of a
+    // scheme differ by far more than, and it absorbs the per-part jitter S-57
+    // encoders leave on a split leg.
+    const orient = Number.isFinite(raw)
+      ? ((Math.round(raw) % 360) + 360) % 360
+      : undefined;
+    const id = `${className} ${orient ?? "none"}`;
+    for (const polygon of polygons(feature.geometry)) {
+      if (!polygon[0] || polygon[0].length < 4) continue;
+      const bucket = buckets.get(id);
+      const member = { className, orient, polygon };
+      if (bucket) bucket.push(member);
+      else buckets.set(id, [member]);
+    }
+  }
+}
+
+// ---- 2. one anchor per contiguous group, repeated along long legs ----------
+
+const features = [];
+
+for (const members of buckets.values()) {
+  for (const group of contiguousGroups(members)) {
+    const { className, orient } = group[0];
+    const area = group.reduce(
+      (total, member) => total + polygonArea(member.polygon),
+      0,
+    );
+    // Parts of one leg only touch, so the areas do not overlap and their sum
+    // is the union's area.
+    const latitude =
+      group.reduce(
+        (total, member) => total + ringCentroid(member.polygon[0])[1],
+        0,
+      ) / group.length;
+
+    const { forward, inverse } = frame(orient, latitude);
+    const projected = group.map((member) =>
+      member.polygon.map((ring) => ring.map(forward)),
+    );
+
+    // A group with no ORIENT (a roundabout, say) has no axis to repeat along.
+    const extent = axisExtent(projected);
+    const count =
+      orient === undefined
+        ? 1
+        : Math.max(1, Math.round(axisLengthNm(extent) / ANCHOR_SPACING_NM));
+
+    for (const station of anchorStations(projected, extent, count)) {
+      features.push({
+        type: "Feature",
+        geometry: { type: "Point", coordinates: inverse(station) },
+        properties: {
+          CLASS: className,
+          ...(orient === undefined ? {} : { ORIENT: orient }),
+          AREA: area,
+        },
+      });
+    }
+  }
+}
+
+writeFileSync(
+  outputPath,
+  JSON.stringify({ type: "FeatureCollection", features }),
+);
+console.error(`Generated ${features.length} TSS anchors`);

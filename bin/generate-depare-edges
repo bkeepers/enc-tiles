@@ -6,7 +6,8 @@
 // Usage:
 //   bin/generate-depare-edges <output.geojson> \
 //     --depth-area DEPARE.geojson [--depth-area DRGARE.geojson ...] \
-//     [--contour DEPCNT.geojson] [--coverage quilting_coverage.geojson]
+//     [--contour DEPCNT.geojson] [--coverage quilting_coverage.geojson] \
+//     [--cell-coverage M_COVR.geojson]
 //
 // Why this layer exists (S-52 DEPARE03):
 //
@@ -34,13 +35,34 @@
 // both polygons. A segment owned by two areas is an interface; one owned by a
 // single area is an outer boundary.
 //
-// Quilting complicates exactly one case. bin/s57-to-tiles clips this chart
-// against the coverage of every higher-INTU chart, so a depth area cut by that
-// clip acquires a new outer boundary along the cut. That boundary is not land
-// and not the edge of the survey -- the detailed chart continues there -- so
-// labelling it DRVAL_LO = -1 would paint a safety contour straight down the
-// quilt seam. Segments that lie on the coverage boundary are therefore flagged
-// SEAM and left without a DRVAL_LO.
+// Two things make an outer boundary that is NOT the edge of the survey, and
+// both have to be recognised or the style paints a safety contour along them.
+//
+//   1. The quilt clip. bin/s57-to-tiles clips this chart against the coverage
+//      of every higher-INTU chart, so a depth area cut by that clip acquires a
+//      new outer boundary along the cut. The detailed chart continues there.
+//      --coverage carries those higher-INTU M_COVR rings.
+//
+//   2. The cell's OWN edge. An ENC cell is a rectangle cut out of a continuous
+//      survey: the depth areas along its border are truncated by the cut, and
+//      the neighbouring cell carries the rest. This is by far the commoner
+//      case -- measured on the Seattle z11 tile, 169 of 172 edges lying on the
+//      cell ring were being labelled DRVAL_LO = -1, i.e. "land", which drew
+//      the safety contour down every cell edge in the quilt. --cell-coverage
+//      carries this cell's own M_COVR, and only its CATCOV = 1 (coverage
+//      available) rings are indexed. It is read from the post-quilt export, so
+//      the ring has already been clipped and subsumes case 1 wherever the two
+//      coincide; --coverage is still passed because a higher-INTU chart can
+//      cut a hole in the middle of the cell, nowhere near its ring.
+//
+// Either way the segment is flagged SEAM and left without a DRVAL_LO.
+//
+// The cell-ring test is deliberately stricter than the coverage one: BOTH
+// endpoints and the midpoint must lie on the ring. A coastline that merely
+// touches the cell ring at a single vertex -- a headland running down to the
+// border -- is a real land boundary and must keep DRVAL_LO = -1; testing the
+// midpoint alone would be enough to flag any segment whose middle happens to
+// graze the ring.
 
 import { readFileSync, writeFileSync } from "fs";
 
@@ -48,6 +70,7 @@ const args = process.argv.slice(2);
 const depthAreaPaths = [];
 const contourPaths = [];
 const coveragePaths = [];
+const cellCoveragePaths = [];
 const positional = [];
 
 for (let i = 0; i < args.length; i++) {
@@ -55,13 +78,15 @@ for (let i = 0; i < args.length; i++) {
   else if (args[i] === "--contour" && args[i + 1]) contourPaths.push(args[++i]);
   else if (args[i] === "--coverage" && args[i + 1])
     coveragePaths.push(args[++i]);
+  else if (args[i] === "--cell-coverage" && args[i + 1])
+    cellCoveragePaths.push(args[++i]);
   else positional.push(args[i]);
 }
 
 const outputPath = positional[0];
 if (!outputPath || depthAreaPaths.length === 0) {
   console.error(
-    "Usage: generate-depare-edges <output.geojson> --depth-area <file> [--depth-area <file>] [--contour <file>] [--coverage <file>]",
+    "Usage: generate-depare-edges <output.geojson> --depth-area <file> [--depth-area <file>] [--contour <file>] [--coverage <file>] [--cell-coverage <file>]",
   );
   process.exit(1);
 }
@@ -70,6 +95,17 @@ if (!outputPath || depthAreaPaths.length === 0) {
 const PRECISION = 9;
 /** How close a segment has to sit to the coverage boundary to count as a seam. */
 const SEAM_TOLERANCE = 1e-7;
+/**
+ * The same, for the cell's own M_COVR ring.
+ *
+ * Looser than SEAM_TOLERANCE because the two geometries do not share edge
+ * primitives the way two depth areas of one cell do: M_COVR is its own S-57
+ * feature and the depth areas are clipped against the quilt mask, so the
+ * coincidence is arithmetic rather than exact. Measured departure on real
+ * cells is under 1e-7 degrees; 1e-6 (~0.1 m) is an order of magnitude of
+ * headroom and still far below the width of anything drawn on a chart.
+ */
+const CELL_BOUNDARY_TOLERANCE = 1e-6;
 /** Stands in for "the other side is not a depth area". */
 const NO_DEPTH = -1;
 
@@ -151,26 +187,51 @@ for (const path of contourPaths) {
   }
 }
 
-// ---- 3. quilt seams --------------------------------------------------------
+// ---- 3. seams: quilt cuts and the cell's own edge ---------------------------
 
-const coverageSegments = [];
-for (const path of coveragePaths) {
-  for (const feature of readFeatures(path)) {
-    for (const ring of rings(feature.geometry)) {
-      for (let i = 1; i < ring.length; i++) {
-        const [a, b] = [ring[i - 1], ring[i]];
-        coverageSegments.push({
-          a,
-          b,
-          minX: Math.min(a[0], b[0]) - SEAM_TOLERANCE,
-          maxX: Math.max(a[0], b[0]) + SEAM_TOLERANCE,
-          minY: Math.min(a[1], b[1]) - SEAM_TOLERANCE,
-          maxY: Math.max(a[1], b[1]) + SEAM_TOLERANCE,
-        });
+/**
+ * Index the rings of a set of coverage polygons as bbox-padded segments.
+ *
+ * `accept` filters which features contribute -- the cell's own M_COVR carries
+ * CATCOV = 2 ("no coverage") rings as well, and a no-coverage ring is not an
+ * edge of anything this chart drew.
+ */
+function coverageIndex(paths, tolerance, accept = () => true) {
+  const index = [];
+  for (const path of paths) {
+    for (const feature of readFeatures(path)) {
+      if (!accept(feature)) continue;
+      for (const ring of rings(feature.geometry)) {
+        for (let i = 1; i < ring.length; i++) {
+          const [a, b] = [ring[i - 1], ring[i]];
+          index.push({
+            a,
+            b,
+            minX: Math.min(a[0], b[0]) - tolerance,
+            maxX: Math.max(a[0], b[0]) + tolerance,
+            minY: Math.min(a[1], b[1]) - tolerance,
+            maxY: Math.max(a[1], b[1]) + tolerance,
+          });
+        }
       }
     }
   }
+  return index;
 }
+
+const coverageSegments = coverageIndex(coveragePaths, SEAM_TOLERANCE);
+
+/**
+ * This cell's own coverage ring: CATCOV = 1 only.
+ *
+ * The attribute arrives as an MVT/GeoJSON integer from ogr2ogr but has been a
+ * string in other exports, so it is coerced rather than compared strictly to 1.
+ */
+const cellSegments = coverageIndex(
+  cellCoveragePaths,
+  CELL_BOUNDARY_TOLERANCE,
+  (feature) => Number(feature.properties?.CATCOV) === 1,
+);
 
 function distanceToSegment(point, a, b) {
   const dx = b[0] - a[0];
@@ -186,14 +247,37 @@ function distanceToSegment(point, a, b) {
   return Math.sqrt(px * px + py * py);
 }
 
-function onCoverageBoundary(point) {
-  for (const segment of coverageSegments) {
+function near(index, point, tolerance) {
+  for (const segment of index) {
     if (point[0] < segment.minX || point[0] > segment.maxX) continue;
     if (point[1] < segment.minY || point[1] > segment.maxY) continue;
-    if (distanceToSegment(point, segment.a, segment.b) <= SEAM_TOLERANCE)
+    if (distanceToSegment(point, segment.a, segment.b) <= tolerance)
       return true;
   }
   return false;
+}
+
+/** On the boundary of a higher-INTU chart's coverage: a quilt cut. */
+function onCoverageBoundary(point) {
+  return near(coverageSegments, point, SEAM_TOLERANCE);
+}
+
+/**
+ * On this cell's own M_COVR ring.
+ *
+ * All three of a segment's endpoints and its midpoint must be on the ring:
+ * a real coastline that touches the ring at ONE vertex is not a cell-boundary
+ * artefact and has to keep DRVAL_LO = -1. The midpoint is tested as well as
+ * the endpoints because a long chord across a bay can have both ends on the
+ * ring without lying along it.
+ */
+function onCellBoundary(a, mid, b) {
+  if (cellSegments.length === 0) return false;
+  return (
+    near(cellSegments, a, CELL_BOUNDARY_TOLERANCE) &&
+    near(cellSegments, mid, CELL_BOUNDARY_TOLERANCE) &&
+    near(cellSegments, b, CELL_BOUNDARY_TOLERANCE)
+  );
 }
 
 // ---- 4. classify -----------------------------------------------------------
@@ -212,13 +296,11 @@ for (const [id, segment] of segments) {
     high = Math.max(...depths);
   } else {
     high = depths[0];
-    if (
-      coverageSegments.length > 0 &&
-      onCoverageBoundary([
-        (segment.a[0] + segment.b[0]) / 2,
-        (segment.a[1] + segment.b[1]) / 2,
-      ])
-    ) {
+    const mid = [
+      (segment.a[0] + segment.b[0]) / 2,
+      (segment.a[1] + segment.b[1]) / 2,
+    ];
+    if (onCoverageBoundary(mid) || onCellBoundary(segment.a, mid, segment.b)) {
       seam = true;
     } else {
       low = NO_DEPTH;
@@ -300,7 +382,11 @@ writeFileSync(
   outputPath,
   JSON.stringify({ type: "FeatureCollection", features }),
 );
+const seamSources = [
+  ...(coverageSegments.length ? ["quilt cuts"] : []),
+  ...(cellSegments.length ? ["cell ring"] : []),
+];
 console.error(
   `Generated ${features.length} depth-area edges from ${segments.size} segments` +
-    (coverageSegments.length ? ` (quilt seams flagged)` : ""),
+    (seamSources.length ? ` (seams flagged: ${seamSources.join(", ")})` : ""),
 );

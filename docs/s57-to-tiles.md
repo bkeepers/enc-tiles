@@ -52,11 +52,12 @@ carry information a MapLibre style cannot compute at render time — cross-featu
 spatial relationships and geometry MapLibre cannot draw. Their names all start
 with an underscore.
 
-| Layer             | Built by                    | Contents                                                                                                                                           |
-| ----------------- | --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `_LIGHTS_SECTORS` | `bin/generate-sector-arcs`  | LineString arcs and radial legs for sector lights (LIGHTS06).                                                                                      |
-| `_DEPARE_EDGE`    | `bin/generate-depare-edges` | Shared edges of the DEPARE/DRGARE partition, with `DRVAL_LO`/`DRVAL_HI` on either side, a coincident `VALDCO`, and `SEAM` where quilting cut them. |
-| `_LABELS`         | `bin/generate-labels`       | One point per (`OBJNAM`, `INTU`) group of LNDARE/LNDRGN/SEAARE, with `CLASS` and the group's `AREA`.                                               |
+| Layer             | Built by                    | Contents                                                                                                                                                                               |
+| ----------------- | --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `_LIGHTS_SECTORS` | `bin/generate-sector-arcs`  | LineString arcs and radial legs for sector lights (LIGHTS06).                                                                                                                          |
+| `_DEPARE_EDGE`    | `bin/generate-depare-edges` | Shared edges of the DEPARE/DRGARE partition, with `DRVAL_LO`/`DRVAL_HI` on either side, a coincident `VALDCO`, and `SEAM` where the quilt clip or the cell's own M_COVR ring cut them. |
+| `_LABELS`         | `bin/generate-labels`       | One point per (`OBJNAM`, `INTU`) group of LNDARE/LNDRGN/SEAARE, with `CLASS` and the group's `AREA`.                                                                                   |
+| `_TSS_ANCHORS`    | `bin/generate-tss-anchors`  | One arrow anchor per traffic-lane leg: TSSLPT/TSSRON/DWRTPT grouped by (`CLASS`, `ORIENT`, contiguity) and repeated every ~8 nm along a long leg, with `CLASS`, `ORIENT`, `AREA`.      |
 
 Some object classes also gain pre-computed columns, likewise underscore-prefixed:
 

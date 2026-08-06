@@ -15,6 +15,18 @@
 # comma-separated strings at read time.
 #
 # See docs/s57-to-tiles.md for attribute encoding details.
+#
+# Exit codes:
+#   0   tiles written
+#   65  NOTHING LEFT TO PUBLISH AFTER QUILTING. Not a failure: the quilt clip
+#       removed every feature of this cell because larger-scale charts cover
+#       all of it, so there is no geometry to tile. Distinct from 1 so a
+#       caller can record the cell as handled rather than retry it forever --
+#       without it, tippecanoe reports "Did not read any valid geometries" and
+#       the cell looks like a broken chart on every single run. 65 is
+#       sysexits.h's EX_DATAERR and is not produced by ogr2ogr, ogrinfo or
+#       tippecanoe on any path this script takes.
+#   1   anything else (bad arguments, unreadable chart, a failed step)
 
 set -e
 
@@ -32,6 +44,12 @@ coverage=""
 if [ "${3:-}" = "--coverage" ] && [ -n "${4:-}" ]; then
   coverage="$4"
 fi
+
+# Whether the quilt clip actually ran against a non-empty mask.
+quilt_applied=0
+
+# Exit code for "the quilt clip left nothing"; see the header.
+EXIT_FULLY_COVERED=65
 
 export OGR_S57_OPTIONS="SPLIT_MULTIPOINT=ON,ADD_SOUNDG_DEPTH=ON,LIST_AS_STRING=ON"
 
@@ -239,6 +257,9 @@ if [ -n "$coverage" ] && [ -f "$coverage" ]; then
     fi
 
     if [ "$has_mask" -gt 0 ]; then
+      # Recorded so an empty export below can be reported as "fully covered"
+      # rather than as a chart that had nothing in it to begin with.
+      quilt_applied=1
       for table in $tables; do
         [ "$table" = "DSID" ] && continue
 
@@ -288,7 +309,32 @@ for layer in $layers; do
   fi
 done
 
-if [ ${#geojson_files[@]} -eq 0 ]; then
+# An exported layer is a valid GeoJSON document even when it holds no features,
+# so a non-empty file list does not mean there is anything to tile. Count the
+# rows that were exported and decide before tippecanoe does: left to itself it
+# fails the run with "Did not read any valid geometries", which reads as a
+# broken chart and gets the cell retried forever.
+#
+# One SQL statement over the whole GPKG rather than one ogrinfo per layer: a
+# cell has ~50 feature tables and this runs for every cell of every region.
+count_sql=""
+for layer in $layers; do
+  [ -n "$count_sql" ] && count_sql="${count_sql} + "
+  count_sql="${count_sql}(SELECT COUNT(*) FROM \"${layer}\")"
+done
+
+feature_total=0
+if [ -n "$count_sql" ]; then
+  feature_total=$(ogrinfo -q "$gpkg" -dialect sqlite \
+    -sql "SELECT ${count_sql} AS n" | grep -o '[0-9]*' | tail -1)
+  [ -z "$feature_total" ] && feature_total=0
+fi
+
+if [ ${#geojson_files[@]} -eq 0 ] || [ "$feature_total" -eq 0 ]; then
+  if [ "$quilt_applied" = "1" ]; then
+    echo "$input: fully covered by larger-scale charts after quilting; nothing to publish"
+    exit "$EXIT_FULLY_COVERED"
+  fi
   echo "No features found in $input"
   exit 1
 fi
@@ -331,6 +377,16 @@ if [ ${#edge_args[@]} -gt 0 ]; then
   if [ -f "$tmpdir/quilting_coverage.geojson" ]; then
     edge_args+=(--coverage "$tmpdir/quilting_coverage.geojson")
   fi
+  # This cell's OWN coverage ring, exported at Step 3 above and therefore
+  # already carrying the quilt clip. A depth area truncated by the edge of the
+  # cell is not bounded by land: the neighbouring cell carries the rest of it,
+  # and without this the style painted the safety contour down every cell edge
+  # in the quilt. Passing --coverage alone did not cover this at all: it only
+  # ever holds HIGHER-INTU coverage, so in a region whose finest band is also
+  # the band being tiled it is empty and the guard was dead.
+  if [ -f "$tmpdir/M_COVR.geojson" ]; then
+    edge_args+=(--cell-coverage "$tmpdir/M_COVR.geojson")
+  fi
   edges_geojson="$tmpdir/_DEPARE_EDGE.geojson"
   node "$SCRIPT_DIR/generate-depare-edges" "$edges_geojson" "${edge_args[@]}"
   if [ -s "$edges_geojson" ]; then
@@ -353,6 +409,26 @@ if [ ${#label_args[@]} -gt 0 ]; then
   node "$SCRIPT_DIR/generate-labels" "$labels_geojson" "${label_args[@]}"
   if [ -s "$labels_geojson" ]; then
     geojson_files+=("$labels_geojson")
+  fi
+fi
+
+# Step 3e: Derive _TSS_ANCHORS — one arrow anchor per traffic-lane leg.
+# S-57 splits a lane leg at every cell boundary into features with DIFFERENT
+# LNAMs, and tippecanoe copies each part into every tile it touches, so drawing
+# the arrow from TSSLPT directly repeats it and nothing at runtime can collapse
+# the copies. Run after the quilt clip, like the edges, so the anchors sit on
+# the geometry that actually reaches the tiles. See bin/generate-tss-anchors.
+tss_args=()
+for tss_table in TSSLPT TSSRON DWRTPT; do
+  if [ -f "$tmpdir/${tss_table}.geojson" ]; then
+    tss_args+=(--class "${tss_table}:$tmpdir/${tss_table}.geojson")
+  fi
+done
+if [ ${#tss_args[@]} -gt 0 ]; then
+  tss_geojson="$tmpdir/_TSS_ANCHORS.geojson"
+  node "$SCRIPT_DIR/generate-tss-anchors" "$tss_geojson" "${tss_args[@]}"
+  if [ -s "$tss_geojson" ]; then
+    geojson_files+=("$tss_geojson")
   fi
 fi
 
