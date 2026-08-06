@@ -1,0 +1,306 @@
+#!/usr/bin/env node
+
+// Derives the _DEPARE_EDGE layer: the shared edges of the DEPARE/DRGARE
+// partition, each carrying the depths on either side of it.
+//
+// Usage:
+//   bin/generate-depare-edges <output.geojson> \
+//     --depth-area DEPARE.geojson [--depth-area DRGARE.geojson ...] \
+//     [--contour DEPCNT.geojson] [--coverage quilting_coverage.geojson]
+//
+// Why this layer exists (S-52 DEPARE03):
+//
+//   The safety contour is not "the DEPCNT whose VALDCO equals SAFETY_CONTOUR".
+//   S-52 defines it as the boundary between safe and unsafe water, which is the
+//   interface between two depth areas -- and an ENC is under no obligation to
+//   carry a DEPCNT at the mariner's chosen contour at all. Drawing DEPCNT alone
+//   leaves the safety contour missing whenever the mariner picks a value the
+//   chart does not happen to have a contour for, and leaves dredged areas
+//   (DRGARE, which has DRVAL1 but no surrounding DEPCNT) with no edge whatever.
+//
+// Each output feature carries:
+//
+//   DRVAL_LO   DRVAL1 of the shallower side; -1 where the other side is not a
+//              depth area at all (land, unsurveyed, or the edge of coverage)
+//   DRVAL_HI   DRVAL1 of the deeper side
+//   VALDCO     the value of a DEPCNT that runs along this edge, when there is
+//              one, so the style can label it
+//   SEAM       1 when the edge is an artefact of quilting rather than a real
+//              interface (see below); DRVAL_LO is then absent
+//
+// The edges are recovered by hashing segments rather than by a geometric
+// overlay: adjacent S-57 areas are built from the same edge primitives, so a
+// shared boundary comes out of ogr2ogr as bit-identical coordinate pairs in
+// both polygons. A segment owned by two areas is an interface; one owned by a
+// single area is an outer boundary.
+//
+// Quilting complicates exactly one case. bin/s57-to-tiles clips this chart
+// against the coverage of every higher-INTU chart, so a depth area cut by that
+// clip acquires a new outer boundary along the cut. That boundary is not land
+// and not the edge of the survey -- the detailed chart continues there -- so
+// labelling it DRVAL_LO = -1 would paint a safety contour straight down the
+// quilt seam. Segments that lie on the coverage boundary are therefore flagged
+// SEAM and left without a DRVAL_LO.
+
+import { readFileSync, writeFileSync } from "fs";
+
+const args = process.argv.slice(2);
+const depthAreaPaths = [];
+const contourPaths = [];
+const coveragePaths = [];
+const positional = [];
+
+for (let i = 0; i < args.length; i++) {
+  if (args[i] === "--depth-area" && args[i + 1]) depthAreaPaths.push(args[++i]);
+  else if (args[i] === "--contour" && args[i + 1]) contourPaths.push(args[++i]);
+  else if (args[i] === "--coverage" && args[i + 1])
+    coveragePaths.push(args[++i]);
+  else positional.push(args[i]);
+}
+
+const outputPath = positional[0];
+if (!outputPath || depthAreaPaths.length === 0) {
+  console.error(
+    "Usage: generate-depare-edges <output.geojson> --depth-area <file> [--depth-area <file>] [--contour <file>] [--coverage <file>]",
+  );
+  process.exit(1);
+}
+
+/** Coordinates round-tripped through GeoJSON text; 9 dp is ~0.1 mm. */
+const PRECISION = 9;
+/** How close a segment has to sit to the coverage boundary to count as a seam. */
+const SEAM_TOLERANCE = 1e-7;
+/** Stands in for "the other side is not a depth area". */
+const NO_DEPTH = -1;
+
+function readFeatures(path) {
+  let text;
+  try {
+    text = readFileSync(path, "utf8");
+  } catch (err) {
+    return [];
+  }
+  if (!text.trim()) return [];
+  const parsed = JSON.parse(text);
+  return parsed.features ?? [];
+}
+
+const round = (value) => Number(value.toFixed(PRECISION));
+const key = (a, b) => {
+  const [x1, y1] = [round(a[0]), round(a[1])];
+  const [x2, y2] = [round(b[0]), round(b[1])];
+  // Canonical, so the same edge hashes alike whichever way each ring walks it.
+  return x1 < x2 || (x1 === x2 && y1 <= y2)
+    ? `${x1},${y1}|${x2},${y2}`
+    : `${x2},${y2}|${x1},${y1}`;
+};
+
+/** Every closed ring of a Polygon/MultiPolygon geometry. */
+function* rings(geometry) {
+  if (!geometry) return;
+  if (geometry.type === "Polygon") yield* geometry.coordinates;
+  else if (geometry.type === "MultiPolygon")
+    for (const polygon of geometry.coordinates) yield* polygon;
+}
+
+/** Every segment of a LineString/MultiLineString geometry. */
+function* lineSegments(geometry) {
+  if (!geometry) return;
+  const lines =
+    geometry.type === "LineString"
+      ? [geometry.coordinates]
+      : geometry.type === "MultiLineString"
+        ? geometry.coordinates
+        : [];
+  for (const line of lines) {
+    for (let i = 1; i < line.length; i++) yield [line[i - 1], line[i]];
+  }
+}
+
+// ---- 1. hash every depth-area segment -------------------------------------
+
+const segments = new Map();
+
+for (const path of depthAreaPaths) {
+  for (const feature of readFeatures(path)) {
+    const drval1 = Number(feature.properties?.DRVAL1);
+    const depth = Number.isFinite(drval1) ? drval1 : NO_DEPTH;
+    for (const ring of rings(feature.geometry)) {
+      for (let i = 1; i < ring.length; i++) {
+        const a = ring[i - 1];
+        const b = ring[i];
+        const id = key(a, b);
+        const existing = segments.get(id);
+        if (existing) existing.depths.push(depth);
+        else segments.set(id, { a, b, depths: [depth] });
+      }
+    }
+  }
+}
+
+// ---- 2. DEPCNT values, by segment -----------------------------------------
+
+const contourValues = new Map();
+for (const path of contourPaths) {
+  for (const feature of readFeatures(path)) {
+    const valdco = Number(feature.properties?.VALDCO);
+    if (!Number.isFinite(valdco)) continue;
+    for (const [a, b] of lineSegments(feature.geometry)) {
+      contourValues.set(key(a, b), valdco);
+    }
+  }
+}
+
+// ---- 3. quilt seams --------------------------------------------------------
+
+const coverageSegments = [];
+for (const path of coveragePaths) {
+  for (const feature of readFeatures(path)) {
+    for (const ring of rings(feature.geometry)) {
+      for (let i = 1; i < ring.length; i++) {
+        const [a, b] = [ring[i - 1], ring[i]];
+        coverageSegments.push({
+          a,
+          b,
+          minX: Math.min(a[0], b[0]) - SEAM_TOLERANCE,
+          maxX: Math.max(a[0], b[0]) + SEAM_TOLERANCE,
+          minY: Math.min(a[1], b[1]) - SEAM_TOLERANCE,
+          maxY: Math.max(a[1], b[1]) + SEAM_TOLERANCE,
+        });
+      }
+    }
+  }
+}
+
+function distanceToSegment(point, a, b) {
+  const dx = b[0] - a[0];
+  const dy = b[1] - a[1];
+  const lengthSquared = dx * dx + dy * dy;
+  let t = 0;
+  if (lengthSquared > 0) {
+    t = ((point[0] - a[0]) * dx + (point[1] - a[1]) * dy) / lengthSquared;
+    t = Math.max(0, Math.min(1, t));
+  }
+  const px = a[0] + t * dx - point[0];
+  const py = a[1] + t * dy - point[1];
+  return Math.sqrt(px * px + py * py);
+}
+
+function onCoverageBoundary(point) {
+  for (const segment of coverageSegments) {
+    if (point[0] < segment.minX || point[0] > segment.maxX) continue;
+    if (point[1] < segment.minY || point[1] > segment.maxY) continue;
+    if (distanceToSegment(point, segment.a, segment.b) <= SEAM_TOLERANCE)
+      return true;
+  }
+  return false;
+}
+
+// ---- 4. classify -----------------------------------------------------------
+
+/** Segments keyed by their attribute signature, for chaining. */
+const byAttributes = new Map();
+
+for (const [id, segment] of segments) {
+  const depths = segment.depths;
+  let low;
+  let high;
+  let seam = false;
+
+  if (depths.length >= 2) {
+    low = Math.min(...depths);
+    high = Math.max(...depths);
+  } else {
+    high = depths[0];
+    if (
+      coverageSegments.length > 0 &&
+      onCoverageBoundary([
+        (segment.a[0] + segment.b[0]) / 2,
+        (segment.a[1] + segment.b[1]) / 2,
+      ])
+    ) {
+      seam = true;
+    } else {
+      low = NO_DEPTH;
+    }
+  }
+
+  // A pair of areas with the same DRVAL1 is not an interface worth drawing.
+  if (!seam && low === high) continue;
+
+  const valdco = contourValues.get(id);
+  const signature = `${low ?? "x"}|${high}|${valdco ?? "x"}|${seam ? 1 : 0}`;
+  const bucket = byAttributes.get(signature);
+  const entry = { a: segment.a, b: segment.b, low, high, valdco, seam };
+  if (bucket) bucket.push(entry);
+  else byAttributes.set(signature, [entry]);
+}
+
+// ---- 5. chain segments into LineStrings ------------------------------------
+
+function chain(entries) {
+  const endpoints = new Map();
+  const remaining = new Set(entries);
+
+  const at = (point) => `${round(point[0])},${round(point[1])}`;
+  for (const entry of entries) {
+    for (const point of [entry.a, entry.b]) {
+      const id = at(point);
+      const bucket = endpoints.get(id);
+      if (bucket) bucket.push(entry);
+      else endpoints.set(id, [entry]);
+    }
+  }
+
+  const lines = [];
+  for (const start of entries) {
+    if (!remaining.has(start)) continue;
+    remaining.delete(start);
+    const line = [start.a, start.b];
+
+    // Walk forwards, then backwards, taking the single continuation when the
+    // node is a simple one. A junction (three or more edges) ends the chain.
+    for (const direction of [1, 0]) {
+      for (;;) {
+        const tip = direction ? line[line.length - 1] : line[0];
+        const candidates = (endpoints.get(at(tip)) ?? []).filter((entry) =>
+          remaining.has(entry),
+        );
+        if (candidates.length !== 1) break;
+        const next = candidates[0];
+        remaining.delete(next);
+        const other = at(next.a) === at(tip) ? next.b : next.a;
+        if (direction) line.push(other);
+        else line.unshift(other);
+      }
+    }
+    lines.push(line);
+  }
+  return lines;
+}
+
+const features = [];
+for (const entries of byAttributes.values()) {
+  const { low, high, valdco, seam } = entries[0];
+  for (const line of chain(entries)) {
+    features.push({
+      type: "Feature",
+      geometry: { type: "LineString", coordinates: line },
+      properties: {
+        ...(low === undefined ? {} : { DRVAL_LO: low }),
+        DRVAL_HI: high,
+        ...(valdco === undefined ? {} : { VALDCO: valdco }),
+        ...(seam ? { SEAM: 1 } : {}),
+      },
+    });
+  }
+}
+
+writeFileSync(
+  outputPath,
+  JSON.stringify({ type: "FeatureCollection", features }),
+);
+console.error(
+  `Generated ${features.length} depth-area edges from ${segments.size} segments` +
+    (coverageSegments.length ? ` (quilt seams flagged)` : ""),
+);

@@ -27,16 +27,45 @@ COLOUR = "3,4,3"       -- multiple values (order preserved)
 RESTRN = "7,8,14"      -- multiple values
 ```
 
-Scalar attributes are stored as-is:
+Scalar attributes keep the type the S-57 driver gives them, which is **not**
+always a string:
 
 ```
-BCNSHP = "1"
-VALDCO = 10.0
-OBJNAM = "Foo Rock"
+BCNSHP = 1           -- enumerated: INTEGER
+CATZOC = 2           -- enumerated: INTEGER
+VALDCO = 10.0        -- real:       DOUBLE
+OBJNAM = "Foo Rock"  -- free text:  STRING
 ```
+
+This matters because the S-52 look-up tables express _every_ condition as a
+string (`ATTV = "1"`), so a filter that compares `["get", "BCNSHP"]` to `"1"`
+never matches an integer 1 — MapLibre's `==` is type-strict. See
+[Style Matching](#style-matching).
 
 Each S-57 object class becomes a vector tile layer with the same name:
 `LIGHTS`, `BCNLAT`, `DEPARE`, `SOUNDG`, etc.
+
+## Derived layers
+
+`bin/s57-to-tiles` also emits layers that are not S-57 object classes. They
+carry information a MapLibre style cannot compute at render time — cross-feature
+spatial relationships and geometry MapLibre cannot draw. Their names all start
+with an underscore.
+
+| Layer             | Built by                    | Contents                                                                                                                                           |
+| ----------------- | --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `_LIGHTS_SECTORS` | `bin/generate-sector-arcs`  | LineString arcs and radial legs for sector lights (LIGHTS06).                                                                                      |
+| `_DEPARE_EDGE`    | `bin/generate-depare-edges` | Shared edges of the DEPARE/DRGARE partition, with `DRVAL_LO`/`DRVAL_HI` on either side, a coincident `VALDCO`, and `SEAM` where quilting cut them. |
+| `_LABELS`         | `bin/generate-labels`       | One point per (`OBJNAM`, `INTU`) group of LNDARE/LNDRGN/SEAARE, with `CLASS` and the group's `AREA`.                                               |
+
+Some object classes also gain pre-computed columns, likewise underscore-prefixed:
+
+| Column                                        | On                     | Meaning                                                                                |
+| --------------------------------------------- | ---------------------- | -------------------------------------------------------------------------------------- |
+| `_DEPARE_DRVAL1_MAX`, `_DEPARE_DRVAL1_MINPOS` | WRECKS, OBSTRN, UWTROC | Deepest / shoalest non-drying DRVAL1 of the depth areas the hazard touches (UDWHAZ05). |
+| `_FLOATING`                                   | TOPMAR                 | Whether the topmark sits on a buoy rather than a beacon (TOPMAR01).                    |
+| `_EXTENDED_ARC`, `_COLOCATED`                 | LIGHTS                 | Co-location facts the flare and arc geometry need (LIGHTS06).                          |
+| `INTU`                                        | every class            | The chart's navigational purpose, so the style can quilt.                              |
 
 ## How to Produce This Encoding
 
@@ -94,14 +123,26 @@ The S-52 styles use two patterns to match list-type attribute values:
 
 ### Exact Ordered Match (Lookup Tables)
 
-The S-52 lookup table encodes list values as comma-separated strings (e.g., `"3,4,3"`).
-Since tiles now use the same format, exact matching works directly:
+The S-52 lookup table encodes every ATTV as a string, list or not: `"3,4,3"` for a
+colour pattern, `"1"` for a beacon shape. Tiles use the same comma-separated form
+for lists, but write **enumerated attributes as integers**, so the comparison has
+to be made type-agnostic by coercing the feature value:
 
 ```
-Lookup ATTC: COLOUR = "3,4,3"
+Lookup ATTC: COLOUR = "3,4,3"        BCNSHP = "1"
   ↓
-Filter: ["==", ["get", "COLOUR"], "3,4,3"]
+Filter: ["==", ["to-string", ["get", "COLOUR"]], "3,4,3"]
+        ["==", ["to-string", ["get", "BCNSHP"]], "1"]
 ```
+
+Without the `to-string`, every one of the ~42 enumerated attributes silently never
+matches, and the features fall through to the class's catch-all look-up entry:
+lateral buoys draw the generic buoy symbol, CATMOR 7 mooring buoys draw the MORFAC
+square, and the CATZOC fallback paints "quality not assessed" over assessed zones.
+`packages/styles/test/harness/attribute-filters.test.ts` guards this.
+
+Coercion is safe for the absence cases too: `["get"]` on an absent property is
+null, and `to-string` of null is `""`, which never equals a non-empty ATTV.
 
 This preserves the S-52 requirement that "the match to the object must be exact, in
 order as well as content" (S-52 10.3.3.1).

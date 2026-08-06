@@ -4786,5 +4786,527 @@
       -0.5,
       -0.5
     ]
+  },
+  "DIAMOND1": {
+    "description": "area of depth less than the safety contour",
+    "width": 85,
+    "height": 163,
+    "offset": [
+      42.5,
+      81.5
+    ]
+  },
+  "DQUALA11": {
+    "description": "pattern of symbols for a chart of 5m accuracy with full seafloor coverage",
+    "width": 117,
+    "height": 195,
+    "offset": [
+      58.5,
+      97.5
+    ]
+  },
+  "DQUALA21": {
+    "description": "pattern of symbols for a chart with 20m accuracy with full seafloor coverage",
+    "width": 117,
+    "height": 195,
+    "offset": [
+      58.5,
+      97.5
+    ]
+  },
+  "DQUALB01": {
+    "description": "pattern of symbols for a chart with 50m accuracy from standard survey based on lines of continuous soundings",
+    "width": 117,
+    "height": 195,
+    "offset": [
+      58.5,
+      97.5
+    ]
+  },
+  "DQUALC01": {
+    "description": "pattern of symbols for a low accuracy or incomplete chart",
+    "width": 121,
+    "height": 153,
+    "offset": [
+      60.5,
+      76.5
+    ]
+  },
+  "DQUALD01": {
+    "description": "pattern of symbols for an unreliable chart",
+    "width": 121,
+    "height": 153,
+    "offset": [
+      60.5,
+      76.5
+    ]
+  },
+  "DQUALU01": {
+    "description": "pattern of symbols for a chart with quality not assessed",
+    "width": 121,
+    "height": 153,
+    "offset": [
+      60.5,
+      76.5
+    ]
+  },
+  "DRGARE01": {
+    "description": "dredged area",
+    "width": 13,
+    "height": 13,
+    "offset": [
+      6.5,
+      6.5
+    ]
+  },
+  "FOULAR01": {
+    "description": "foul area, not safe for navigation",
+    "width": 34,
+    "height": 36,
+    "offset": [
+      17,
+      18
+    ]
+  },
+  "FSHFAC04": {
+    "description": "pattern of symbols for an area with fish traps, fish weirs, tunny nets",
+    "width": 123,
+    "height": 302,
+    "offset": [
+      61.5,
+      151
+    ]
+  },
+  "FSHHAV02": {
+    "description": "pattern of symbols for a fish haven",
+    "width": 132,
+    "height": 175,
+    "offset": [
+      66,
+      87.5
+    ]
+  },
+  "ICEARE04": {
+    "description": "continuous pattern for an ice area (glacier, etc.)",
+    "width": 59,
+    "height": 54,
+    "offset": [
+      29.5,
+      27
+    ]
+  },
+  "MARSHES1": {
+    "description": "pattern of symbols for a marsh",
+    "width": 72,
+    "height": 381,
+    "offset": [
+      36,
+      190.5
+    ]
+  },
+  "NODATA03": {
+    "description": "area of no chart data",
+    "width": 27,
+    "height": 37,
+    "offset": [
+      13.5,
+      18.5
+    ]
+  },
+  "OVERSC01": {
+    "description": "overscale part of a display containing data from more than one navigation purpose",
+    "width": 34,
+    "height": 15,
+    "offset": [
+      17,
+      7.5
+    ]
+  },
+  "PRTSUR01": {
+    "description": "incompletely surveyed area",
+    "width": 49,
+    "height": 166,
+    "offset": [
+      24.5,
+      83
+    ]
+  },
+  "RCKLDG01": {
+    "description": "rock or coral drying ledges",
+    "width": 58,
+    "height": 51,
+    "offset": [
+      29,
+      25.5
+    ]
+  },
+  "SNDWAV01": {
+    "description": "pattern of symbols for sand waves",
+    "width": 120,
+    "height": 248,
+    "offset": [
+      60,
+      124
+    ]
+  },
+  "TSSJCT02": {
+    "description": "precautionary area or a traffic separation scheme crossing or roundabout",
+    "width": 19,
+    "height": 19,
+    "offset": [
+      9.5,
+      9.5
+    ]
+  },
+  "VEGATN03": {
+    "description": "pattern of symbols for wooded areas",
+    "width": 51,
+    "height": 106,
+    "offset": [
+      25.5,
+      53
+    ]
+  },
+  "VEGATN04": {
+    "description": "pattern of symbols for mangroves",
+    "width": 53,
+    "height": 98,
+    "offset": [
+      26.5,
+      49
+    ]
+  },
+  "ADMARE01": {
+    "description": "jurisdiction boundary",
+    "width": 23,
+    "height": 7,
+    "offset": [
+      11.5,
+      2.5
+    ]
+  },
+  "ARCSLN01": {
+    "description": "boundary of archipelagic sea lane",
+    "width": 30,
+    "height": 7,
+    "offset": [
+      15,
+      2.5
+    ]
+  },
+  "CBLSUB06": {
+    "description": "submarine cable",
+    "width": 117,
+    "height": 20,
+    "offset": [
+      58.5,
+      2
+    ]
+  },
+  "DWLDEF01": {
+    "description": "deep water route centreline, direction not defined in the data",
+    "width": 98,
+    "height": 21,
+    "offset": [
+      49,
+      1.5
+    ]
+  },
+  "DWRTCL05": {
+    "description": "two-way deep water route centreline, not based on fixed marks",
+    "width": 96,
+    "height": 18,
+    "offset": [
+      48,
+      2
+    ]
+  },
+  "DWRTCL06": {
+    "description": "two-way deep water route centreline, based on fixed marks",
+    "width": 97,
+    "height": 18,
+    "offset": [
+      48.5,
+      2
+    ]
+  },
+  "DWRTCL07": {
+    "description": "one-way deep water route centreline, not based on fixed marks",
+    "width": 88,
+    "height": 18,
+    "offset": [
+      44,
+      2
+    ]
+  },
+  "DWRTCL08": {
+    "description": "one-way deep water route centreline, based on fixed-marks",
+    "width": 86,
+    "height": 18,
+    "offset": [
+      43,
+      2
+    ]
+  },
+  "ERBLNA01": {
+    "description": "electronic range/bearing line, dash",
+    "width": 91,
+    "height": 2,
+    "offset": [
+      45.5,
+      0
+    ]
+  },
+  "FERYRT01": {
+    "description": "ferry route",
+    "width": 83,
+    "height": 13,
+    "offset": [
+      41.5,
+      2.5
+    ]
+  },
+  "FERYRT02": {
+    "description": "cable ferry route",
+    "width": 83,
+    "height": 13,
+    "offset": [
+      41.5,
+      2.5
+    ]
+  },
+  "LOWACC21": {
+    "description": "coastline or shoreline construction of low accuracy in position",
+    "width": 23,
+    "height": 4,
+    "offset": [
+      11.5,
+      0
+    ]
+  },
+  "LOWACC31": {
+    "description": "area of wrecks or obstructions of low accuracy",
+    "width": 23,
+    "height": 4,
+    "offset": [
+      11.5,
+      0
+    ]
+  },
+  "LOWACC41": {
+    "description": "danger line of low accuracy surrounding a foul area",
+    "width": 23,
+    "height": 4,
+    "offset": [
+      11.5,
+      0
+    ]
+  },
+  "MARSYS51": {
+    "description": "boundary between IALA-A and IALA-B systems of lateral buoys and beacons",
+    "width": 96,
+    "height": 13,
+    "offset": [
+      48,
+      -0.5
+    ]
+  },
+  "NAVARE51": {
+    "description": "boundary of a navigation feature such as a fairway, magnetic anomaly, etc.",
+    "width": 33,
+    "height": 7,
+    "offset": [
+      16.5,
+      2.5
+    ]
+  },
+  "NONHODAT": {
+    "description": "boundary of non-HO data",
+    "width": 23,
+    "height": 13,
+    "offset": [
+      11.5,
+      5.5
+    ]
+  },
+  "PIPARE51": {
+    "description": "boundary of a submarine pipeline area with potentially dangerous contents",
+    "width": 122,
+    "height": 8,
+    "offset": [
+      61,
+      2
+    ]
+  },
+  "PIPARE61": {
+    "description": "boundary of a submarine pipeline area with generally non-dangerous contents",
+    "width": 122,
+    "height": 9,
+    "offset": [
+      61,
+      2.5
+    ]
+  },
+  "PIPSOL05": {
+    "description": "oil, gas pipeline, submerged or on land",
+    "width": 36,
+    "height": 8,
+    "offset": [
+      18,
+      0
+    ]
+  },
+  "PIPSOL06": {
+    "description": "water pipeline, sewer, etc.",
+    "width": 33,
+    "height": 6,
+    "offset": [
+      16.5,
+      0
+    ]
+  },
+  "RCRDEF11": {
+    "description": "regulated recommended route centreline, details not defined",
+    "width": 93,
+    "height": 20,
+    "offset": [
+      46.5,
+      0
+    ]
+  },
+  "RCRTCL11": {
+    "description": "regulated two-way recommended route centreline, not based on fixed marks",
+    "width": 91,
+    "height": 20,
+    "offset": [
+      45.5,
+      0
+    ]
+  },
+  "RCRTCL12": {
+    "description": "regulated one-way recommended route centreline, not based on fixed marks",
+    "width": 91,
+    "height": 11,
+    "offset": [
+      45.5,
+      4.5
+    ]
+  },
+  "RCRTCL13": {
+    "description": "regulated two-way recommended route centreline, based on fixed-marks",
+    "width": 89,
+    "height": 20,
+    "offset": [
+      44.5,
+      0
+    ]
+  },
+  "RCRTCL14": {
+    "description": "regulated one-way recommended route centreline, based on fixed marks",
+    "width": 89,
+    "height": 11,
+    "offset": [
+      44.5,
+      4.5
+    ]
+  },
+  "RECDEF02": {
+    "description": "non-regulated recommended track, direction not defined in data",
+    "width": 73,
+    "height": 18,
+    "offset": [
+      36.5,
+      0
+    ]
+  },
+  "RECTRC09": {
+    "description": "non-regulated recommended two-way track, not based on fixed marks",
+    "width": 73,
+    "height": 13,
+    "offset": [
+      36.5,
+      -0.5
+    ]
+  },
+  "RECTRC10": {
+    "description": "non-regulated recommended two-way track, based on fixed-marks",
+    "width": 67,
+    "height": 13,
+    "offset": [
+      33.5,
+      -0.5
+    ]
+  },
+  "RECTRC11": {
+    "description": "non-regulated recommended one-way track, not based on fixed marks",
+    "width": 73,
+    "height": 13,
+    "offset": [
+      36.5,
+      -0.5
+    ]
+  },
+  "RECTRC12": {
+    "description": "non-regulated recommended one-way track, based on fixed marks",
+    "width": 67,
+    "height": 13,
+    "offset": [
+      33.5,
+      -0.5
+    ]
+  },
+  "RESARE51": {
+    "description": "boundary of a restricted area",
+    "width": 23,
+    "height": 8,
+    "offset": [
+      11.5,
+      3
+    ]
+  },
+  "SCLBDY51": {
+    "description": "chart scale boundary, the double line indicates the larger scale",
+    "width": 23,
+    "height": 15,
+    "offset": [
+      11.5,
+      1.5
+    ]
+  },
+  "TIDINF51": {
+    "description": "boundary of an area for which there is tidal information",
+    "width": 126,
+    "height": 14,
+    "offset": [
+      63,
+      0
+    ]
+  },
+  "CHRVID02": {
+    "description": "This object has been inserted or modified by an automatic update",
+    "width": 43,
+    "height": 16,
+    "offset": [
+      21.5,
+      0
+    ]
+  },
+  "CHRVDEL2": {
+    "description": "This object has been deleted by an automatic update",
+    "width": 42,
+    "height": 19,
+    "offset": [
+      21,
+      0.5
+    ]
+  },
+  "INDHLT02": {
+    "description": "indication highlight for mariner's use",
+    "width": 23,
+    "height": 5,
+    "offset": [
+      11.5,
+      0.5
+    ]
   }
 }

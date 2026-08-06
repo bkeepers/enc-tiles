@@ -3,8 +3,18 @@ import { colour, ColourName } from "@enc-tiles/s52";
 import { Reference } from "./parser.js";
 import type { LayerConfig } from "../symbolology/index.js";
 
+/**
+ * Dash patterns for the S-52 predefined line styles (PSTYLE).
+ *
+ * SOLD (_________) is deliberately NOT a member. MapLibre treats
+ * `"line-dasharray": []` as a zero-length dash pattern and draws *nothing* —
+ * it is not the same as "no dashes". A solid line has to be expressed by
+ * omitting the `line-dasharray` paint property entirely, which is what `LS`
+ * does for any PSTYLE that has no entry here. Adding `SOLD: []` back makes
+ * every solid line in the style (bridges and 111 other line layers across 45
+ * object classes) invisible.
+ */
 export const LineStyles = {
-  SOLD: [], // (_________)
   DASH: [3.6, 1.8], // (-----) dash: 3.6 mm; space: 1.8 mm
   DOTT: [0.6, 1.2], // (.........) dot: 0.6 mm; space: 1.2 mm
 };
@@ -32,10 +42,14 @@ export function LS(
   width: number,
   colourRef: Reference,
 ): Pick<LineLayerSpecification, "type" | "paint"> {
+  const dasharray: number[] | undefined =
+    LineStyles[style.name as keyof typeof LineStyles];
+
   return {
     type: "line",
     paint: {
-      "line-dasharray": LineStyles[style.name] ?? [],
+      // Omit the property for SOLD (and any unknown PSTYLE) — see LineStyles.
+      ...(dasharray ? { "line-dasharray": dasharray } : {}),
       "line-width": width,
       "line-color": colour(config.mode, colourRef.name as ColourName),
     },

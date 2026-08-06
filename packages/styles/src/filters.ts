@@ -49,9 +49,20 @@ export function attributeFilters(
     if (c.attv === "?") {
       return ["!", ["has", c.attl]];
     } else if (c.attv) {
-      // List-type attributes are stored as comma-separated strings in tiles,
-      // which matches the S-52 lookup table format directly.
-      return ["==", ["get", c.attl], c.attv];
+      // The S-52 look-up table always gives ATTV as a string ("4", "3,4,3"),
+      // but the tiler writes S-57 *enumerated* attributes as MVT integers and
+      // only list-type attributes as comma-separated strings. Comparing
+      // ["get", attl] to the string literal therefore silently never matched
+      // for the ~42 enumerated attributes (BOYSHP, CATLAM, CATZOC, CATOBS,
+      // WATLEV, TOPSHP, ...): buoys/beacons/moorings fell through to the
+      // catch-all look-up entries (BOYDEF03 grey "?", MORFAC03 square) and
+      // every CATZOC/CATOBS/WATLEV/TOPSHP-conditioned entry was dead.
+      //
+      // Coercing the feature value to a string makes the comparison
+      // type-agnostic: integers stringify to "4", list strings pass through
+      // unchanged, and an absent property coerces to "" (which never equals a
+      // non-empty ATTV, so absence still fails the test as it did before).
+      return ["==", ["to-string", ["get", c.attl]], c.attv];
     } else {
       return ["has", c.attl];
     }

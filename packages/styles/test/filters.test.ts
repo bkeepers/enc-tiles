@@ -42,10 +42,12 @@ describe("attributeFilters", () => {
     ]);
   });
 
-  test("scalar attribute values match directly", () => {
+  test("scalar attribute values match after string coercion", () => {
     const attc = [{ attl: "BCNSHP", attv: "1" }];
 
-    expect(attributeFilters(attc)).toEqual([["==", ["get", "BCNSHP"], "1"]]);
+    expect(attributeFilters(attc)).toEqual([
+      ["==", ["to-string", ["get", "BCNSHP"]], "1"],
+    ]);
   });
 
   test("multi-value list attributes match as comma-separated strings", () => {
@@ -55,8 +57,8 @@ describe("attributeFilters", () => {
     ];
 
     expect(attributeFilters(attc)).toEqual([
-      ["==", ["get", "COLOUR"], "3,4,3"],
-      ["==", ["get", "BCNSHP"], "2"],
+      ["==", ["to-string", ["get", "COLOUR"]], "3,4,3"],
+      ["==", ["to-string", ["get", "BCNSHP"]], "2"],
     ]);
   });
 
@@ -67,8 +69,8 @@ describe("attributeFilters", () => {
     ];
 
     expect(attributeFilters(attc)).toEqual([
-      ["==", ["get", "COLOUR"], "3"],
-      ["==", ["get", "CATREA"], "27"],
+      ["==", ["to-string", ["get", "COLOUR"]], "3"],
+      ["==", ["to-string", ["get", "CATREA"]], "27"],
     ]);
   });
 });

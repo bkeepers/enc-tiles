@@ -81,23 +81,54 @@ for table in $tables; do
     -sql "ALTER TABLE \"${table}\" ADD COLUMN INTU INTEGER DEFAULT ${intu}"
 done
 
-# UDWHAZ05: Store the DRVAL1 of the containing DEPARE on WRECKS, OBSTRN and
-# UWTROC. The style uses this at render time to evaluate isolated danger status
-# against the user's configured safety contour. UWTROC shares CS(OBSTRN07) with
-# OBSTRN, so its branches read _DEPARE_DRVAL1 exactly as the obstruction ones
-# do -- omit it here and every rock branch that consults the column throws and
-# falls through to the generic symbol.
-if echo "$tables" | grep -q '^DEPARE$'; then
+# UDWHAZ05: Store the surrounding depth of WRECKS, OBSTRN and UWTROC. The style
+# uses these at render time to evaluate isolated danger status against the
+# user's configured safety contour. UWTROC shares CS(OBSTRN07) with OBSTRN, so
+# its branches read the same columns as the obstruction ones -- omit them here
+# and every rock branch that consults them falls through to the generic symbol.
+#
+# Two columns, not one, and ST_Intersects rather than ST_Contains:
+#
+#   * A hazard is rarely *contained* by a single depth area. Wrecks and rocks
+#     sit on the boundary between two of them, area obstructions span several,
+#     and ST_Contains excludes anything touching the edge -- so the old single
+#     ST_Contains(... LIMIT 1) left the column NULL for exactly the hazards
+#     that matter most and picked an arbitrary area for the rest.
+#   * DRGARE carries DRVAL1 too and is just as much "the surrounding depth" as
+#     DEPARE, but was not consulted at all: a wreck in a dredged area read NULL.
+#   * UDWHAZ05 asks two different questions of the surroundings. "Is this
+#     hazard in safe water?" must be answered by the DEEPEST neighbour (_MAX),
+#     and "is the surrounding water itself shoal?" by the shallowest non-drying
+#     one (_MINPOS, which skips negative DRVAL1 so drying areas cannot satisfy
+#     Continuation A's `surroundingDepth >= 0` bound).
+depth_area_union=""
+for depth_table in DEPARE DRGARE; do
+  echo "$tables" | grep -q "^${depth_table}$" || continue
+  if [ -n "$depth_area_union" ]; then
+    depth_area_union="${depth_area_union} UNION ALL "
+  fi
+  depth_area_union="${depth_area_union}SELECT DRVAL1, geom FROM \"${depth_table}\""
+done
+
+if [ -n "$depth_area_union" ]; then
   for hazard_table in WRECKS OBSTRN UWTROC; do
     echo "$tables" | grep -q "^${hazard_table}$" || continue
     ogrinfo --quiet "$gpkg" -dialect sqlite \
-      -sql "ALTER TABLE \"${hazard_table}\" ADD COLUMN _DEPARE_DRVAL1 REAL"
+      -sql "ALTER TABLE \"${hazard_table}\" ADD COLUMN _DEPARE_DRVAL1_MAX REAL"
+    ogrinfo --quiet "$gpkg" -dialect sqlite \
+      -sql "ALTER TABLE \"${hazard_table}\" ADD COLUMN _DEPARE_DRVAL1_MINPOS REAL"
     ogrinfo --quiet "$gpkg" -dialect sqlite -sql "
-      UPDATE \"${hazard_table}\" SET _DEPARE_DRVAL1 = (
-        SELECT d.DRVAL1 FROM DEPARE d
-        WHERE ST_Contains(CastAutomagic(d.geom), CastAutomagic(\"${hazard_table}\".geom))
-        LIMIT 1
-      )"
+      UPDATE \"${hazard_table}\" SET
+        _DEPARE_DRVAL1_MAX = (
+          SELECT MAX(d.DRVAL1) FROM (${depth_area_union}) d
+          WHERE d.DRVAL1 IS NOT NULL
+            AND ST_Intersects(CastAutomagic(d.geom), CastAutomagic(\"${hazard_table}\".geom))
+        ),
+        _DEPARE_DRVAL1_MINPOS = (
+          SELECT MIN(d.DRVAL1) FROM (${depth_area_union}) d
+          WHERE d.DRVAL1 IS NOT NULL AND d.DRVAL1 >= 0
+            AND ST_Intersects(CastAutomagic(d.geom), CastAutomagic(\"${hazard_table}\".geom))
+        )"
   done
 fi
 
@@ -262,17 +293,66 @@ if [ ${#geojson_files[@]} -eq 0 ]; then
   exit 1
 fi
 
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+
 # Step 3b: Generate sector arc and leg line geometries from LIGHTS features.
 # These are LineString approximations of the arcs and radial legs that S-52
 # LIGHTS06 requires but MapLibre can't draw natively.
 lights_geojson="$tmpdir/LIGHTS.geojson"
 sectors_geojson="$tmpdir/_LIGHTS_SECTORS.geojson"
 if [ -f "$lights_geojson" ]; then
-  SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
   node "$SCRIPT_DIR/generate-sector-arcs" "$lights_geojson" "$sectors_geojson" \
     --minzoom "$minzoom" --maxzoom "$maxzoom"
   if [ -s "$sectors_geojson" ]; then
     geojson_files+=("$sectors_geojson")
+  fi
+fi
+
+# Step 3c: Derive _DEPARE_EDGE — the shared edges of the DEPARE/DRGARE
+# partition, each carrying the depth on either side (see bin/generate-depare-edges).
+#
+# S-52 DEPARE03 places the safety contour at the safe/unsafe DEPARE interface,
+# not at a DEPCNT: an ENC need not carry a contour at the value the mariner
+# picked, and DRGARE has no surrounding DEPCNT at all. Derived here, after the
+# quilt clip, so the edges match the geometry that actually reaches the tiles.
+edge_args=()
+if [ -f "$tmpdir/DEPARE.geojson" ]; then
+  edge_args+=(--depth-area "$tmpdir/DEPARE.geojson")
+fi
+if [ -f "$tmpdir/DRGARE.geojson" ]; then
+  edge_args+=(--depth-area "$tmpdir/DRGARE.geojson")
+fi
+if [ ${#edge_args[@]} -gt 0 ]; then
+  if [ -f "$tmpdir/DEPCNT.geojson" ]; then
+    edge_args+=(--contour "$tmpdir/DEPCNT.geojson")
+  fi
+  # The higher-INTU coverage the quilt clipped against, so edges created by the
+  # clip are flagged as seams rather than reported as the edge of the survey.
+  if [ -f "$tmpdir/quilting_coverage.geojson" ]; then
+    edge_args+=(--coverage "$tmpdir/quilting_coverage.geojson")
+  fi
+  edges_geojson="$tmpdir/_DEPARE_EDGE.geojson"
+  node "$SCRIPT_DIR/generate-depare-edges" "$edges_geojson" "${edge_args[@]}"
+  if [ -s "$edges_geojson" ]; then
+    geojson_files+=("$edges_geojson")
+  fi
+fi
+
+# Step 3d: Derive _LABELS — one label anchor per named land/sea area.
+# S-57 splits a named feature across every polygon its topology needs, all
+# carrying the same OBJNAM, so labelling the classes directly repeats the name
+# once per polygon. See bin/generate-labels.
+label_args=()
+for label_table in LNDARE LNDRGN SEAARE; do
+  if [ -f "$tmpdir/${label_table}.geojson" ]; then
+    label_args+=(--class "${label_table}:$tmpdir/${label_table}.geojson")
+  fi
+done
+if [ ${#label_args[@]} -gt 0 ]; then
+  labels_geojson="$tmpdir/_LABELS.geojson"
+  node "$SCRIPT_DIR/generate-labels" "$labels_geojson" "${label_args[@]}"
+  if [ -s "$labels_geojson" ]; then
+    geojson_files+=("$labels_geojson")
   fi
 fi
 

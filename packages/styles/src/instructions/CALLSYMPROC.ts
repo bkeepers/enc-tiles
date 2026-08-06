@@ -727,8 +727,11 @@ function LITDSN02(config: LayerConfig): Partial<LayerSpecification>[] {
  */
 export function OBSTRN07(config: LayerConfig): CSPLayer[] {
   const { mode, safetyDepth } = config;
-  const isDanger = isolatedDanger(config);
-  const notDanger = notIsolatedDanger(config);
+  // OBSTRN and UWTROC share the DEPTH_VALUE ladder OBSTRN07 defines, so one
+  // hazard key covers both classes (CATOBS simply never matches on a rock).
+  const hazard: HazardClass = "OBSTRN";
+  const isDanger = isolatedDangerShown(config, hazard);
+  const notDanger = notIsolatedDanger(config, hazard);
 
   /** WATLEV 4 (covers and uncovers) or 5 (awash). */
   const awash: ExpressionFilterSpecification = [
@@ -737,15 +740,35 @@ export function OBSTRN07(config: LayerConfig): CSPLayer[] {
     ["literal", [4, 5]],
   ];
 
+  /** The plain rock symbol: dangerous rock when always submerged, else awash. */
+  const rockSymbol: ExpressionSpecification = [
+    "case",
+    ["==", ["get", "WATLEV"], 3],
+    "UWTROC03",
+    "UWTROC04",
+  ];
+
+  /**
+   * The plain obstruction symbol, by CATOBS/WATLEV. Unlike the no-VALSOU
+   * look-up below it defaults to OBSTRN01 rather than DANGER01, because it is
+   * used where S-52 asks for a danger symbol and the user wants a plain one.
+   */
+  const obstructionSymbol: ExpressionSpecification = [
+    "case",
+    ["==", ["get", "CATOBS"], 6],
+    "OBSTRN01",
+    ["in", ["get", "WATLEV"], ["literal", [1, 2]]],
+    "OBSTRN11",
+    awash as ExpressionSpecification,
+    "UWTROC04",
+    "OBSTRN01",
+  ];
+
   return [
     // ─── Point obstructions (Continuation A) ───
 
-    // Isolated danger → ISODGR01
-    {
-      type: "symbol",
-      filter: ["all", ["==", ["geometry-type"], "Point"], isDanger],
-      layout: iconLayout("ISODGR01"),
-    },
+    // Isolated danger → ISODGR01 (display base + optional shallow-water family)
+    ...isolatedDangerLayers(config, hazard, ["==", ["geometry-type"], "Point"]),
 
     // ── UWTROC (underwater/awash rock) ──
     // Rocks reach this procedure through their own look-up entries
@@ -784,8 +807,15 @@ export function OBSTRN07(config: LayerConfig): CSPLayer[] {
       layout: iconLayout("DANGER01"),
     },
 
-    // Sounding text on rocks, except the WATLEV 4,5 case above where S-52
-    // explicitly sets SOUNDING = FALSE.
+    // Sounding text on rocks.
+    //
+    // DELIBERATE DEVIATION FROM S-52 — drying heights on awash rocks.
+    // S-52 sets SOUNDING = FALSE for the whole WATLEV 4,5 branch above. A
+    // WATLEV 4 rock (covers and uncovers) carries a drying height that Chart 1
+    // K11 shows against the symbol, and losing it costs the mariner the one
+    // number that says how far the rock dries. We therefore keep UWTROC04 for
+    // WATLEV 4 but still draw its sounding; WATLEV 5 (awash at chart datum,
+    // where the value is 0 by definition) keeps the S-52 suppression.
     {
       objectClasses: ["UWTROC"],
       ...SNDFRM04(config, "VALSOU", [
@@ -793,7 +823,14 @@ export function OBSTRN07(config: LayerConfig): CSPLayer[] {
         ["==", ["geometry-type"], "Point"],
         notDanger,
         ["has", "VALSOU"],
-        ["!", ["all", ["<=", ["get", "VALSOU"], safetyDepth], awash]],
+        [
+          "!",
+          [
+            "all",
+            ["<=", ["get", "VALSOU"], safetyDepth],
+            ["==", ["get", "WATLEV"], 5],
+          ],
+        ],
       ]),
     },
 
@@ -810,12 +847,27 @@ export function OBSTRN07(config: LayerConfig): CSPLayer[] {
         notDanger,
         ["!", ["has", "VALSOU"]],
       ],
-      layout: iconLayout([
-        "case",
-        ["==", ["get", "WATLEV"], 3],
-        "UWTROC03",
-        "UWTROC04",
-      ] as ExpressionSpecification),
+      layout: iconLayout(rockSymbol),
+    },
+
+    // DELIBERATE DEVIATION FROM S-52 — deep hazards get a plain symbol.
+    // S-52 sends any sounded hazard deeper than SAFETY_DEPTH to DANGER02, the
+    // "obstruction with dotted danger circle" symbol. Below the safety depth
+    // the hazard is not a danger to own ship, and the danger circle on every
+    // deep rock/wreck/obstruction clutters the chart to the point where the
+    // shoal ones stop standing out. We emit the class's ordinary symbol plus
+    // the sounding instead. DANGER01 for shoal hazards is untouched.
+    {
+      objectClasses: ["UWTROC"],
+      type: "symbol",
+      filter: [
+        "all",
+        ["==", ["geometry-type"], "Point"],
+        notDanger,
+        ["has", "VALSOU"],
+        [">", ["get", "VALSOU"], safetyDepth],
+      ],
+      layout: iconLayout(rockSymbol),
     },
 
     // ── OBSTRN (obstruction) ──
@@ -864,9 +916,11 @@ export function OBSTRN07(config: LayerConfig): CSPLayer[] {
       layout: iconLayout("DANGER01"),
     },
 
-    // Has VALSOU, not isolated danger, not CATOBS 6, VALSOU > safetyDepth → DANGER02.
-    // Shared by both classes: S-52 sends deep rocks here too.
+    // Has VALSOU, not isolated danger, not CATOBS 6, VALSOU > safetyDepth.
+    // DELIBERATE DEVIATION FROM S-52 — plain symbol instead of DANGER02; see
+    // the UWTROC deep-hazard branch above for the rationale.
     {
+      objectClasses: ["OBSTRN"],
       type: "symbol",
       filter: [
         "all",
@@ -876,7 +930,7 @@ export function OBSTRN07(config: LayerConfig): CSPLayer[] {
         ["!=", ["get", "CATOBS"], 6],
         [">", ["get", "VALSOU"], safetyDepth],
       ],
-      layout: iconLayout("DANGER02"),
+      layout: iconLayout(obstructionSymbol),
     },
 
     // Sounding text on point obstructions with VALSOU (SNDFRM04)
@@ -928,14 +982,12 @@ export function OBSTRN07(config: LayerConfig): CSPLayer[] {
         "line-color": colour(mode, "CHBLK"),
       },
     },
-    {
-      type: "symbol",
-      filter: ["all", ["==", ["geometry-type"], "LineString"], isDanger],
-      layout: {
-        ...iconLayout("ISODGR01"),
-        "symbol-placement": "line",
-      },
-    },
+    ...isolatedDangerLayers(
+      config,
+      hazard,
+      ["==", ["geometry-type"], "LineString"],
+      { "symbol-placement": "line" },
+    ),
 
     // Not isolated danger, shallow or no sounding → dotted CHBLK
     {
@@ -996,11 +1048,11 @@ export function OBSTRN07(config: LayerConfig): CSPLayer[] {
         "line-color": colour(mode, "CHBLK"),
       },
     },
-    {
-      type: "symbol",
-      filter: ["all", ["==", ["geometry-type"], "Polygon"], isDanger],
-      layout: iconLayout("ISODGR01"),
-    },
+    ...isolatedDangerLayers(config, hazard, [
+      "==",
+      ["geometry-type"],
+      "Polygon",
+    ]),
 
     // Not isolated danger, has VALSOU, shallow → dotted CHBLK outline
     {
@@ -1955,64 +2007,247 @@ export function TOPMAR01(_config: LayerConfig): Partial<LayerSpecification>[] {
   ];
 }
 
-/**
- * UDWHAZ05 - 13.2.20 Isolated dangers in general that endanger own ship
- * (S-52 PresLib 4.0, section 13.2.20)
- *
- * Not called directly from lookup tables -- used as a helper by WRECKS05 and OBSTRN07.
- *
- * A feature is an isolated danger when:
- *   - VALSOU <= safetyContour (hazard is shallow enough to matter)
- *   - _DEPARE_DRVAL1 >= safetyContour (hazard lies within safe water)
- *   - WATLEV is NOT 1 or 2 (feature is underwater)
- *
- * _DEPARE_DRVAL1 is pre-computed by the pipeline via spatial query (DRVAL1 of
- * the containing DEPARE/DRGARE polygon).
- *
- * Skipped for WATLEV 1 (partly submerged) or 2 (always dry) per spec, as these
- * are above-water dangers that don't get the isolated danger symbol.
- */
-export function UDWHAZ05(
-  config: LayerConfig,
-): Partial<LayerSpecification> | undefined {
-  return {
-    type: "symbol",
-    filter: isolatedDanger(config),
-    layout: iconLayout("ISODGR01"),
-  };
-}
+/* ─── UDWHAZ05 — isolated dangers ─────────────────────────────────────── */
 
 /**
- * Filter for features that are isolated dangers per UDWHAZ05:
- *   - VALSOU exists and <= safetyContour
- *   - _DEPARE_DRVAL1 >= safetyContour (hazard lies within safe water)
- *   - WATLEV is NOT 1 (partly submerged) or 2 (always dry)
+ * Names of the depth-area join columns pre-computed by `bin/s57-to-tiles` for
+ * WRECKS, OBSTRN and UWTROC.
+ *
+ *   `_DEPARE_DRVAL1_MAX`     greatest DRVAL1 over every intersecting
+ *                            DEPARE/DRGARE (NULL DRVAL1 skipped)
+ *   `_DEPARE_DRVAL1_MINPOS`  least DRVAL1 >= 0 over the same set
+ *
+ * S-52 UDWHAZ05 asks a single question of "the surrounding depth", but a
+ * hazard can straddle several depth areas, so the safe-water test uses the
+ * deepest neighbour (MAX) and the shallow-water test the shoalest non-drying
+ * one (MINPOS).
  */
-export function isolatedDanger(
-  config: LayerConfig,
-): ExpressionFilterSpecification {
+export const SURROUNDING_DEPTH_MAX = "_DEPARE_DRVAL1_MAX";
+export const SURROUNDING_DEPTH_MINPOS = "_DEPARE_DRVAL1_MINPOS";
+
+/**
+ * Stands in for a missing join value.
+ *
+ * Negative, so it satisfies neither the safe-water test (`>= safetyContour`)
+ * nor the shallow-water one (`>= 0`): a hazard the pipeline could not join to
+ * any depth area is simply not an isolated danger and falls through to its
+ * ordinary symbol.
+ */
+const NO_SURROUNDING_DEPTH = -1;
+
+/**
+ * Read a pre-computed join column as a number, without any way to throw.
+ *
+ * This coalesce guard is load-bearing, not defensive dressing. A MapLibre
+ * filter that throws is not "false" for that layer -- the evaluation error
+ * takes out the whole layer, so a single hazard whose join column is missing
+ * or NULL used to make *every* layer of its object class render nothing. The
+ * two-argument `to-number` gives a total function: `["get"]` on an absent
+ * property yields null, `coalesce` replaces it with the sentinel, and any
+ * value that still refuses to convert falls back to the sentinel rather than
+ * erroring.
+ */
+function surroundingDepth(property: string): ExpressionSpecification {
   return [
-    "all",
-    ["has", "VALSOU"],
-    ["<=", ["get", "VALSOU"], config.safetyContour],
-    [">=", ["get", "_DEPARE_DRVAL1"], config.safetyContour],
-    [
-      "any",
-      ["!", ["has", "WATLEV"]],
-      ["!", ["in", ["get", "WATLEV"], ["literal", [1, 2]]]],
-    ],
+    "to-number",
+    ["coalesce", ["get", property], NO_SURROUNDING_DEPTH],
+    NO_SURROUNDING_DEPTH,
   ];
 }
 
 /**
- * Filter expression for features that are NOT isolated dangers.
- * Used by WRECKS05/OBSTRN07 to avoid double-symbolizing hazards
- * that are already shown with the ISODGR01 symbol.
+ * S-52's "least depth unknown" sentinel for the DEPTH_VALUE ladders.
+ *
+ * Negative on purpose: a hazard whose least depth cannot be established is
+ * treated as shoaler than any safety contour, so the fail-safe outcome is
+ * "assume it endangers own ship".
  */
+const DEPTH_UNKNOWN = -15;
+
+/** The three object classes that run the UDWHAZ05 isolated-danger test. */
+export type HazardClass = "OBSTRN" | "UWTROC" | "WRECKS";
+
+/**
+ * DEPTH_VALUE for UDWHAZ05, per the S-52 fail-safe ladders.
+ *
+ * S-52 does not gate the isolated-danger test on VALSOU being present: when
+ * the sounding is missing, OBSTRN07 and DEPVAL02 derive a stand-in depth from
+ * the categorical attributes so that a depth-less hazard is still evaluated.
+ * Gating on `["has", "VALSOU"]` (as this file used to) silently exempted every
+ * unsounded wreck, rock and obstruction from the check.
+ *
+ *   OBSTRN/UWTROC (OBSTRN07): VALSOU, else 0.01 for a foul area (CATOBS 6) or
+ *   an always-submerged feature (WATLEV 3), else 0 for an awash one
+ *   (WATLEV 5), else DEPTH_UNKNOWN.
+ *
+ *   WRECKS (DEPVAL02): VALSOU, else 0 when WATLEV is 3 or 5, else 20.1 for a
+ *   non-dangerous wreck (CATWRK 1), else DEPTH_UNKNOWN.
+ */
+export function depthValue(hazard: HazardClass): ExpressionSpecification {
+  const valsou: ExpressionSpecification = [
+    "to-number",
+    ["get", "VALSOU"],
+    DEPTH_UNKNOWN,
+  ];
+
+  if (hazard === "WRECKS") {
+    return [
+      "case",
+      ["has", "VALSOU"],
+      valsou,
+      ["in", ["get", "WATLEV"], ["literal", [3, 5]]],
+      0,
+      ["==", ["get", "CATWRK"], 1],
+      20.1,
+      DEPTH_UNKNOWN,
+    ];
+  }
+
+  return [
+    "case",
+    ["has", "VALSOU"],
+    valsou,
+    ["any", ["==", ["get", "CATOBS"], 6], ["==", ["get", "WATLEV"], 3]],
+    0.01,
+    ["==", ["get", "WATLEV"], 5],
+    0,
+    DEPTH_UNKNOWN,
+  ];
+}
+
+/**
+ * WATLEV 1 (partly submerged) / 2 (always dry) put the feature in UDWHAZ05's
+ * "no symbol" viewing groups (14050 / 24050): they are above-water dangers and
+ * keep their ordinary symbol.
+ */
+const underwater: ExpressionFilterSpecification = [
+  "any",
+  ["!", ["has", "WATLEV"]],
+  ["!", ["in", ["get", "WATLEV"], ["literal", [1, 2]]]],
+];
+
+/**
+ * UDWHAZ05 isolated danger in **safe water**: a shoal hazard
+ * (DEPTH_VALUE <= SAFETY_CONTOUR) whose surrounding depth is at or beyond the
+ * safety contour. These are the display-base ISODGR01 layers (viewing group
+ * 14010, ScaleMinimum infinite).
+ */
+export function isolatedDanger(
+  config: LayerConfig,
+  hazard: HazardClass,
+): ExpressionFilterSpecification {
+  return [
+    "all",
+    ["<=", depthValue(hazard), config.safetyContour],
+    [">=", surroundingDepth(SURROUNDING_DEPTH_MAX), config.safetyContour],
+    underwater,
+  ];
+}
+
+/**
+ * UDWHAZ05 Continuation A shallow-water danger: a shoal hazard whose
+ * surrounding water is itself shallower than the safety contour (viewing group
+ * 24020, Standard category).
+ *
+ * The `>= 0` lower bound is the spec's, and it excludes drying areas -- a
+ * hazard inside a negative-DRVAL1 area is not flagged.
+ *
+ * Written as "not safe water AND shoal surroundings" so it stays mutually
+ * exclusive with `isolatedDanger`, mirroring the if/elseif in UDWHAZ05.lua.
+ * (One feature can touch both a deep and a shallow area, so MAX and MINPOS can
+ * satisfy both tests at once.)
+ */
+export function shallowWaterDanger(
+  config: LayerConfig,
+  hazard: HazardClass,
+): ExpressionFilterSpecification {
+  return [
+    "all",
+    ["<=", depthValue(hazard), config.safetyContour],
+    [
+      "!",
+      [">=", surroundingDepth(SURROUNDING_DEPTH_MAX), config.safetyContour],
+    ],
+    [">=", surroundingDepth(SURROUNDING_DEPTH_MINPOS), 0],
+    ["<", surroundingDepth(SURROUNDING_DEPTH_MINPOS), config.safetyContour],
+    underwater,
+  ];
+}
+
+/**
+ * The features UDWHAZ05 returns a hazard symbol for under the current options
+ * -- i.e. the ones whose ordinary symbol (and sounding) it replaces.
+ *
+ * A shallow-water danger only displaces the ordinary symbol when the
+ * `shallowWaterDangers` option is on; with it off, S-52's DANGER01/DANGER02
+ * path stays in force for those features.
+ */
+export function isolatedDangerShown(
+  config: LayerConfig,
+  hazard: HazardClass,
+): ExpressionFilterSpecification {
+  return [
+    "any",
+    isolatedDanger(config, hazard),
+    ...(config.shallowWaterDangers ? [shallowWaterDanger(config, hazard)] : []),
+  ];
+}
+
+/** Filter for features that keep their ordinary symbol. */
 export function notIsolatedDanger(
   config: LayerConfig,
+  hazard: HazardClass,
 ): ExpressionFilterSpecification {
-  return ["!", isolatedDanger(config)];
+  return ["!", isolatedDangerShown(config, hazard)];
+}
+
+/**
+ * UDWHAZ05 - 13.2.20 Isolated dangers in general that endanger own ship
+ * (S-52 PresLib 4.0, section 13.2.20)
+ *
+ * Not called from the look-up tables -- WRECKS05 and OBSTRN07 use the filter
+ * helpers above directly. Kept as the named entry point for the procedure.
+ */
+export function UDWHAZ05(config: LayerConfig, hazard: HazardClass): CSPLayer[] {
+  return isolatedDangerLayers(config, hazard, [
+    "==",
+    ["geometry-type"],
+    "Point",
+  ]);
+}
+
+/**
+ * The pair of ISODGR01 symbol layers every hazard geometry gets: the
+ * display-base safe-water one and the always-emitted, separately gated
+ * shallow-water one.
+ *
+ * Both are emitted unconditionally so that layer ids -- which are positional
+ * (`${lookupId}-${index}`) -- do not shift when the `shallowWaterDangers`
+ * option changes.
+ */
+function isolatedDangerLayers(
+  config: LayerConfig,
+  hazard: HazardClass,
+  geometry: ExpressionFilterSpecification,
+  layout: Record<string, unknown> = {},
+): CSPLayer[] {
+  return [
+    {
+      type: "symbol",
+      // S-52 gives the isolated-danger symbol ScaleMinimum "infinite": it must
+      // never be scaled off the display base.
+      ignoreScamin: true,
+      filter: ["all", geometry, isolatedDanger(config, hazard)],
+      layout: { ...iconLayout("ISODGR01"), ...layout },
+    },
+    {
+      type: "symbol",
+      family: "shallow-water-dangers",
+      displayCategory: "STANDARD",
+      filter: ["all", geometry, shallowWaterDanger(config, hazard)],
+      layout: { ...iconLayout("ISODGR01"), ...layout },
+    },
+  ];
 }
 
 /**
@@ -2031,20 +2266,39 @@ export function notIsolatedDanger(
  *   - Fill: CHBRN (WATLEV 1,2), DEPIT (WATLEV 4), DEPVS (default/3/5)
  *   - Line: dotted CHBLK if danger or shallow, dashed CHBLK if deep, else by WATLEV
  */
-export function WRECKS05(config: LayerConfig): Partial<LayerSpecification>[] {
+export function WRECKS05(config: LayerConfig): CSPLayer[] {
   const { mode, safetyDepth } = config;
-  const isDanger = isolatedDanger(config);
-  const notDanger = notIsolatedDanger(config);
+  const hazard: HazardClass = "WRECKS";
+  const isDanger = isolatedDangerShown(config, hazard);
+  const notDanger = notIsolatedDanger(config, hazard);
+
+  /** The plain wreck symbol, by CATWRK/WATLEV (S-52 Continuation A table). */
+  const wreckSymbol: ExpressionSpecification = [
+    "case",
+    // WATLEV 1 (partly submerged) or 2 (always dry) → visible wreck
+    ["in", ["get", "WATLEV"], ["literal", [1, 2]]],
+    "WRECKS01",
+    // WATLEV 4 (covers/uncovers) → drying wreck
+    ["==", ["get", "WATLEV"], 4],
+    "WRECKS01",
+    // CATWRK 1 (non-dangerous) + WATLEV 3 (always underwater)
+    ["all", ["==", ["get", "CATWRK"], 1], ["==", ["get", "WATLEV"], 3]],
+    "WRECKS04",
+    // CATWRK 2 (dangerous) + WATLEV 3
+    ["all", ["==", ["get", "CATWRK"], 2], ["==", ["get", "WATLEV"], 3]],
+    "WRECKS05",
+    // CATWRK 4 or 5 (showing mast/funnel)
+    ["in", ["get", "CATWRK"], ["literal", [4, 5]]],
+    "WRECKS01",
+    // Default
+    "WRECKS05",
+  ];
 
   return [
     // --- Point wrecks ---
 
     // Isolated danger: ISODGR01 (from UDWHAZ05)
-    {
-      type: "symbol",
-      filter: ["all", ["==", ["geometry-type"], "Point"], isDanger],
-      layout: iconLayout("ISODGR01"),
-    },
+    ...isolatedDangerLayers(config, hazard, ["==", ["geometry-type"], "Point"]),
 
     // Has sounding, shallow (not isolated danger) → DANGER01
     {
@@ -2059,7 +2313,11 @@ export function WRECKS05(config: LayerConfig): Partial<LayerSpecification>[] {
       layout: iconLayout("DANGER01"),
     },
 
-    // Has sounding, deep (not isolated danger) → DANGER02
+    // Has sounding, deep (not isolated danger).
+    // DELIBERATE DEVIATION FROM S-52 — plain symbol instead of DANGER02. A
+    // wreck below the safety depth is not a danger to own ship; the danger
+    // circle on every deep wreck buries the shoal ones. The sounding is still
+    // drawn by the SNDFRM04 layer below.
     {
       type: "symbol",
       filter: [
@@ -2069,10 +2327,10 @@ export function WRECKS05(config: LayerConfig): Partial<LayerSpecification>[] {
         ["has", "VALSOU"],
         [">", ["get", "VALSOU"], safetyDepth],
       ],
-      layout: iconLayout("DANGER02"),
+      layout: iconLayout(wreckSymbol),
     },
 
-    // Sounding text on top of DANGER symbols (SNDFRM04)
+    // Sounding text on top of the point symbols (SNDFRM04)
     SNDFRM04(config, "VALSOU", [
       "all",
       ["==", ["geometry-type"], "Point"],
@@ -2080,34 +2338,19 @@ export function WRECKS05(config: LayerConfig): Partial<LayerSpecification>[] {
       ["has", "VALSOU"],
     ]),
 
-    // No sounding → symbol by CATWRK/WATLEV (S-52 Continuation A lookup table)
+    // No sounding → symbol by CATWRK/WATLEV (S-52 Continuation A lookup table).
+    // `notDanger` matters here now: with the DEPVAL02 fail-safe ladder an
+    // unsounded wreck can be an isolated danger, and then ISODGR01 replaces
+    // this symbol rather than sitting on top of it.
     {
       type: "symbol",
       filter: [
         "all",
         ["==", ["geometry-type"], "Point"],
+        notDanger,
         ["!", ["has", "VALSOU"]],
       ],
-      layout: iconLayout([
-        "case",
-        // WATLEV 1 (partly submerged) or 2 (always dry) → visible wreck
-        ["in", ["get", "WATLEV"], ["literal", [1, 2]]],
-        "WRECKS01",
-        // WATLEV 4 (covers/uncovers) → drying wreck
-        ["==", ["get", "WATLEV"], 4],
-        "WRECKS01",
-        // CATWRK 1 (non-dangerous) + WATLEV 3 (always underwater)
-        ["all", ["==", ["get", "CATWRK"], 1], ["==", ["get", "WATLEV"], 3]],
-        "WRECKS04",
-        // CATWRK 2 (dangerous) + WATLEV 3
-        ["all", ["==", ["get", "CATWRK"], 2], ["==", ["get", "WATLEV"], 3]],
-        "WRECKS05",
-        // CATWRK 4 or 5 (showing mast/funnel)
-        ["in", ["get", "CATWRK"], ["literal", [4, 5]]],
-        "WRECKS01",
-        // Default
-        "WRECKS05",
-      ] as ExpressionSpecification),
+      layout: iconLayout(wreckSymbol),
     },
 
     // --- Area wrecks ---
@@ -2170,6 +2413,7 @@ export function WRECKS05(config: LayerConfig): Partial<LayerSpecification>[] {
       filter: [
         "all",
         ["==", ["geometry-type"], "Polygon"],
+        notDanger,
         ["!", ["has", "VALSOU"]],
         ["in", ["get", "WATLEV"], ["literal", [1, 2]]],
       ],
@@ -2184,6 +2428,7 @@ export function WRECKS05(config: LayerConfig): Partial<LayerSpecification>[] {
       filter: [
         "all",
         ["==", ["geometry-type"], "Polygon"],
+        notDanger,
         ["!", ["has", "VALSOU"]],
         ["==", ["get", "WATLEV"], 4],
       ],
@@ -2199,6 +2444,7 @@ export function WRECKS05(config: LayerConfig): Partial<LayerSpecification>[] {
       filter: [
         "all",
         ["==", ["geometry-type"], "Polygon"],
+        notDanger,
         ["!", ["has", "VALSOU"]],
         ["!", ["in", ["get", "WATLEV"], ["literal", [1, 2, 4]]]],
       ],
@@ -2218,10 +2464,10 @@ export function WRECKS05(config: LayerConfig): Partial<LayerSpecification>[] {
     ]),
 
     // Area wreck isolated danger symbol at center
-    {
-      type: "symbol",
-      filter: ["all", ["==", ["geometry-type"], "Polygon"], isDanger],
-      layout: iconLayout("ISODGR01"),
-    },
+    ...isolatedDangerLayers(config, hazard, [
+      "==",
+      ["geometry-type"],
+      "Polygon",
+    ]),
   ];
 }

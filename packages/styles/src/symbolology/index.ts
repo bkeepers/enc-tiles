@@ -25,6 +25,16 @@ export interface LayerConfig {
   deepContour: number;
   /** SAFETY_DEPTH: sounding colour threshold (S-52 default: 30m) */
   safetyDepth: number;
+  /**
+   * SHALLOW_WATER_DANGERS (UDWHAZ05 Continuation A): also flag shoal hazards
+   * whose *surrounding* water is shallower than the safety contour with
+   * ISODGR01, instead of their ordinary DANGER01/DANGER02 symbol.
+   *
+   * The layers are generated either way -- this only decides whether they are
+   * visible and whether they displace the ordinary symbol -- so layer ids stay
+   * stable across the setting. S-52 default: off.
+   */
+  shallowWaterDangers?: boolean;
   boundaries?: BoundaryType;
   symbols?: SymbolType;
   /** Display categories to show. Omit to show all. */
@@ -50,7 +60,29 @@ export interface CSPLayerExtras {
    * there.
    */
   objectClasses?: string[];
+
+  /**
+   * Mark this layer as belonging to an optional layer family the frontend can
+   * gate on its own. Surfaces as `metadata["s52:family"]`.
+   */
+  family?: LayerFamily;
+
+  /**
+   * Override the display category the look-up entry carries. UDWHAZ05 puts the
+   * shallow-water dangers in a Standard viewing group even though the look-up
+   * entries they come from are Display Base.
+   */
+  displayCategory?: DisplayCategory;
+
+  /**
+   * Drop the SCAMIN/SCAMAX scale filter for this layer, for the S-52 layers
+   * specified with ScaleMinimum "infinite" (the isolated-danger symbols).
+   */
+  ignoreScamin?: boolean;
 }
+
+/** Optional layer families the frontend can show or hide independently. */
+export type LayerFamily = "shallow-water-dangers";
 
 export type CSPLayer = Partial<LayerSpecification> & CSPLayerExtras;
 
@@ -164,8 +196,17 @@ export function lookupToLayers(
       return !objectClasses || objectClasses.includes(lookup.obcl);
     })
     .map((cspLayer, index) => {
-      const { objectClasses: _objectClasses, ...layer } = cspLayer as CSPLayer;
-      const visibility = layerVisibility(lookup, layer, config);
+      const {
+        objectClasses: _objectClasses,
+        family,
+        displayCategory,
+        ignoreScamin,
+        ...layer
+      } = cspLayer as CSPLayer;
+      const visibility = layerVisibility(lookup, layer, config, {
+        ...(family ? { family } : {}),
+        ...(displayCategory ? { displayCategory } : {}),
+      });
 
       // CSP layers can set source-layer to reference synthetic tile layers
       // (e.g. _LIGHTS_SECTORS). When present, skip the lookup-derived filter
@@ -177,7 +218,12 @@ export function lookupToLayers(
       return {
         ...layer,
         metadata: {
+          // Preserve any metadata the instruction/CSP set (e.g. "s52:display")
+          // rather than replacing it wholesale.
+          ...(layer.metadata as Record<string, unknown> | undefined),
           s52: lookup,
+          ...(family ? { "s52:family": family } : {}),
+          ...(displayCategory ? { "s52:disc": displayCategory } : {}),
         },
         ...(isSyntheticLayer
           ? {
@@ -189,7 +235,7 @@ export function lookupToLayers(
             }
           : {
               filter: filters.all(
-                filters.scaleFilter(),
+                ...(ignoreScamin ? [] : [filters.scaleFilter()]),
                 filterGeometryType[lookup.ftyp],
                 ...filters.attributeFilters(lookup.attc),
                 ...("filter" in layer
@@ -246,10 +292,22 @@ function layerVisibility(
   lookup: LookupEntry,
   layer: Partial<LayerSpecification>,
   config: LayerConfig,
+  extras: { family?: LayerFamily; displayCategory?: DisplayCategory } = {},
 ): "visible" | "none" {
-  // Check display category
-  if (config.displayCategories && lookup.disc) {
-    if (!config.displayCategories.has(lookup.disc as DisplayCategory)) {
+  // Optional families are always generated so layer ids stay stable; the
+  // matching option decides whether they are drawn.
+  if (
+    extras.family === "shallow-water-dangers" &&
+    !config.shallowWaterDangers
+  ) {
+    return "none";
+  }
+
+  // Check display category. A CSP may override the look-up entry's own
+  // category (see CSPLayerExtras.displayCategory).
+  const disc = extras.displayCategory ?? lookup.disc;
+  if (config.displayCategories && disc) {
+    if (!config.displayCategories.has(disc as DisplayCategory)) {
       return "none";
     }
   }

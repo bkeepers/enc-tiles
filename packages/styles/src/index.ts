@@ -7,6 +7,7 @@ export { BoundaryType, SymbolType } from "./symbolology/index.js";
 export type {
   DisplayCategory,
   LayerConfig,
+  LayerFamily,
   TextGroup,
 } from "./symbolology/index.js";
 
