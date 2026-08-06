@@ -531,6 +531,32 @@ if [ ${#tss_args[@]} -gt 0 ]; then
   fi
 fi
 
+# Step 3f: Thin the point hazards by depth rather than by tippecanoe's
+# position hash. Rewrites the exported UWTROC/WRECKS/OBSTRN files in place with
+# a per-feature minzoom, so the shoalest hazard of a cluster is the one that
+# survives to small scales. See bin/generate-hazard-minzooms; the files are
+# already in geojson_files, and rewriting them here does not change that.
+hazard_files=()
+for hazard_table in UWTROC WRECKS OBSTRN; do
+  if [ -f "$tmpdir/${hazard_table}.geojson" ]; then
+    hazard_files+=("$tmpdir/${hazard_table}.geojson")
+  fi
+done
+if [ ${#hazard_files[@]} -gt 0 ]; then
+  node "$SCRIPT_DIR/generate-hazard-minzooms" \
+    --minzoom "$minzoom" --maxzoom "$maxzoom" "${hazard_files[@]}"
+fi
+
+# Step 3g: Mark the precautionary areas that belong to a traffic separation
+# scheme. The evidence is free text -- INFORM, or the companion .TXT file
+# TXTDSC names -- and those files sit beside the chart in ENC_ROOT, which is
+# why this runs against the SOURCE directory rather than the GPKG. Advisory:
+# a cell whose notes are missing simply gets no stamps.
+if [ -f "$tmpdir/PRCARE.geojson" ]; then
+  node "$SCRIPT_DIR/stamp-prcare-tssnote" "$tmpdir/PRCARE.geojson" \
+    --enc-dir "$(dirname "$input")"
+fi
+
 # Step 4: Generate tiles. List attributes are already comma-separated strings
 # from the GeoJSON export. Each input filename becomes the layer name.
 #
@@ -590,6 +616,18 @@ fi
 # otherwise have dropped it". bin/generate-tss-anchors and bin/generate-labels
 # stamp `{"minzoom": 0}` on every feature they emit, so the derived layers are
 # exempt and everything else, SOUNDG included, keeps the default rate.
+#
+# The point hazards are a third case and are stamped at step 3f. Dropping them
+# by position hash is depth-blind -- a 1.2 m rock is as likely to go as the 18 m
+# wreck beside it -- so they get a minzoom chosen by depth instead, which also
+# takes them out of the random drop. Their stamp is a real thinning decision and
+# not a blanket 0; see bin/generate-hazard-minzooms.
+#
+# The same member also carries a `maxzoom`, which bin/generate-sector-arcs uses
+# to pin each per-zoom copy of a sector figure to one zoom's tiles. That is a
+# confinement rather than an exemption and has nothing to do with -r; it is what
+# keeps a layer with one copy per zoom the same weight per tile as the
+# single-copy layer it replaced.
 tippecanoe \
   -o "$output" \
   --force \

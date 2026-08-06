@@ -54,7 +54,7 @@ with an underscore.
 
 | Layer             | Built by                    | Contents                                                                                                                                                                               |
 | ----------------- | --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `_LIGHTS_SECTORS` | `bin/generate-sector-arcs`  | LineString arcs and radial legs for sector lights (LIGHTS06).                                                                                                                          |
+| `_LIGHTS_SECTORS` | `bin/generate-sector-arcs`  | LineString arcs and radial legs for sector lights (LIGHTS06) — one copy per zoom, see below.                                                                                           |
 | `_DEPARE_EDGE`    | `bin/generate-depare-edges` | Shared edges of the DEPARE/DRGARE partition, with `DRVAL_LO`/`DRVAL_HI` on either side, a coincident `VALDCO`, and `SEAM` where the quilt clip or the cell's own M_COVR ring cut them. |
 | `_LABELS`         | `bin/generate-labels`       | One point per (`OBJNAM`, `INTU`) group of LNDARE/LNDRGN/SEAARE, with `CLASS` and the group's `AREA`.                                                                                   |
 | `_TSS_ANCHORS`    | `bin/generate-tss-anchors`  | One arrow anchor per traffic-lane leg — see below. Carries `CLASS`, `INTU`, `ORIENT`, `AREA`.                                                                                          |
@@ -83,14 +83,59 @@ lane beside it. That is the only size rule the generator applies: `AREA` is on
 the output because the _style_ decides how large a leg has to be to be worth an
 arrow at a given zoom, and Plotroom's own `tss-arrows` layer filters on it.
 
+### `_LIGHTS_SECTORS`
+
+A sector arc is a **screen-size** figure — S-52 draws it a fixed 20 mm from the
+light at every scale, because it is a legend for the bearings and not a claim
+about where the light is seen. Tile geometry is geographic, so the metres only
+hold at the zoom they were computed for. Computing them once, at the cell's own
+band maxzoom, put a band-3 cell's legs at 19.1 km and a band-5 cell's at 2.4 km:
+the same figure, eight times the size, on two charts of the same water.
+
+Each light therefore emits **one arc and two legs per zoom**, sized for that
+zoom, carrying `_z` (the zoom it is sized for) and `_zmax` (the deepest copy
+there is). Each copy at or below the band maxzoom is confined to its own zoom's
+tiles by a per-feature `tippecanoe` member of `{minzoom: _z, maxzoom: _z}`, so
+tile weight is unchanged; only the feature count grows. The copies for the three
+levels above the band maxzoom share the deepest real tile — there is no tile of
+their own to go in — and ride `tile-join --overzoom` and the browser's own
+overscaling up into the levels they were sized for. Because those copies arrive
+together, the style **must** select on `_z`: it draws the copy whose `_z` equals
+`min(floor(zoom), _zmax)`. A figure with no `_z` at all is geographic rather
+than screen-size — the leg of a directional light that carries a `VALNMR`
+nominal range — and is drawn at every zoom.
+
+No copy is emitted where the figure would exceed 50 km, which is what keeps the
+5900 km z0 arc out of the tiles. `SCAMIN` is not a substitute for that bound:
+the style's scale filter passes any feature carrying no `SCAMIN` at all.
+
+### Point-hazard thinning
+
+tippecanoe's `-r/--drop-rate` thins point layers by a hash of position, which is
+depth-blind: a 1.2 m rock is as likely to go as the 18 m wreck beside it.
+`bin/generate-hazard-minzooms` makes the decision by depth instead, before
+tiling. At each zoom the world is cut into ~64 px cells and the hazard with the
+**shallowest** effective depth in each cell claims that zoom; a feature's
+`tippecanoe` `minzoom` is the shallowest zoom it ever claims, and everything
+else is stamped with the band maxzoom. No hazard is ever removed — the deeper
+ones simply arrive later than the shoaler one beside them.
+
+Effective depth is `VALSOU`, shallower being more dangerous, with an **absent**
+`VALSOU` sorting as the shoalest thing there is: a hazard with no known least
+depth is the case S-52 already treats as dangerous. Ties break on `LNAM` so the
+same chart always produces the same tiles. UWTROC, WRECKS and OBSTRN compete as
+one population, because a wreck and a rock 30 m apart are two symbols in the
+same place on the chart.
+
 Some object classes also gain pre-computed columns, likewise underscore-prefixed:
 
-| Column                                        | On                     | Meaning                                                                                |
-| --------------------------------------------- | ---------------------- | -------------------------------------------------------------------------------------- |
-| `_DEPARE_DRVAL1_MAX`, `_DEPARE_DRVAL1_MINPOS` | WRECKS, OBSTRN, UWTROC | Deepest / shoalest non-drying DRVAL1 of the depth areas the hazard touches (UDWHAZ05). |
-| `_FLOATING`                                   | TOPMAR                 | Whether the topmark sits on a buoy rather than a beacon (TOPMAR01).                    |
-| `_EXTENDED_ARC`, `_COLOCATED`                 | LIGHTS                 | Co-location facts the flare and arc geometry need (LIGHTS06).                          |
-| `INTU`                                        | every class            | The chart's navigational purpose, so the style can quilt.                              |
+| Column                                        | On                     | Meaning                                                                                                                                                                                                                         |
+| --------------------------------------------- | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `_DEPARE_DRVAL1_MAX`, `_DEPARE_DRVAL1_MINPOS` | WRECKS, OBSTRN, UWTROC | Deepest / shoalest non-drying DRVAL1 of the depth areas the hazard touches (UDWHAZ05).                                                                                                                                          |
+| `_FLOATING`                                   | TOPMAR                 | Whether the topmark sits on a buoy rather than a beacon (TOPMAR01).                                                                                                                                                             |
+| `_EXTENDED_ARC`, `_COLOCATED`                 | LIGHTS                 | Co-location facts the flare and arc geometry need (LIGHTS06).                                                                                                                                                                   |
+| `_TSSNOTE`                                    | PRCARE                 | The area is the manoeuvring room of a traffic separation scheme rather than a standalone caution — read out of `INFORM` or the companion `.TXT` file `TXTDSC` names. Absent when it is not, or when the note could not be read. |
+| `INTU`                                        | every class            | The chart's navigational purpose, so the style can quilt.                                                                                                                                                                       |
 
 ## How to Produce This Encoding
 

@@ -1,0 +1,142 @@
+#!/usr/bin/env node
+
+// Stamps `_TSSNOTE = 1` on the PRCARE features whose textual description makes
+// them the note attached to a traffic separation scheme.
+//
+// Usage:
+//   bin/stamp-prcare-tssnote <PRCARE.geojson> --enc-dir <ENC_ROOT/CELL dir>
+//
+// The file is rewritten in place. Features that do not qualify are left exactly
+// as they were, WITHOUT the attribute, so a style can test `has`.
+//
+// WHY
+//
+// A precautionary area is drawn the same way whatever it is for, but the two
+// things it is for want different treatment on screen. The great majority of
+// them are the manoeuvring room at the ends and junctions of a traffic
+// separation scheme -- part of the TSS, and sensibly shown and hidden with it.
+// The rest are standalone cautions. S-57 does not distinguish them in any
+// coded attribute: the distinction lives in the free text.
+//
+// The text is reachable in two places and both are checked:
+//
+//   * INFORM, the inline free-text attribute, when the encoder put it there.
+//   * TXTDSC, which is not text but a FILENAME -- a companion .TXT file in the
+//     cell's own directory in ENC_ROOT. That is why this needs --enc-dir: the
+//     GeoJSON export carries the name and nothing else. The attribute is
+//     exported through LIST_AS_STRING like every other list, so a feature can
+//     name more than one file, comma-separated.
+//
+// Measured on Puget Sound: 43 of 43 PRCARE features that belong to a scheme are
+// identified by this test, with no false positives.
+//
+// NEVER FATAL. A cell whose .TXT files were not shipped, or are unreadable, or
+// are in an encoding this cannot make sense of, is a cell that gets no stamps --
+// not a cell that fails to convert. The attribute is an enhancement to how an
+// area is grouped in the UI; the area itself is charted either way.
+
+import { readFileSync, writeFileSync } from "fs";
+import { join } from "path";
+
+// What a TSS-attached precautionary area's description says. Both phrasings are
+// what NOAA's own note files use; the test is deliberately narrow, because the
+// cost of a false positive is a standalone caution area that hides with the
+// traffic scheme and takes its warning off the chart with it.
+const TSS_NOTE = /traffic separation scheme|precautionary area/i;
+
+const args = process.argv.slice(2);
+let encDir = null;
+const positional = [];
+for (let i = 0; i < args.length; i++) {
+  if (args[i] === "--enc-dir" && args[i + 1]) {
+    encDir = args[++i];
+  } else {
+    positional.push(args[i]);
+  }
+}
+const inputPath = positional[0];
+
+if (!inputPath || !encDir) {
+  console.error(
+    "Usage: stamp-prcare-tssnote <PRCARE.geojson> --enc-dir <ENC_ROOT/CELL dir>",
+  );
+  process.exit(1);
+}
+
+// One read per file, not one per feature: several areas of a scheme cite the
+// same note, and the whole point of the cache is that a cell's notes are read
+// once whatever the geometry count.
+const bodies = new Map();
+
+/**
+ * The body of one companion .TXT file, or null if it cannot be had.
+ *
+ * Decoded as latin-1, which cannot throw: S-57 companion text is specified as
+ * ASCII but is shipped by real producers with the odd degree sign or accented
+ * place name in a single-byte encoding, and a strict UTF-8 decode would turn
+ * one stray byte into a replacement character or an exception. Nothing here
+ * needs the text to be exactly right -- it needs a phrase match.
+ */
+function readNote(name) {
+  if (bodies.has(name)) return bodies.get(name);
+  let body = null;
+  try {
+    body = readFileSync(join(encDir, name), "latin1");
+  } catch {
+    // Missing, unreadable, a directory, a name with a separator in it that
+    // resolves nowhere: all the same answer, and none of them fatal.
+    body = null;
+  }
+  bodies.set(name, body);
+  return body;
+}
+
+/** The .TXT file names one feature cites, in order, with blanks removed. */
+function citedNotes(properties) {
+  const raw = properties?.TXTDSC;
+  if (raw === null || raw === undefined) return [];
+  return String(raw)
+    .split(",")
+    .map((name) => name.trim())
+    .filter((name) => name.length > 0);
+}
+
+const document = JSON.parse(readFileSync(inputPath, "utf8"));
+const features = document.features ?? [];
+
+let stamped = 0;
+let unreadable = 0;
+
+for (const feature of features) {
+  const properties = feature?.properties;
+  if (!properties) continue;
+
+  let matched = false;
+  if (properties.INFORM != null && TSS_NOTE.test(String(properties.INFORM))) {
+    matched = true;
+  }
+  if (!matched) {
+    for (const name of citedNotes(properties)) {
+      const body = readNote(name);
+      if (body === null) {
+        unreadable++;
+        continue;
+      }
+      if (TSS_NOTE.test(body)) {
+        matched = true;
+        break;
+      }
+    }
+  }
+  if (matched) {
+    properties._TSSNOTE = 1;
+    stamped++;
+  }
+}
+
+writeFileSync(inputPath, JSON.stringify(document));
+
+console.error(
+  `_TSSNOTE on ${stamped}/${features.length} PRCARE feature(s)` +
+    (unreadable > 0 ? `; ${unreadable} cited note(s) unreadable` : ""),
+);

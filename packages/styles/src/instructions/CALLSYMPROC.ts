@@ -425,9 +425,39 @@ export function LIGHTS06(config: LayerConfig): Partial<LayerSpecification>[] {
  * 1-wide dashed CHBLK line instead of the two-layer approach.
  *
  * Leg lines are always LS(DASH,1,CHBLK).
+ *
+ * The figures are screen-size, so the tiler emits one copy of each PER ZOOM
+ * (`_z`) rather than one sized for the cell's deepest zoom — see
+ * `bin/generate-sector-arcs`. Every copy at or below the cell's band maxzoom is
+ * confined to its own zoom's tiles by a per-feature `tippecanoe` member, so at
+ * those zooms `zoomCopy` matches the only copy present and changes nothing.
+ * What it is actually for is the levels ABOVE that maxzoom, where there are no
+ * tiles to confine anything to: those copies all ride the deepest real tile
+ * together and would otherwise draw four arcs at once.
  */
 function sectorArcLayers(config: LayerConfig): Partial<LayerSpecification>[] {
   const { mode } = config;
+
+  // The copy sized for the zoom being drawn at, clamped to the deepest one the
+  // feature has. `zoom` in a filter is the OVERSCALED zoom — the level the tile
+  // is being displayed at, not the level it was cut at — which is exactly the
+  // level the figure has to be sized for. Past `_zmax` the clamp holds the last
+  // copy, so overzooming further than the tiler prepared for degrades to the
+  // old behaviour (a figure that grows with the scale) rather than to an empty
+  // layer.
+  //
+  // A figure with no `_z` is geographic rather than screen-size — the leg of a
+  // directional light with a VALNMR nominal range — and is drawn at every zoom.
+  // It is tested first so `_zmax` is never coerced on a feature that has none.
+  const zoomCopy: ExpressionFilterSpecification = [
+    "any",
+    ["!", ["has", "_z"]],
+    [
+      "==",
+      ["to-number", ["get", "_z"]],
+      ["min", ["floor", ["zoom"]], ["to-number", ["get", "_zmax"]]],
+    ],
+  ];
 
   // Map _colour attribute to actual colour values for data-driven styling
   const arcColour: ExpressionSpecification = [
@@ -452,6 +482,7 @@ function sectorArcLayers(config: LayerConfig): Partial<LayerSpecification>[] {
       filter: [
         "all",
         scale,
+        zoomCopy,
         ["==", ["get", "_type"], "arc"],
         ["==", ["get", "_style"], "SOLD"],
       ],
@@ -468,6 +499,7 @@ function sectorArcLayers(config: LayerConfig): Partial<LayerSpecification>[] {
       filter: [
         "all",
         scale,
+        zoomCopy,
         ["==", ["get", "_type"], "arc"],
         ["==", ["get", "_style"], "SOLD"],
       ],
@@ -484,6 +516,7 @@ function sectorArcLayers(config: LayerConfig): Partial<LayerSpecification>[] {
       filter: [
         "all",
         scale,
+        zoomCopy,
         ["==", ["get", "_type"], "arc"],
         ["==", ["get", "_style"], "DASH"],
       ],
@@ -498,7 +531,7 @@ function sectorArcLayers(config: LayerConfig): Partial<LayerSpecification>[] {
     {
       type: "line",
       "source-layer": "_LIGHTS_SECTORS",
-      filter: ["all", scale, ["==", ["get", "_type"], "leg"]],
+      filter: ["all", scale, zoomCopy, ["==", ["get", "_type"], "leg"]],
       paint: {
         "line-color": colour(mode, "CHBLK"),
         "line-width": 1,
