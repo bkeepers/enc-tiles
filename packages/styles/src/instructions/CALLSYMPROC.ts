@@ -1419,6 +1419,12 @@ function restrictionSymbol(
     ["all", ["has", "CATREA"], listIncludes("CATREA", ...CATREA_NATURE)],
   ];
 
+  // The CTYARE family has no 61 member: the Presentation Library (and
+  // S-101's own RESCSP03 rule) publish only CTYARE51 and CTYARE71, so the
+  // additional-restrictions case keeps the base symbol instead of naming a
+  // sprite no sheet carries.
+  const sym61 = prefix === "CTYARE" ? `${prefix}51` : `${prefix}61`;
+
   return [
     // Symbol in center of area
     {
@@ -1426,7 +1432,7 @@ function restrictionSymbol(
       layout: iconLayout([
         "case",
         is61,
-        `${prefix}61`,
+        sym61,
         is71,
         `${prefix}71`,
         `${prefix}51`,
