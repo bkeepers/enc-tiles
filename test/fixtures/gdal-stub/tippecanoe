@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# Stub tippecanoe: records that the run got as far as tiling.
+echo "TIPPECANOE RAN"
+exit 0

@@ -49,8 +49,10 @@
 //      case -- measured on the Seattle z11 tile, 169 of 172 edges lying on the
 //      cell ring were being labelled DRVAL_LO = -1, i.e. "land", which drew
 //      the safety contour down every cell edge in the quilt. --cell-coverage
-//      carries this cell's own M_COVR, and only its CATCOV = 1 (coverage
-//      available) rings are indexed. It is read from the post-quilt export, so
+//      carries this cell's own M_COVR, and only the OUTER ring of its
+//      CATCOV = 1 (coverage available) polygons is indexed -- a CATCOV = 2 gap
+//      is normally a hole in that polygon, and indexing the hole would put the
+//      no-coverage boundary straight back in. It is read from the post-quilt export, so
 //      the ring has already been clipped and subsumes case 1 wherever the two
 //      coincide; --coverage is still passed because a higher-INTU chart can
 //      cut a hole in the middle of the cell, nowhere near its ring.
@@ -139,6 +141,17 @@ function* rings(geometry) {
     for (const polygon of geometry.coordinates) yield* polygon;
 }
 
+/** Only the outer ring of each polygon -- see `coverageIndex`. */
+function* exteriorRings(geometry) {
+  if (!geometry) return;
+  if (geometry.type === "Polygon") {
+    if (geometry.coordinates[0]) yield geometry.coordinates[0];
+  } else if (geometry.type === "MultiPolygon") {
+    for (const polygon of geometry.coordinates)
+      if (polygon[0]) yield polygon[0];
+  }
+}
+
 /** Every segment of a LineString/MultiLineString geometry. */
 function* lineSegments(geometry) {
   if (!geometry) return;
@@ -195,13 +208,29 @@ for (const path of contourPaths) {
  * `accept` filters which features contribute -- the cell's own M_COVR carries
  * CATCOV = 2 ("no coverage") rings as well, and a no-coverage ring is not an
  * edge of anything this chart drew.
+ *
+ * `exteriorOnly` drops the HOLES of the accepted polygons, which is how a
+ * no-coverage area actually arrives: as a hole in the CATCOV = 1 polygon with
+ * a separate CATCOV = 2 polygon filling it. Indexing that hole puts the
+ * no-coverage boundary back into the seam index by the back door and undoes
+ * the `accept` filter -- the depth areas that end at the edge of the gap lose
+ * their DRVAL_LO, so the safety contour disappears from a boundary that is
+ * real. Nothing is lost by dropping holes: the other thing that cuts a hole in
+ * a cell's coverage is a higher-INTU chart, and those rings arrive whole on
+ * --coverage.
  */
-function coverageIndex(paths, tolerance, accept = () => true) {
+function coverageIndex(
+  paths,
+  tolerance,
+  accept = () => true,
+  exteriorOnly = false,
+) {
   const index = [];
   for (const path of paths) {
     for (const feature of readFeatures(path)) {
       if (!accept(feature)) continue;
-      for (const ring of rings(feature.geometry)) {
+      const walk = exteriorOnly ? exteriorRings : rings;
+      for (const ring of walk(feature.geometry)) {
         for (let i = 1; i < ring.length; i++) {
           const [a, b] = [ring[i - 1], ring[i]];
           index.push({
@@ -222,7 +251,7 @@ function coverageIndex(paths, tolerance, accept = () => true) {
 const coverageSegments = coverageIndex(coveragePaths, SEAM_TOLERANCE);
 
 /**
- * This cell's own coverage ring: CATCOV = 1 only.
+ * This cell's own coverage ring: the OUTER ring of its CATCOV = 1 polygons.
  *
  * The attribute arrives as an MVT/GeoJSON integer from ogr2ogr but has been a
  * string in other exports, so it is coerced rather than compared strictly to 1.
@@ -231,6 +260,7 @@ const cellSegments = coverageIndex(
   cellCoveragePaths,
   CELL_BOUNDARY_TOLERANCE,
   (feature) => Number(feature.properties?.CATCOV) === 1,
+  true,
 );
 
 function distanceToSegment(point, a, b) {

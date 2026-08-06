@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+# Stub GDAL ogr2ogr for exercising bin/s57-to-tiles' control flow.
+#
+#   STUB_EXPORT_EMPTY_FILES  every layer export writes a ZERO-BYTE file, the
+#                            shape a failed export leaves behind while the rows
+#                            are still sitting in the GPKG
+set -u
+
+fmt="$2"
+out="$3"
+mkdir -p "$(dirname "$out")" 2>/dev/null
+
+case "$fmt" in
+  GPKG) : >"$out" ;;
+  GeoJSON)
+    case "$out" in
+      # The quilt coverage export is what the script tests with -s to decide
+      # whether there is a mask to build at all; it is never the failing one.
+      *quilting_coverage.geojson)
+        printf '{"type":"FeatureCollection","features":[]}' >"$out"
+        ;;
+      *)
+        if [ "${STUB_EXPORT_EMPTY_FILES:-0}" = "1" ]; then
+          : >"$out"
+        else
+          printf '{"type":"FeatureCollection","features":[]}' >"$out"
+        fi
+        ;;
+    esac
+    ;;
+esac
+exit 0

@@ -57,7 +57,31 @@ with an underscore.
 | `_LIGHTS_SECTORS` | `bin/generate-sector-arcs`  | LineString arcs and radial legs for sector lights (LIGHTS06).                                                                                                                          |
 | `_DEPARE_EDGE`    | `bin/generate-depare-edges` | Shared edges of the DEPARE/DRGARE partition, with `DRVAL_LO`/`DRVAL_HI` on either side, a coincident `VALDCO`, and `SEAM` where the quilt clip or the cell's own M_COVR ring cut them. |
 | `_LABELS`         | `bin/generate-labels`       | One point per (`OBJNAM`, `INTU`) group of LNDARE/LNDRGN/SEAARE, with `CLASS` and the group's `AREA`.                                                                                   |
-| `_TSS_ANCHORS`    | `bin/generate-tss-anchors`  | One arrow anchor per traffic-lane leg: TSSLPT/TSSRON/DWRTPT grouped by (`CLASS`, `ORIENT`, contiguity) and repeated every ~8 nm along a long leg, with `CLASS`, `ORIENT`, `AREA`.      |
+| `_TSS_ANCHORS`    | `bin/generate-tss-anchors`  | One arrow anchor per traffic-lane leg — see below. Carries `CLASS`, `INTU`, `ORIENT`, `AREA`.                                                                                          |
+
+### `_TSS_ANCHORS`
+
+TSSLPT/TSSRON/DWRTPT parts are bucketed by (`CLASS`, `INTU`) and joined into
+legs by union-find over pairs that both **touch** and agree on `ORIENT` to
+within 2°. `ORIENT` is compared rather than bucketed because it is a REAL that
+encoders quantise per part — one Santa Barbara lane carries 285/285/286/285,
+and bucketing on the rounded integer split it into three uneven groups. The
+group's `ORIENT` is the area-weighted circular mean of its parts', rounded to a
+whole degree; `INTU` is on the key and on the output for the same reason it is
+on `_LABELS` — the quilt carries several bands at once, and without it two
+bands' copies of one lane draw two arrows on top of each other.
+
+A leg gets one anchor per ~8 nm of its own axis, each at the centre of the
+widest span the leg has on that line. A station that lands in a sub-tolerance
+gap the grouping bridged is walked outward up to half a station spacing to find
+one; a station still without a span is counted and warned about on stderr.
+
+Groups whose **major axis** (the longer of their two extents) is under **0.5
+nm** are dropped as slivers — what a quilt clip grazing a lane's corner leaves
+behind, which would otherwise get an arrow the size of the one on the 30 nm
+lane beside it. That is the only size rule the generator applies: `AREA` is on
+the output because the _style_ decides how large a leg has to be to be worth an
+arrow at a given zoom, and Plotroom's own `tss-arrows` layer filters on it.
 
 Some object classes also gain pre-computed columns, likewise underscore-prefixed:
 

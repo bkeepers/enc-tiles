@@ -27,19 +27,38 @@
 //   lands in exactly one tile at any zoom, which is what makes the arrow
 //   appear once.
 //
-// Grouping is by (class, ORIENT rounded to the nearest degree, spatial
-// contiguity). ORIENT is the leg's own traffic direction and is what
-// distinguishes the two lanes of a separation scheme where they run side by
-// side; contiguity is what re-joins the parts of one lane without joining the
-// two lanes to each other. Class is part of the key because it is carried on
-// the output and a TSSLPT and a DWRTPT that happen to abut are not one leg.
+// Grouping is by (class, INTU) into buckets, then union-find within a bucket
+// over pairs that BOTH touch and agree on ORIENT to within ORIENT_TOLERANCE.
+//
+// ORIENT is the leg's own traffic direction and is what distinguishes the two
+// lanes of a separation scheme where they run side by side; contiguity is what
+// re-joins the parts of one lane without joining the two lanes to each other.
+// Class is part of the bucket key because it is carried on the output and a
+// TSSLPT and a DWRTPT that happen to abut are not one leg. INTU is part of it
+// for the same reason it is in bin/generate-labels: the quilt carries several
+// charts at once, and two bands' copies of the same lane are not one leg --
+// left ungrouped and unlabelled they draw two arrows on top of each other at
+// the zoom where both bands are loaded.
+//
+// ORIENT is compared, NOT bucketed. Bucketing on the rounded integer split a
+// real Santa Barbara lane whose four parts carry 285/285/286/285 into three
+// uneven groups -- 286 is its own bucket, and the two 285 runs on either side
+// of it are no longer contiguous with each other -- so one lane drew three
+// arrows at uneven spacing. A tolerance comparison inside one bucket joins all
+// four, and the group's own ORIENT is the area-weighted circular mean of its
+// parts rather than whichever part happened to be first.
 //
 // Each output feature carries:
 //
 //   CLASS    the S-57 class the group came from (TSSLPT, TSSRON, DWRTPT)
+//   INTU     the chart band the group came from, absent if the source had none
 //   ORIENT   the group's traffic direction, degrees true, integer
 //   AREA     the group's summed area in square degrees, longitude scaled by
-//            cos(latitude), so the style can rank legs across latitudes
+//            cos(latitude). Kept on the output because the frontend's
+//            `tss-arrows` layer filters small groups by it -- the sliver rule
+//            below only removes what is too small to be a leg at all, and how
+//            large a leg has to be to be worth an arrow ON SCREEN is a
+//            per-zoom presentation question that belongs to the style.
 //
 // A long leg gets more than one anchor. A single arrow in the middle of a lane
 // that runs the length of a strait tells the mariner nothing at either end, so
@@ -101,6 +120,88 @@ const DEGREES_PER_NM = 1 / 60;
  * and far above the clip's rounding.
  */
 const TOUCH_TOLERANCE = 1e-6;
+
+/**
+ * How far two touching parts' ORIENT may differ and still be one leg, degrees.
+ *
+ * ORIENT is a REAL in S-57 and encoders quantise it per part: the parts of one
+ * Santa Barbara lane carry 285, 285, 286, 285. Two degrees is far below the
+ * difference between any two lanes that share an edge -- the two lanes of a
+ * separation scheme are 180 apart, and a lane meeting a roundabout or a
+ * precautionary area differs by tens of degrees -- and far above encoder
+ * quantisation.
+ */
+const ORIENT_TOLERANCE = 2;
+
+/**
+ * Groups shorter than this on their major axis are dropped, nautical miles.
+ *
+ * The quilt clip cuts lane polygons, and a cut that grazes a lane's corner
+ * leaves a sliver of it behind. A sliver is still a group, and a group gets a
+ * full-size arrow -- an arrow the size of the one on the 30 nm lane next to it,
+ * marking a fragment a few metres across. Half a nautical mile is well below
+ * any real leg (the shortest legs in a harbour approach scheme run 1-2 nm) and
+ * well above what a clip leaves behind.
+ *
+ * "Major axis" is the LONGER of the group's two extents in its own frame, so
+ * this only removes groups that are small in every direction. A leg that is
+ * genuinely short but wide keeps its arrow; whether it is worth drawing at a
+ * given zoom is the style's decision, made from AREA.
+ */
+const MIN_LEG_LENGTH_NM = 0.5;
+
+/**
+ * How far off its station an anchor may be moved to find a span to sit in.
+ *
+ * Expressed as a fraction of the station spacing: half a spacing either way,
+ * which is the most that can be given without two anchors trading places.
+ */
+const STATION_SEARCH_FRACTION = 0.5;
+
+/** Probes per side when a station lands in a gap. */
+const STATION_SEARCH_STEPS = 8;
+
+/** The smaller of the two angles between two bearings, degrees. */
+function angularDistance(a, b) {
+  const difference = Math.abs((((a - b) % 360) + 360) % 360);
+  return difference > 180 ? 360 - difference : difference;
+}
+
+/**
+ * Whether two parts' traffic directions allow them to be one leg.
+ *
+ * A part with no ORIENT joins only other parts with no ORIENT: "no direction"
+ * is not a direction that can be within tolerance of one.
+ */
+function orientCompatible(a, b) {
+  if (a === undefined || b === undefined) return a === b;
+  return angularDistance(a, b) <= ORIENT_TOLERANCE;
+}
+
+/**
+ * The group's traffic direction: the area-weighted circular mean of its parts',
+ * rounded to a whole degree.
+ *
+ * Circular rather than arithmetic because a leg running due north has parts at
+ * 359.8 and 0.2, whose arithmetic mean is 180 -- the exact opposite of the way
+ * the traffic goes. Area-weighted so a clipped stub cannot pull the arrow off
+ * the direction of the part that is actually the lane.
+ */
+function meanOrient(group) {
+  if (group[0].orient === undefined) return undefined;
+  const total = group.reduce((sum, member) => sum + member.area, 0);
+  let x = 0;
+  let y = 0;
+  for (const member of group) {
+    const weight = total > 0 ? member.area : 1;
+    const radians = (member.orient * Math.PI) / 180;
+    x += weight * Math.cos(radians);
+    y += weight * Math.sin(radians);
+  }
+  if (x === 0 && y === 0) return Math.round(group[0].orient) % 360;
+  const degrees = (Math.atan2(y, x) * 180) / Math.PI;
+  return Math.round(((degrees % 360) + 360) % 360) % 360;
+}
 
 function readFeatures(path) {
   let text;
@@ -220,7 +321,12 @@ function touches(a, b) {
   return vertexNear(a, b) || vertexNear(b, a);
 }
 
-/** Union-find over the members of one (class, ORIENT) bucket. */
+/**
+ * Union-find over the members of one (class, INTU) bucket.
+ *
+ * Two parts join when they touch AND their ORIENTs agree. The ORIENT test is
+ * first because it is arithmetic and `touches` walks vertices.
+ */
 function contiguousGroups(members) {
   const parent = members.map((_, index) => index);
   const find = (index) => {
@@ -236,6 +342,7 @@ function contiguousGroups(members) {
   for (let i = 0; i < members.length; i++) {
     for (let j = i + 1; j < members.length; j++) {
       if (find(i) === find(j)) continue;
+      if (!orientCompatible(members[i].orient, members[j].orient)) continue;
       if (touches(members[i].polygon, members[j].polygon)) {
         parent[find(i)] = find(j);
       }
@@ -306,6 +413,16 @@ function spanAt(polygon, station) {
   return best === undefined ? undefined : { span: best, width };
 }
 
+/** The widest span any part of the group has on the line t = station. */
+function widestSpanAt(projected, station) {
+  let best;
+  for (const polygon of projected) {
+    const found = spanAt(polygon, station);
+    if (found && (!best || found.width > best.width)) best = found;
+  }
+  return best;
+}
+
 /**
  * Where the arrows go for one group: `count` stations evenly spread along the
  * group's extent, each placed at the middle of the widest water span the group
@@ -315,42 +432,78 @@ function spanAt(polygon, station) {
  * 30 nm long and 1 nm wide the pole is a single point at the widest bulge; the
  * mid-span at a station is the leg's centre line, which is where an arrow
  * belongs and is equally guaranteed to be inside the polygon.
+ *
+ * A station can land where the group has no interior at all. Grouping joins
+ * parts that come within TOUCH_TOLERANCE, so a lane with a sub-tolerance gap
+ * between two of its parts is one group with a hairline of nothing across it,
+ * and the extent it is stationed along spans that nothing. Emitting no point
+ * there silently loses an arrow from the middle of a lane -- the failure is
+ * invisible in the output, which is simply one anchor shorter. So a station
+ * that finds nothing is walked outward, up to half a spacing either way, to
+ * the nearest line that does have interior; only if THAT finds nothing too is
+ * the station dropped, and dropped stations are counted and reported.
  */
 function anchorStations(projected, extent, count) {
   const { tMin, tMax } = extent;
-  if (!Number.isFinite(tMin)) return [];
+  if (!Number.isFinite(tMin)) return { points: [], dropped: 0 };
 
+  const spacing = (tMax - tMin) / count;
+  const reach = spacing * STATION_SEARCH_FRACTION;
   const points = [];
+  let dropped = 0;
+
   for (let i = 0; i < count; i++) {
-    const station = tMin + ((tMax - tMin) * (i + 0.5)) / count;
-    let best;
-    for (const polygon of projected) {
-      const found = spanAt(polygon, station);
-      if (found && (!best || found.width > best.width)) best = found;
+    const station = tMin + spacing * (i + 0.5);
+    let best = widestSpanAt(projected, station);
+    let placedAt = station;
+
+    // Outward from the station, so the arrow lands as close to where it
+    // belongs as the geometry allows.
+    for (let step = 1; !best && step <= STATION_SEARCH_STEPS; step++) {
+      const offset = (reach * step) / STATION_SEARCH_STEPS;
+      for (const candidate of [station - offset, station + offset]) {
+        const found = widestSpanAt(projected, candidate);
+        if (found && (!best || found.width > best.width)) {
+          best = found;
+          placedAt = candidate;
+        }
+      }
     }
-    if (best) points.push([(best.span[0] + best.span[1]) / 2, station]);
+
+    if (best) points.push([(best.span[0] + best.span[1]) / 2, placedAt]);
+    else dropped++;
   }
-  return points;
+  return { points, dropped };
 }
 
-/** The group's extent along its own axis. */
+/** The group's extent in its own frame: `t` along the leg, `s` across it. */
 function axisExtent(projected) {
+  let sMin = Infinity;
+  let sMax = -Infinity;
   let tMin = Infinity;
   let tMax = -Infinity;
   for (const polygon of projected) {
     for (const ring of polygon) {
-      for (const [, t] of ring) {
+      for (const [s, t] of ring) {
+        if (s < sMin) sMin = s;
+        if (s > sMax) sMax = s;
         if (t < tMin) tMin = t;
         if (t > tMax) tMax = t;
       }
     }
   }
-  return { tMin, tMax };
+  return { sMin, sMax, tMin, tMax };
 }
 
-/** That extent in nautical miles. */
+/** The along-axis extent in nautical miles: what the anchor count divides. */
 function axisLengthNm({ tMin, tMax }) {
   return Number.isFinite(tMin) ? (tMax - tMin) / DEGREES_PER_NM : 0;
+}
+
+/** The longer of the two extents in nautical miles; see MIN_LEG_LENGTH_NM. */
+function majorAxisNm({ sMin, sMax, tMin, tMax }) {
+  if (!Number.isFinite(tMin) || !Number.isFinite(sMin)) return 0;
+  return Math.max(tMax - tMin, sMax - sMin) / DEGREES_PER_NM;
 }
 
 // ---- 1. bucket every polygon by (class, ORIENT) ----------------------------
@@ -360,36 +513,42 @@ const buckets = new Map();
 for (const { className, path } of inputs) {
   for (const feature of readFeatures(path)) {
     const raw = Number(feature.properties?.ORIENT);
-    // Rounded to a whole degree: that is the resolution the two lanes of a
-    // scheme differ by far more than, and it absorbs the per-part jitter S-57
-    // encoders leave on a split leg.
-    const orient = Number.isFinite(raw)
-      ? ((Math.round(raw) % 360) + 360) % 360
-      : undefined;
-    const id = `${className} ${orient ?? "none"}`;
+    // Kept as the REAL that S-57 carries. Rounding HERE is what split a lane
+    // whose parts read 285/285/286/285 into three groups; the tolerance
+    // comparison in the grouping absorbs that jitter instead, and only the
+    // group's mean is ever rounded.
+    const orient = Number.isFinite(raw) ? ((raw % 360) + 360) % 360 : undefined;
+    const intu = feature.properties?.INTU ?? null;
+    const id = `${className}\u0000${intu}`;
     for (const polygon of polygons(feature.geometry)) {
       if (!polygon[0] || polygon[0].length < 4) continue;
       const bucket = buckets.get(id);
-      const member = { className, orient, polygon };
+      const member = {
+        className,
+        intu,
+        orient,
+        polygon,
+        // Kept on the member: it weights the group's mean ORIENT as well as
+        // summing into the group's AREA.
+        area: polygonArea(polygon),
+      };
       if (bucket) bucket.push(member);
       else buckets.set(id, [member]);
     }
   }
 }
 
-// ---- 2. one anchor per contiguous group, repeated along long legs ----------
-
 const features = [];
+let slivers = 0;
+let droppedStations = 0;
 
 for (const members of buckets.values()) {
   for (const group of contiguousGroups(members)) {
-    const { className, orient } = group[0];
-    const area = group.reduce(
-      (total, member) => total + polygonArea(member.polygon),
-      0,
-    );
+    const { className, intu } = group[0];
     // Parts of one leg only touch, so the areas do not overlap and their sum
     // is the union's area.
+    const area = group.reduce((total, member) => total + member.area, 0);
+    const orient = meanOrient(group);
     const latitude =
       group.reduce(
         (total, member) => total + ringCentroid(member.polygon[0])[1],
@@ -401,19 +560,28 @@ for (const members of buckets.values()) {
       member.polygon.map((ring) => ring.map(forward)),
     );
 
-    // A group with no ORIENT (a roundabout, say) has no axis to repeat along.
     const extent = axisExtent(projected);
+    if (majorAxisNm(extent) < MIN_LEG_LENGTH_NM) {
+      slivers++;
+      continue;
+    }
+
+    // A group with no ORIENT (a roundabout, say) has no axis to repeat along.
     const count =
       orient === undefined
         ? 1
         : Math.max(1, Math.round(axisLengthNm(extent) / ANCHOR_SPACING_NM));
 
-    for (const station of anchorStations(projected, extent, count)) {
+    const { points, dropped } = anchorStations(projected, extent, count);
+    droppedStations += dropped;
+
+    for (const station of points) {
       features.push({
         type: "Feature",
         geometry: { type: "Point", coordinates: inverse(station) },
         properties: {
           CLASS: className,
+          ...(intu === null ? {} : { INTU: intu }),
           ...(orient === undefined ? {} : { ORIENT: orient }),
           AREA: area,
         },
@@ -426,4 +594,15 @@ writeFileSync(
   outputPath,
   JSON.stringify({ type: "FeatureCollection", features }),
 );
-console.error(`Generated ${features.length} TSS anchors`);
+console.error(
+  `Generated ${features.length} TSS anchors` +
+    (slivers > 0 ? `, ${slivers} sliver group(s) dropped` : ""),
+);
+// Reported rather than swallowed: a dropped station is an arrow missing from
+// the middle of a lane, and nothing about the output says one is missing.
+if (droppedStations > 0) {
+  console.error(
+    `  WARNING: ${droppedStations} anchor station(s) found no interior span ` +
+      `within half a station spacing and were dropped`,
+  );
+}

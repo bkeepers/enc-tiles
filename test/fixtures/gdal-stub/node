@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# Stub node: the derived-layer generators in bin/ have their own fixture runs
+# (test/generate-*.test.js). Here they only have to not exist, so their outputs
+# stay absent and the -s guards in bin/s57-to-tiles skip them.
+exit 0

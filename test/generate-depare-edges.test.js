@@ -34,6 +34,15 @@ const CELL_RING = [
   [0, 0],
 ];
 
+/** A hole in the middle of the cell, wound the other way. */
+const GAP_RING = [
+  [0.2, 0.2],
+  [0.2, 0.8],
+  [0.8, 0.8],
+  [0.8, 0.2],
+  [0.2, 0.2],
+];
+
 function writeCollection(name, features) {
   const path = join(work, name);
   writeFileSync(path, JSON.stringify({ type: "FeatureCollection", features }));
@@ -126,19 +135,69 @@ describe("the cell's own M_COVR ring", () => {
     }
   });
 
-  test("a CATCOV = 2 ring is not a coverage boundary", () => {
-    // "No coverage" is not an edge of anything this chart drew.
+  test("a CATCOV = 2 gap inside the cell is not a coverage boundary", () => {
+    // How a no-coverage area really arrives: a hole in the cell's CATCOV = 1
+    // polygon, with a CATCOV = 2 polygon filling it. Rejecting the CATCOV = 2
+    // feature is not enough on its own -- the hole is a ring of the ACCEPTED
+    // polygon, so indexing it puts the same boundary back in and the depth
+    // areas ending at the gap lose the safety contour along a real edge.
     const depare = writeCollection("DEPARE.geojson", [
-      polygon({ DRVAL1: 20 }, CELL_RING),
+      polygon({ DRVAL1: 20 }, CELL_RING, GAP_RING),
     ]);
     const cover = writeCollection("M_COVR.geojson", [
-      polygon({ CATCOV: 2 }, CELL_RING),
+      polygon({ CATCOV: 1 }, CELL_RING, GAP_RING),
+      polygon({ CATCOV: 2 }, GAP_RING),
     ]);
 
     const features = run("--depth-area", depare, "--cell-coverage", cover);
 
+    const inGap = ([x, y]) => x >= 0.2 && x <= 0.8 && y >= 0.2 && y <= 0.8;
+    const gapEdges = features.filter((f) =>
+      f.geometry.coordinates.every(inGap),
+    );
+    const ringEdges = features.filter(
+      (f) => !f.geometry.coordinates.every(inGap),
+    );
+
+    expect(gapEdges.length).toBeGreaterThan(0);
+    for (const edge of gapEdges) {
+      expect(edge.properties.DRVAL_LO).toBe(-1);
+      expect(edge.properties).not.toHaveProperty("SEAM");
+    }
+
+    // The cell's own ring is still a seam, as it was before.
+    expect(ringEdges.length).toBeGreaterThan(0);
+    for (const edge of ringEdges) {
+      expect(edge.properties.SEAM).toBe(1);
+      expect(edge.properties).not.toHaveProperty("DRVAL_LO");
+    }
+  });
+
+  test("a quilt-cut hole in the cell coverage is still a seam", () => {
+    // The hole that --coverage owns: a higher-INTU chart cutting the middle
+    // out of this one. Dropping holes from the CELL index must not lose it.
+    const depare = writeCollection("DEPARE.geojson", [
+      polygon({ DRVAL1: 20 }, CELL_RING, GAP_RING),
+    ]);
+    const cover = writeCollection("M_COVR.geojson", [
+      polygon({ CATCOV: 1 }, CELL_RING, GAP_RING),
+    ]);
+    const higher = writeCollection("quilting_coverage.geojson", [
+      polygon({ INTU: 6 }, GAP_RING),
+    ]);
+
+    const features = run(
+      "--depth-area",
+      depare,
+      "--cell-coverage",
+      cover,
+      "--coverage",
+      higher,
+    );
+
     for (const feature of features) {
-      expect(feature.properties.DRVAL_LO).toBe(-1);
+      expect(feature.properties.SEAM).toBe(1);
+      expect(feature.properties).not.toHaveProperty("DRVAL_LO");
     }
   });
 });

@@ -26,7 +26,28 @@
 #       the cell looks like a broken chart on every single run. 65 is
 #       sysexits.h's EX_DATAERR and is not produced by ogr2ogr, ogrinfo or
 #       tippecanoe on any path this script takes.
-#   1   anything else (bad arguments, unreadable chart, a failed step)
+#
+#       65 is a PERMANENT verdict -- the caller records the cell as covered and
+#       never looks at it again -- so all THREE of these must hold before it is
+#       returned, and any one of them missing is a plain failure instead:
+#
+#         * the cell held rows BEFORE the clip (pre_clip_total > 0). A mask
+#           that merely EXISTED proves nothing about the cell: -skipfailures on
+#           the S57 import can leave structurally-readable but empty tables, and
+#           an empty cell recorded as "covered" hides a broken chart forever.
+#         * it holds none AFTER it (feature_total == 0).
+#         * a non-empty quilt mask was actually applied (quilt_applied).
+#
+#       Both counts must also PARSE. An ogrinfo that failed, or output no
+#       integer, is exit 1 -- never a count of 0, which is the one value that
+#       turns a broken run into a permanent "covered" verdict.
+#   1   anything else: bad arguments, an unreadable chart, a failed step, a
+#       count that could not be read, or an export that produced no usable
+#       GeoJSON while the GPKG still held rows.
+#
+# Testing: test/s57-to-tiles.test.js drives every one of those paths against
+# the stub GDAL/tippecanoe binaries in test/fixtures/gdal-stub, which is the
+# only way to reach them without a chart that reproduces each condition.
 
 set -e
 
@@ -52,6 +73,54 @@ quilt_applied=0
 EXIT_FULLY_COVERED=65
 
 export OGR_S57_OPTIONS="SPLIT_MULTIPOINT=ON,ADD_SOUNDG_DEPTH=ON,LIST_AS_STRING=ON"
+
+# Reads one integer out of an ogrinfo SQL query, or fails the run.
+#
+# Both halves matter and both are easy to get wrong.
+#
+#   * `ogrinfo ... | grep ...` reports GREP's exit status, not ogrinfo's, so a
+#     query that failed outright is indistinguishable from one that returned
+#     nothing. Run ogrinfo on its own and check it.
+#   * An empty result then coerces to 0 in `[ "$n" -eq 0 ]`. For the row counts
+#     below, 0 is the single value that changes what this script does -- it is
+#     what makes a cell "fully covered" and records it as handled forever -- so
+#     a failure that silently becomes 0 is the worst possible reading of it.
+#
+# Anything that is not a plain integer is therefore a hard failure, not a zero.
+count_rows() {
+  local sql="$1" label="$2" errors="$tmpdir/count.err" raw value
+  # stdout captured, stderr to a file: GDAL's warnings must not end up in the
+  # text being parsed, and they are worth printing when something does go wrong.
+  if ! raw=$(ogrinfo -q "$gpkg" -dialect sqlite -sql "$sql" 2>"$errors"); then
+    echo "$label: ogrinfo failed on $gpkg" >&2
+    cat "$errors" >&2
+    return 1
+  fi
+  # ogrinfo prints the row as `  n (Integer) = 12`; the column type can be
+  # Integer or Integer64, so anchor on the `=` rather than scraping digits.
+  value=$(printf '%s\n' "$raw" | grep -oE '=[[:space:]]*[0-9]+' | tail -1 |
+    grep -oE '[0-9]+' || true)
+  if [ -z "$value" ]; then
+    echo "$label: could not read a count from ogrinfo on $gpkg" >&2
+    printf '%s\n' "$raw" >&2
+    cat "$errors" >&2
+    return 1
+  fi
+  printf '%s' "$value"
+}
+
+# `(SELECT COUNT(*) FROM "a") + (SELECT COUNT(*) FROM "b") + ...` for the tables
+# named in "$@". One statement over the whole GPKG rather than one ogrinfo per
+# table: a cell has ~50 feature tables and this runs for every cell of every
+# region.
+row_count_sql() {
+  local sql="" table
+  for table in "$@"; do
+    [ -n "$sql" ] && sql="${sql} + "
+    sql="${sql}(SELECT COUNT(*) FROM \"${table}\")"
+  done
+  printf '%s' "$sql"
+}
 
 # Extract INTU from the DSID metadata layer
 dsid=$(ogrinfo -q "$input" DSID 2>/dev/null)
@@ -215,6 +284,23 @@ if echo "$tables" | grep -q '^LIGHTS$'; then
       )"
 fi
 
+# Step 2a: How many features this cell held BEFORE anything clipped it.
+#
+# This is the number that makes exit 65 safe to record permanently. "The quilt
+# mask existed" only says something about the NEIGHBOURS; it says nothing about
+# whether this cell ever had geometry. The S57 import runs with -skipfailures,
+# so a chart it could not read comes out as a GPKG full of structurally valid,
+# entirely empty tables -- and every one of those cells would otherwise be
+# written off as "covered by larger-scale charts" and never retried.
+#
+# Counted once, here, rather than per table inside the clip loop below.
+feature_tables=$(echo "$tables" | grep -v '^DSID$' || true)
+pre_clip_total=0
+pre_clip_sql=$(row_count_sql $feature_tables)
+if [ -n "$pre_clip_sql" ]; then
+  pre_clip_total=$(count_rows "SELECT ${pre_clip_sql} AS n" "pre-clip feature count")
+fi
+
 # Step 2b: Quilting — clip features against higher-INTU chart coverage.
 # Where a more detailed chart exists, remove this chart's features so they
 # don't bleed through (coarse coastlines obscuring detailed harbour water, etc).
@@ -247,18 +333,16 @@ if [ -n "$coverage" ] && [ -f "$coverage" ]; then
     ogrinfo --quiet "$gpkg" -dialect sqlite -sql \
       "CREATE TABLE quilt_mask AS SELECT ST_Union(geom) as geom FROM quilting"
 
-    has_mask=$(ogrinfo -q "$gpkg" -dialect sqlite \
-      -sql "SELECT COUNT(*) FROM quilt_mask WHERE geom IS NOT NULL" \
-      | grep -o '[0-9]*' | tail -1)
-
-    if [ -z "$has_mask" ]; then
-      echo "quilting: could not read quilt_mask from $gpkg" >&2
-      exit 1
-    fi
+    has_mask=$(count_rows \
+      "SELECT COUNT(*) AS n FROM quilt_mask WHERE geom IS NOT NULL" \
+      "quilt mask count")
 
     if [ "$has_mask" -gt 0 ]; then
       # Recorded so an empty export below can be reported as "fully covered"
-      # rather than as a chart that had nothing in it to begin with.
+      # rather than as a chart that had nothing in it to begin with. On its own
+      # this is NOT enough to justify exit 65 -- it says a neighbouring chart
+      # covers ground here, not that this cell ever had anything to lose. See
+      # the exit-code header.
       quilt_applied=1
       for table in $tables; do
         [ "$table" = "DSID" ] && continue
@@ -298,7 +382,12 @@ if [ -n "$coverage" ] && [ -f "$coverage" ]; then
 fi
 
 # Step 3: Export each layer to GeoJSON for import into tippecanoe.
-layers=$(ogrinfo -q "$gpkg" 2>/dev/null | grep "^[0-9]" | awk '{print $2}' | grep -v '^DSID$' | grep -v '^quilting$' | grep -v '^quilt_mask$')
+#
+# `|| true` because the trailing greps exit 1 when the list comes out empty,
+# which under `set -e` ended the run right here with no message at all -- the
+# one failure mode of this script that told the caller nothing. An empty list
+# is a real answer; it is reported by the feature-count check below.
+layers=$(ogrinfo -q "$gpkg" 2>/dev/null | grep "^[0-9]" | awk '{print $2}' | grep -v '^DSID$' | grep -v '^quilting$' | grep -v '^quilt_mask$' || true)
 
 geojson_files=()
 for layer in $layers; do
@@ -311,30 +400,40 @@ done
 
 # An exported layer is a valid GeoJSON document even when it holds no features,
 # so a non-empty file list does not mean there is anything to tile. Count the
-# rows that were exported and decide before tippecanoe does: left to itself it
-# fails the run with "Did not read any valid geometries", which reads as a
-# broken chart and gets the cell retried forever.
-#
-# One SQL statement over the whole GPKG rather than one ogrinfo per layer: a
-# cell has ~50 feature tables and this runs for every cell of every region.
-count_sql=""
-for layer in $layers; do
-  [ -n "$count_sql" ] && count_sql="${count_sql} + "
-  count_sql="${count_sql}(SELECT COUNT(*) FROM \"${layer}\")"
-done
-
+# rows that survived and decide before tippecanoe does: left to itself it fails
+# the run with "Did not read any valid geometries", which reads as a broken
+# chart and gets the cell retried forever.
 feature_total=0
+count_sql=$(row_count_sql $layers)
 if [ -n "$count_sql" ]; then
-  feature_total=$(ogrinfo -q "$gpkg" -dialect sqlite \
-    -sql "SELECT ${count_sql} AS n" | grep -o '[0-9]*' | tail -1)
-  [ -z "$feature_total" ] && feature_total=0
+  feature_total=$(count_rows "SELECT ${count_sql} AS n" "post-clip feature count")
 fi
 
 if [ ${#geojson_files[@]} -eq 0 ] || [ "$feature_total" -eq 0 ]; then
-  if [ "$quilt_applied" = "1" ]; then
+  # Rows still in the GPKG but nothing usable on disk is an EXPORT failure --
+  # ogr2ogr wrote zero-byte files, or the disk filled. Loud, and never 65: the
+  # cell has geometry, so recording it as permanently covered would delete a
+  # real chart from the tileset for good.
+  if [ "$feature_total" -gt 0 ]; then
+    echo "$input: $feature_total rows in the GPKG but no usable GeoJSON export" >&2
+    exit 1
+  fi
+
+  # Nothing after the clip AND something before it AND a mask that really was
+  # applied: the only combination that means "larger-scale charts cover all of
+  # this cell". See the exit-code header.
+  if [ "$pre_clip_total" -gt 0 ] && [ "$quilt_applied" = "1" ]; then
     echo "$input: fully covered by larger-scale charts after quilting; nothing to publish"
     exit "$EXIT_FULLY_COVERED"
   fi
+
+  # Rows before the clip, none after it, and no mask was applied: features were
+  # lost by something other than quilting. A bug, not a covered cell.
+  if [ "$pre_clip_total" -gt 0 ]; then
+    echo "$input: $pre_clip_total features before the clip and none after it, with no quilt mask applied" >&2
+    exit 1
+  fi
+
   echo "No features found in $input"
   exit 1
 fi

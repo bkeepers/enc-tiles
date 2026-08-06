@@ -1,0 +1,83 @@
+#!/usr/bin/env bash
+# Stub GDAL ogrinfo for exercising bin/s57-to-tiles' control flow.
+#
+# See test/s57-to-tiles.test.js. Every knob is an environment variable:
+#
+#   STUB_TABLES            feature tables the GPKG appears to hold
+#                          (default "DEPARE M_COVR SOUNDG"; " " for none)
+#   STUB_HAS_MASK          rows in quilt_mask (0 = the quilt clip never runs)
+#   STUB_PRE_TOTAL         rows counted BEFORE the clip (default STUB_TOTAL)
+#   STUB_TOTAL             rows counted AFTER the clip (default 0)
+#   STUB_PRE_COUNT_FAILS   the pre-clip counting query exits non-zero
+#   STUB_COUNT_FAILS       the post-clip counting query exits non-zero
+#   STUB_COUNT_GARBAGE     the post-clip count comes back with no integer in it
+#   STUB_COUNT_TYPE        the count column's OGR type (Integer/Integer64)
+#   STUB_STATE             file used to tell the pre-clip count from the
+#                          post-clip one; they are the same query text
+set -u
+
+args="$*"
+
+emit_count() {
+  echo "Layer name: SELECT"
+  echo "OGRFeature(SELECT):0"
+  echo "  n (${STUB_COUNT_TYPE:-Integer}) = $1"
+}
+
+case "$args" in
+  *-sql*)
+    sql="${args#*-sql }"
+    case "$sql" in
+      # Checked before the generic "AS n" arm: the mask probe is also aliased n.
+      *quilt_mask*WHERE*)
+        emit_count "${STUB_HAS_MASK:-1}"
+        exit 0
+        ;;
+      *GeometryType*)
+        echo "POLYGON"
+        exit 0
+        ;;
+      *" AS n"*)
+        state="${STUB_STATE:-/tmp/enc-tiles-stub-seq}"
+        seq=$(($(cat "$state" 2>/dev/null || echo 0) + 1))
+        echo "$seq" >"$state"
+        if [ "$seq" = "1" ]; then
+          [ "${STUB_PRE_COUNT_FAILS:-0}" = "1" ] && {
+            echo "ERROR 1: SQL Expression Parsing Error: syntax error" >&2
+            exit 1
+          }
+          emit_count "${STUB_PRE_TOTAL:-${STUB_TOTAL:-0}}"
+          exit 0
+        fi
+        [ "${STUB_COUNT_FAILS:-0}" = "1" ] && {
+          echo "ERROR 1: SQL Expression Parsing Error: syntax error" >&2
+          exit 1
+        }
+        if [ "${STUB_COUNT_GARBAGE:-0}" = "1" ]; then
+          # Exit 0 with output that carries no count at all -- the shape a
+          # GDAL build that reported the error and kept going leaves behind.
+          echo "Layer name: SELECT"
+          exit 0
+        fi
+        emit_count "${STUB_TOTAL:-0}"
+        exit 0
+        ;;
+      *)
+        # ALTER TABLE / UPDATE / CREATE TABLE: no output, no failure.
+        exit 0
+        ;;
+    esac
+    ;;
+  *DSID*)
+    echo "  DSID_INTU (Integer) = 5"
+    exit 0
+    ;;
+esac
+
+# Plain listing of the feature tables.
+i=1
+for t in ${STUB_TABLES:-DEPARE M_COVR SOUNDG}; do
+  echo "$i: $t (Polygon)"
+  i=$((i + 1))
+done
+exit 0
