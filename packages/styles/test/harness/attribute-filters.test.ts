@@ -80,13 +80,15 @@ describe("enumerated attributes decoded as integers", () => {
   });
 
   test("M_QUAL CATZOC fallback stops matching CATZOC-carrying zones", () => {
+    // Area fills are filed in the sprite sheet under an AP_ prefix, so that a
+    // pattern and a symbol of the same name cannot shadow each other.
     const fillPatterns = fillPatternsOf(paper, { CATZOC: 3 });
-    expect(fillPatterns).toContain("DQUALB01");
+    expect(fillPatterns).toContain("AP_DQUALB01");
     // NODATA03 is the "quality of data not assessed" fallback entry.
-    expect(fillPatterns).not.toContain("NODATA03");
+    expect(fillPatterns).not.toContain("AP_NODATA03");
 
     // ... and it still covers a zone with no CATZOC at all.
-    expect(fillPatternsOf(paper, {})).toEqual(["NODATA03"]);
+    expect(fillPatternsOf(paper, {})).toEqual(["AP_NODATA03"]);
   });
 });
 

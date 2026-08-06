@@ -5,13 +5,15 @@ import {
 } from "maplibre-gl";
 import { Reference } from "./parser.js";
 import { colour, symbols } from "@enc-tiles/s52";
-import { LineStyles } from "./SHOWLINE.js";
+import { LC, LineStyles } from "./SHOWLINE.js";
+import { patternImage } from "./SHOWAREA.js";
 import {
   listContains,
   listIncludes,
   quaposLowQuality,
   scaleFilter,
 } from "../filters.js";
+import { BoundaryType } from "../symbolology/index.js";
 import type { CSPLayer, LayerConfig } from "../symbolology/index.js";
 
 const procs = {
@@ -1092,7 +1094,7 @@ export function OBSTRN07(config: LayerConfig): CSPLayer[] {
     {
       type: "fill",
       filter: ["all", ["==", ["geometry-type"], "Polygon"], isDanger],
-      paint: { "fill-pattern": "FOULAR01" },
+      paint: { "fill-pattern": patternImage("FOULAR01") },
     },
     {
       type: "line",
@@ -1162,7 +1164,7 @@ export function OBSTRN07(config: LayerConfig): CSPLayer[] {
         ["!", ["has", "VALSOU"]],
         ["==", ["get", "CATOBS"], 6],
       ],
-      paint: { "fill-pattern": "FOULAR01" },
+      paint: { "fill-pattern": patternImage("FOULAR01") },
     },
     {
       type: "line",
@@ -1395,14 +1397,17 @@ const CATREA_NATURE = ["4", "5", "6", "7", "10", "20", "22", "23"];
  *   51 = only this restriction type
  *   61 = this type + other navigational restrictions
  *   71 = this type + environmental/nature restrictions
+ *
+ * The boundary follows the same cascade, but S-52 publishes only the 51 member
+ * of each family as a complex line style: `data.linestyles` has ENTRES51,
+ * ACHRES51, FSHRES51 and CTYARE51 and no 61 or 71 counterpart, so the extra
+ * restriction types change the centred symbol and leave the boundary alone.
  */
 function restrictionSymbol(
   prefix: string,
   additionalRestrn: string[],
   config: LayerConfig,
 ): Partial<LayerSpecification>[] {
-  const { mode } = config;
-
   const is61: ExpressionFilterSpecification = [
     "any",
     listIncludes("RESTRN", ...additionalRestrn),
@@ -1428,14 +1433,29 @@ function restrictionSymbol(
       ] as ExpressionSpecification),
     },
 
-    // Boundary: plain boundaries use LS(DASH,2,CHMGD)
-    // TODO: symbolized boundaries should use LC pattern (e.g., LC(ENTRES51))
+    // Boundary: LS(DASH,2,CHMGD) under plain boundaries, the family's complex
+    // line style under symbolized boundaries. RESARE04 is reached from both
+    // look-up tables, so this is the only place the setting can be honoured.
+    ...restrictionBoundary(prefix, config),
+  ];
+}
+
+/** The boundary layer of one restriction continuation. */
+function restrictionBoundary(
+  prefix: string,
+  config: LayerConfig,
+): Partial<LayerSpecification>[] {
+  if (config.boundaries === BoundaryType.SYMBOLIZED) {
+    return LC(config, new Reference(`${prefix}51`));
+  }
+
+  return [
     {
       type: "line",
       paint: {
         "line-dasharray": LineStyles.DASH,
         "line-width": 2,
-        "line-color": colour(mode, "CHMGD"),
+        "line-color": colour(config.mode, "CHMGD"),
       },
     },
   ];

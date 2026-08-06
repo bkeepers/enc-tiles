@@ -1,5 +1,5 @@
 import { LineLayerSpecification } from "maplibre-gl";
-import { colour, ColourName } from "@enc-tiles/s52";
+import { colour, ColourName, symbols } from "@enc-tiles/s52";
 import { Reference } from "./parser.js";
 import type { LayerConfig } from "../symbolology/index.js";
 
@@ -57,6 +57,19 @@ export function LS(
 }
 
 /**
+ * Sprite-sheet key of a complex line style.
+ *
+ * S-52's symbol, pattern and line-style name spaces collapse into MapLibre's
+ * single sprite name space and 17 line styles share a name with a symbol, so
+ * the sprite build files line styles under this prefix — see `SPRITE_PREFIX`
+ * in `@enc-tiles/s52`'s `build/symbols.ts`. Without it `LC(CTNARE51)` resolved
+ * to the CTNARE51 *point* icon and tiled it along the boundary.
+ */
+export function lineStyleImage(linnam: string): string {
+  return `LC_${linnam}`;
+}
+
+/**
  * LC – Showline (simple linestyle).
  *
  * Syntax:
@@ -69,11 +82,31 @@ export function LS(
 export function LC(
   _config: LayerConfig,
   linnam: Reference,
-): Pick<LineLayerSpecification, "type" | "paint"> {
-  return {
-    type: "line",
-    paint: {
-      "line-pattern": linnam.name,
+): Pick<LineLayerSpecification, "type" | "paint">[] {
+  const image = lineStyleImage(linnam.name);
+  const sprite = symbols[image];
+
+  if (!sprite) {
+    // Emitting the layer anyway would be worse than dropping it: MapLibre
+    // resolves an unknown line-pattern to an arbitrary image from the atlas.
+    console.warn(`Missing line style: ${linnam.name}`);
+    return [];
+  }
+
+  return [
+    {
+      type: "line",
+      paint: {
+        "line-pattern": image,
+        // MapLibre stretches the pattern across the full line width, so the
+        // line has to be as wide as the tile is tall or the style is squashed
+        // (or, at the 1px default, smeared into a coloured haze). The tile is
+        // centred on the line axis, so this width also puts the axis on the
+        // line. `line-floorwidth` — what the shader divides by — is the
+        // floor of this, and the sprite height is already a whole number of
+        // pixels, so the pattern comes out at exactly its design scale.
+        "line-width": sprite.height,
+      },
     },
-  };
+  ];
 }

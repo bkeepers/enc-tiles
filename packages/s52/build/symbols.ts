@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from "fs";
+import { existsSync, readFileSync, writeFileSync, mkdirSync, rmSync } from "fs";
 import { join } from "path";
 import { fileURLToPath } from "url";
 import { JSDOM } from "jsdom";
@@ -104,8 +104,21 @@ function number(element, fallback = 0) {
 /**
  * viewBox (millimetres, relative to the pivot at 0,0) and drawing content of a
  * referenced symbol.
+ *
+ * Memoized: one embedded symbol is placed several times in a line style and
+ * hundreds of times across a pattern lattice, and re-parsing its SVG each time
+ * dominated both the build and the sprite tests.
  */
+const symbolBoxes = new Map();
 function symbolBox(name) {
+  const cached = symbolBoxes.get(name);
+  if (cached) return cached;
+  const box = readSymbolBox(name);
+  symbolBoxes.set(name, box);
+  return box;
+}
+
+function readSymbolBox(name) {
   const svgText = readSymbolSvg(name);
   if (!svgText) throw new Error(`Missing symbol: ${name}`);
   const document = parseXml(svgText);
@@ -333,15 +346,80 @@ function lineStyleParts(definition) {
 /**
  * Build a repeating tile for an `ls:lineStyle` complex line style.
  *
- * The tile is one repeat interval long and centred on the line, so MapLibre's
- * `line-pattern` reproduces the dash schedule and the symbols placed along it.
+ * The tile is one repeat interval long and carries the dash schedule plus the
+ * symbols placed along it. Two properties of the emitted viewBox are dictated
+ * by how MapLibre samples a `line-pattern`, not by S-101:
+ *
+ * 1. CENTRING. MapLibre stretches the image across the *whole* line width with
+ *    the image's vertical centre on the line, so the line axis — y = 0 in an
+ *    S-101 line style — has to sit at the middle of the viewBox. This used to
+ *    set `minY` to the topmost ink, which put the axis at the very top of the
+ *    sprite: the style was drawn wholly to one side of the line and every tick
+ *    hung half outside the area it was bounding.
+ *
+ * 2. MIRRORING. The tile is emitted flipped about the line axis. Derivation:
+ *
+ *    a. `line_pattern.fragment.glsl` samples the sprite at
+ *       `y = 0.5 * v_normal.y + 0.5`, mixing from the image's top-left corner
+ *       (`pattern_tl`, the low row of the atlas, i.e. the viewBox's minY edge)
+ *       at y = 0 to its bottom-right at y = 1. The atlas is uploaded without
+ *       `UNPACK_FLIP_Y_WEBGL`, so atlas row 0 really is the image's top.
+ *    b. `v_normal.y` is +1 on the half-vertex `line_bucket` extrudes by
+ *       `-perp(direction)` and -1 on the one it extrudes by `+perp(direction)`
+ *       (`addCurrentVertex` passes `up = true` for the former). So the image's
+ *       TOP edge is drawn on the `+perp` side and its BOTTOM edge on `-perp`.
+ *    c. `perp((x, y)) = (-y, x)`. Tile space has y down, so for a line running
+ *       east — direction (1, 0) — `+perp` is (0, 1): south on screen, which is
+ *       the RIGHT of travel. Image top → right of travel.
+ *    d. MVT winds exterior rings clockwise in that same y-down tile space: the
+ *       square (0,0) (10,0) (10,10) (0,10) has shoelace area +200 and its
+ *       interior is at +y from the (0,0)→(10,0) edge — the `+perp` side, the
+ *       right of travel. Interior rings are wound the other way and the filled
+ *       side is on their right too, so "inside is to the right of travel" holds
+ *       for every ring. Measured over the tiler's own output: 37,306 rings,
+ *       zero exceptions.
+ *    e. Therefore the inside of an area is painted from the image's TOP, while
+ *       S-101 draws the inward-facing ticks at +y — the image's BOTTOM
+ *       (ACHARE51, CTNARE51, ENTRES51, RESARE51 … all hang their EMAREMG1 /
+ *       EMACHRE2 ticks below the axis and nothing but the pen half-width
+ *       above it).
+ *
+ *    Flipping the tile puts the ticks inside the area, and because the flip is
+ *    exactly the one the renderer applies it also cancels it: embedded symbols
+ *    that are not y-symmetric — the "A" and "B" of MARSYS51 — come out upright
+ *    on screen instead of upside down.
  */
 export function buildLineStyleSvg(linestyle) {
+  const { length, top, bottom, body } = lineStyleGeometry(linestyle.name);
+
+  // Symmetric about y = 0 so the line axis lands on the middle of the sprite,
+  // which is where MapLibre puts the line — see (1) above.
+  const half = Math.max(-top, bottom);
+
+  return svgDocument({
+    minX: 0,
+    minY: -half,
+    width: length,
+    height: 2 * half,
+    title: linestyle.name,
+    desc: linestyle.description,
+    // Mirrored about the line axis — see (2) above. A scale of magnitude 1 in
+    // both axes leaves stroke widths alone.
+    body: `<g transform="scale(1,-1)">\n${body.join("\n")}\n</g>`,
+  });
+}
+
+/**
+ * One line style's repeat length, ink extent and drawing, in the definition's
+ * own coordinates: y = 0 on the line axis, +y on the side S-101 draws the
+ * inward-facing ticks.
+ *
+ * Split out of `buildLineStyleSvg` so the sprite tests can assert the centring
+ * and the tick side against the unmirrored figures.
+ */
+export function lineStyleGeometry(name) {
   const definition = parseXml(
-    readFileSync(
-      resolve(LINESTYLE_DEFINITIONS, `${linestyle.name}.xml`),
-      "utf8",
-    ),
+    readFileSync(resolve(LINESTYLE_DEFINITIONS, `${name}.xml`), "utf8"),
   );
   const parts = lineStyleParts(definition);
 
@@ -384,15 +462,34 @@ export function buildLineStyleSvg(linestyle) {
     }
   }
 
-  return svgDocument({
-    minX: 0,
-    minY: top,
-    width: length,
-    height: bottom - top,
-    title: linestyle.name,
-    desc: linestyle.description,
-    body: body.join("\n"),
-  });
+  return { length, top, bottom, body };
+}
+
+/**
+ * Sprite-sheet key prefix per S-52 name space.
+ *
+ * S-52 has three independent name spaces — symbol (`SY`), pattern (`AP`) and
+ * line style (`LC`) — and 21 names live in two of them, one (QUESMRK1) in all
+ * three. MapLibre has exactly one sprite name space, so the collisions have to
+ * be broken here or a `fill-pattern`/`line-pattern` silently resolves to the
+ * point symbol of the same name. That is what happened: `LC(CTNARE51)` and the
+ * 16 other colliding line styles tiled their centred point icon along the
+ * boundary instead of the boundary style, and `AP(AIRARE02)` filled airport
+ * areas with the icon captioned "symbol for airport as a point".
+ *
+ * Symbols keep the bare name — they are what the rest of the style, the
+ * frontend legend and the sprite CSS already reference — and the other two
+ * name spaces take the prefix of the instruction that reads them.
+ */
+export const SPRITE_PREFIX = {
+  symbol: "",
+  pattern: "AP_",
+  linestyle: "LC_",
+};
+
+/** The sprite-sheet key (and SVG file name) for one sprite source. */
+export function spriteKey(source) {
+  return `${SPRITE_PREFIX[source.kind]}${source.name}`;
 }
 
 /**
@@ -403,11 +500,9 @@ export function buildLineStyleSvg(linestyle) {
  * the atlas for a `fill-pattern`/`line-pattern` it cannot resolve -- which is
  * how unsurveyed areas ended up tiled with the MARCUL02 fish.
  *
- * Symbols come first because S-52's three name spaces (symbol / pattern /
- * line style) collapse into MapLibre's single sprite name space, and 21 names
- * appear in two of them (AIRARE02, MARCUL02, ACHARE51, ...). The build keeps
- * the first entry for a name, so those keep the symbol drawing they have
- * always had; only names that were entirely absent are added.
+ * Every source carries the prefixed `key` it is filed under — see
+ * SPRITE_PREFIX for why patterns and line styles are not filed under their
+ * bare name.
  */
 export function spriteSources(data) {
   return [
@@ -426,7 +521,7 @@ export function spriteSources(data) {
       description: linestyle.lxpo?.[0] ?? linestyle.lind.linm,
       kind: "linestyle",
     })),
-  ];
+  ].map((source) => ({ ...source, key: spriteKey(source) }));
 }
 
 /**
@@ -439,16 +534,29 @@ export function spriteSources(data) {
  * an absent one.
  */
 export function sourceSvg(source) {
-  // A pattern or line style that ships as a drawing is used as-is; the rest are
-  // built from their S-101 definitions.
-  const drawn = readSymbolSvg(source.name);
-  if (drawn) return drawn;
-  if (source.kind === "symbol")
-    throw new Error(`Missing symbol: ${source.name}`);
+  if (source.kind === "symbol") {
+    const drawn = readSymbolSvg(source.name);
+    if (!drawn) throw new Error(`Missing symbol: ${source.name}`);
+    return drawn;
+  }
 
+  // A pattern or line style is built from its own S-101 definition, and only
+  // falls back to a same-named SVG when the catalogue carries no definition for
+  // it. The name spaces overlap (see SPRITE_PREFIX), so `<name>.svg` for a
+  // pattern or line style is normally the *symbol* of that name: taking it was
+  // the second half of the shadowing bug. `Symbols/AIRARE02.svg` describes
+  // itself as "symbol for airport as a point" and was being tiled edge to edge
+  // over airport areas in place of the 38.24 x 38.04 mm AIRARE02P lattice, and
+  // all 15 line styles that share a name with a symbol drew that symbol.
+  //
+  // Two line styles (LOWACC01, NEWOBJ01) genuinely have no S-101 definition and
+  // keep using their drawing. LOWACC11 has neither and is the one entry that
+  // returns undefined.
   const definitions =
     source.kind === "pattern" ? PATTERN_DEFINITIONS : LINESTYLE_DEFINITIONS;
-  if (!existsSync(resolve(definitions, `${source.name}.xml`))) return undefined;
+  if (!existsSync(resolve(definitions, `${source.name}.xml`))) {
+    return readSymbolSvg(source.name);
+  }
 
   return source.kind === "pattern"
     ? buildPatternSvg(source)
@@ -460,13 +568,22 @@ export default {
   name: "build-symbols",
   async buildStart() {
     console.log("Building symbols...");
+    // spreet takes every SVG in the directory, so a file left over from an
+    // earlier run under a name the build no longer emits would keep its sprite
+    // in the atlas -- which is how a stale image gets picked up for a pattern
+    // name. Start from an empty tree.
+    rmSync(resolve("symbols"), { recursive: true, force: true });
     const symbols = {};
 
     const data = JSON.parse(readFileSync(resolve("data.json"), "utf8"));
 
     for (const source of spriteSources(data)) {
-      const name = source.name;
-      if (symbols[name]) continue;
+      // The sprite key, not the S-52 name: patterns and line styles are filed
+      // under a prefix so they cannot shadow (or be shadowed by) the symbol of
+      // the same name. `name` still selects the flare fix-up, which is scoped
+      // to four symbols.
+      const { key, name } = source;
+      if (symbols[key]) continue;
 
       const input = sourceSvg(source);
       if (!input) {
@@ -485,7 +602,7 @@ export default {
             : []),
           (svg) => {
             // This only needs extracted once
-            if (symbols[name]) return;
+            if (symbols[key]) return;
 
             const [minX, minY, width, height] = svg
               .getAttribute("viewBox")
@@ -497,7 +614,7 @@ export default {
               roundToDecimal(height / 2 + minY, 3),
             ];
 
-            symbols[name] = {
+            symbols[key] = {
               description:
                 svg.querySelector("desc")?.textContent ?? source.description,
               width,
@@ -507,7 +624,7 @@ export default {
           },
         ]);
         mkdirSync(resolve(`symbols/${mode}`), { recursive: true });
-        writeFileSync(resolve(`symbols/${mode}/${name}.svg`), output);
+        writeFileSync(resolve(`symbols/${mode}/${key}.svg`), output);
       }
     }
 
