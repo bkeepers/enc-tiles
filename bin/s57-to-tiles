@@ -365,6 +365,7 @@ tippecanoe \
   --no-tile-size-limit \
   --minimum-zoom="$minzoom" \
   --maximum-zoom="$maxzoom" \
+  --full-detail=14    `# 16384-unit grid at maxzoom (default 12 = 4096). Clients overzoom 3-5 levels past maxzoom, and 4096-grid quantization opens ~1-unit slivers between DEPARE polygons that reach 4-8 px on screen; 4x finer quantization keeps them sub-pixel to ~z16` \
   --exclude=LNAM_REFS `# feature-to-feature cross-references` \
   --exclude=FFPT_RIND `# feature-to-feature pointer update instruction` \
   --exclude=PRIM      `# geometry primitive type (redundant: encoded in geometry)` \
