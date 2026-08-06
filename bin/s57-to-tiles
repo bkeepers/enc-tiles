@@ -565,6 +565,31 @@ fi
 # run loudly instead of quietly emitting exactly the odd-extent tile this block
 # exists to prevent. --no-tile-size-limit already disables the size half of that
 # same fallback.
+#
+# Why there is no -r/--drop-rate here, having gone looking for one.
+#
+# tippecanoe drops a fraction of POINT features at every zoom below the maxzoom
+# -- default rate 2.5, so ~60% survive each level down. For SOUNDG that is the
+# behaviour we want: a small-scale tile carrying every sounding of a survey is
+# unreadable, and which soundings go is not load-bearing because the depth
+# areas and contours carry the same information at that scale. For the derived
+# point layers it is not: _TSS_ANCHORS has one anchor per traffic-lane leg and
+# _LABELS one per named area, each already the single survivor of a
+# deduplication done precisely because the renderer cannot collapse duplicates
+# itself. Dropping one of those loses an arrow off a lane or a name off a bay,
+# with nothing left to fall back on.
+#
+# -r1 turns dropping off, but it is a WHOLE-RUN knob: tippecanoe 2.79.0 has no
+# per-layer drop rate, and -L's layer JSON takes only file/layer/description/
+# format. Setting -r1 here would keep the anchors AND stop the SOUNDG thinning,
+# which is the wrong trade in the other direction.
+#
+# The scoped exemption is per FEATURE, not per layer: a `tippecanoe` member on
+# the Feature (beside `geometry`, not inside `properties`) with a `minzoom` is
+# documented to preserve that feature "even if dot-dropping with -r would
+# otherwise have dropped it". bin/generate-tss-anchors and bin/generate-labels
+# stamp `{"minzoom": 0}` on every feature they emit, so the derived layers are
+# exempt and everything else, SOUNDG included, keeps the default rate.
 tippecanoe \
   -o "$output" \
   --force \

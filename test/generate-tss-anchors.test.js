@@ -373,6 +373,147 @@ describe("stations that land in a gap", () => {
   });
 });
 
+describe("anchors sit on the lane's centre line", () => {
+  test("a sliver alongside the lane owns no station and moves no anchor", () => {
+    // The measured defect: a quilt clip grazing a lane leaves a narrow sliver
+    // attached to it. The sliver touches and carries the lane's ORIENT, so it
+    // joins the group -- and it used to be scanned as an equal member, so
+    // (a) the group's axis stretched over the sliver's end and stations were
+    // laid out past the lane, and (b) at such a station the sliver was the
+    // only member with any interior, so the arrow landed at the SLIVER's
+    // centre: 82.5% of the lane's half-width off the lane's own centre line.
+    const features = run({
+      TSSLPT: [
+        box({ ORIENT: 0 }, 0, 0, 0.005, 0.5), // the lane: 30 nm x 0.005
+        box({ ORIENT: 0 }, 0.005, 0.1, 0.0055, 0.6), // a 10%-wide sliver
+      ],
+    });
+
+    // Four, from the LANE's 30 nm -- not five from the 36 nm the sliver's end
+    // used to stretch the axis to.
+    expect(features).toHaveLength(4);
+    for (const feature of features) {
+      const [longitude, latitude] = feature.geometry.coordinates;
+      expect(longitude).toBeCloseTo(0.0025, 6);
+      expect(latitude).toBeLessThan(0.5);
+    }
+    // The sliver is still part of the leg's area, it just places no arrow.
+    expect(features[0].properties.AREA).toBeCloseTo(
+      0.005 * 0.5 + 0.0005 * 0.5,
+      6,
+    );
+  });
+
+  test("a lane split ALONG its length is centred on the lane, not one half", () => {
+    // A cell boundary that runs the length of a lane leaves two half-width
+    // parts. Scanned separately the widest span is half the lane, and the
+    // anchor lands on the centre line of whichever half was measured; the
+    // union scan puts the cross-section back together first.
+    const features = run({
+      TSSLPT: [
+        box({ ORIENT: 0 }, 0, 0, 0.0025, 0.5),
+        box({ ORIENT: 0 }, 0.0025, 0, 0.005, 0.5),
+      ],
+    });
+
+    expect(features).toHaveLength(4);
+    for (const feature of features) {
+      expect(feature.geometry.coordinates[0]).toBeCloseTo(0.0025, 6);
+    }
+  });
+});
+
+describe("STATION rank", () => {
+  test("every anchor carries its index along the leg and the leg's count", () => {
+    const features = run({ TSSLPT: [box({ ORIENT: 0 }, 0, 0, 0.005, 0.5)] });
+
+    expect(features).toHaveLength(4);
+    for (const feature of features) {
+      expect(feature.properties.STATIONS).toBe(4);
+    }
+    // 0-based, one per anchor, no gaps when nothing was dropped.
+    expect(features.map((f) => f.properties.STATION).sort()).toEqual([
+      0, 1, 2, 3,
+    ]);
+  });
+
+  test("STATION counts up the leg's ORIENT direction", () => {
+    // Thinning on `STATION % n` only spaces arrows evenly if the index runs
+    // monotonically along the leg.
+    const features = run({ TSSLPT: [box({ ORIENT: 0 }, 0, 0, 0.005, 0.5)] });
+    const ordered = [...features].sort(
+      (a, b) => a.properties.STATION - b.properties.STATION,
+    );
+    const latitudes = ordered.map((f) => f.geometry.coordinates[1]);
+    for (let i = 1; i < latitudes.length; i++) {
+      expect(latitudes[i]).toBeGreaterThan(latitudes[i - 1]);
+    }
+  });
+
+  test("a single-anchor leg is STATION 0 of 1", () => {
+    const features = run({ TSSLPT: [box({ ORIENT: 0 }, 0, 0, 0.005, 0.02)] });
+    expect(features).toHaveLength(1);
+    expect(features[0].properties.STATION).toBe(0);
+    expect(features[0].properties.STATIONS).toBe(1);
+  });
+
+  test("anchors are exempted from tippecanoe's dot-dropping", () => {
+    // tippecanoe drops a fraction of point features at every zoom below the
+    // maxzoom; a dropped anchor is an arrow missing from a lane. --drop-rate
+    // is a whole-run knob, so the per-feature `tippecanoe` member is the only
+    // exemption that does not also stop SOUNDG thinning. It belongs to the
+    // Feature, NOT to its properties.
+    const features = run({ TSSLPT: [box({ ORIENT: 0 }, 0, 0, 0.005, 0.5)] });
+    for (const feature of features) {
+      expect(feature.tippecanoe).toEqual({ minzoom: 0 });
+      expect(feature.properties).not.toHaveProperty("tippecanoe");
+    }
+  });
+});
+
+describe("many fragments in one touching chain", () => {
+  /** `count` stacked fragments of one north-running lane. */
+  function chain(orients) {
+    return orients.map((orient, index) =>
+      box({ ORIENT: orient }, 0, index * 0.02, 0.005, (index + 1) * 0.02),
+    );
+  }
+
+  test("ten fragments whose ORIENTs agree are ONE leg", () => {
+    // The union-find chains through the whole component: agreement is tested
+    // pairwise, so a run of parts each within tolerance of its neighbour is
+    // one group however long the run is.
+    const features = run({
+      TSSLPT: chain([0, 0.5, 1, 0.5, 0, 0.5, 1, 0.5, 0, 0.5]),
+    });
+
+    // 10 x 0.02 degrees = 12 nm, one anchor per ~8 nm.
+    expect(features).toHaveLength(2);
+    const areas = new Set(features.map((f) => f.properties.AREA));
+    expect(areas.size).toBe(1);
+    expect(features[0].properties.STATIONS).toBe(2);
+  });
+
+  test("what splits a touching chain is the ORIENT tolerance, nothing else", () => {
+    // The shape the field report measured: ten fragments that all pass the
+    // touch test, yielding four anchors at a few nm apart instead of two at 6
+    // nm. Grouping is not losing the contiguity -- each adjacent pair here
+    // differs by 3 degrees, past ORIENT_TOLERANCE, so the chain is four
+    // components and each is a short leg with one anchor of its own.
+    const features = run({
+      TSSLPT: chain([0, 0, 0, 3, 3, 3, 6, 6, 6, 9]),
+    });
+
+    expect(features).toHaveLength(4);
+    expect(
+      features.map((f) => f.properties.ORIENT).sort((a, b) => a - b),
+    ).toEqual([0, 3, 6, 9]);
+    for (const feature of features) {
+      expect(feature.properties.STATIONS).toBe(1);
+    }
+  });
+});
+
 describe("slivers", () => {
   test("a fragment below the minimum leg length is dropped and reported", () => {
     // What a quilt clip grazing a lane's corner leaves behind: a group, and so

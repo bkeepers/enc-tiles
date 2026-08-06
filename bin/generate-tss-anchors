@@ -59,6 +59,15 @@
 //            below only removes what is too small to be a leg at all, and how
 //            large a leg has to be to be worth an arrow ON SCREEN is a
 //            per-zoom presentation question that belongs to the style.
+//   STATION  the anchor's 0-based index along its leg, counting up the leg's
+//            ORIENT direction
+//   STATIONS how many stations the leg was divided into
+//
+// STATION/STATIONS exist so the style can thin a long leg's run of arrows by
+// zoom and have every tile make the same decision: a per-tile view of the
+// layer cannot know how many arrows a leg has, and MapLibre's own symbol
+// collision is per tile too. STATION is stable across tiles and zooms, so
+// `STATION % n == 0` thins evenly and identically everywhere.
 //
 // A long leg gets more than one anchor. A single arrow in the middle of a lane
 // that runs the length of a strait tells the mariner nothing at either end, so
@@ -384,13 +393,13 @@ function frame(orient, latitude) {
 }
 
 /**
- * The widest interior span of `polygon` on the line t = station, as [s0, s1].
+ * The interior spans of `polygon` on the line t = station, as [s0, s1] pairs.
  *
  * The same even-odd scanline bin/generate-labels uses for its point-on-surface,
  * rotated onto the leg's axis. Holes are handled by the pairing: crossings
  * sorted along s alternate in/out.
  */
-function spanAt(polygon, station) {
+function spansAt(polygon, station) {
   const crossings = [];
   for (const ring of polygon) {
     for (let i = 1; i < ring.length; i++) {
@@ -402,24 +411,49 @@ function spanAt(polygon, station) {
     }
   }
   crossings.sort((a, b) => a - b);
-  let best;
-  let width = -1;
+  const spans = [];
   for (let i = 0; i + 1 < crossings.length; i += 2) {
-    if (crossings[i + 1] - crossings[i] > width) {
-      width = crossings[i + 1] - crossings[i];
-      best = [crossings[i], crossings[i + 1]];
-    }
+    spans.push([crossings[i], crossings[i + 1]]);
   }
-  return best === undefined ? undefined : { span: best, width };
+  return spans;
 }
 
-/** The widest span any part of the group has on the line t = station. */
+/**
+ * The widest span the GROUP has on the line t = station, as { span, width }.
+ *
+ * Every member's crossings go into one list and the spans that come out are
+ * UNIONED -- adjacent spans whose ends meet within TOUCH_TOLERANCE become one
+ * -- before the widest is picked.
+ *
+ * Scanning each member separately, as this did, measures each part of a split
+ * lane on its own. Where a cell boundary runs ALONG a lane the two parts are
+ * each half the lane's width, so the widest span is half the lane and the
+ * anchor lands on the centre line of one half rather than of the lane. The
+ * parts of one group are contiguous by construction (that is what grouped
+ * them), so their spans at a station are pieces of one cross-section and
+ * belong back together before anything is measured off them.
+ */
 function widestSpanAt(projected, station) {
+  const spans = [];
+  for (const polygon of projected) spans.push(...spansAt(polygon, station));
+  if (spans.length === 0) return undefined;
+  spans.sort((a, b) => a[0] - b[0]);
+
   let best;
-  for (const polygon of projected) {
-    const found = spanAt(polygon, station);
-    if (found && (!best || found.width > best.width)) best = found;
+  const consider = ([s0, s1]) => {
+    const width = s1 - s0;
+    if (!best || width > best.width) best = { span: [s0, s1], width };
+  };
+  let current = [spans[0][0], spans[0][1]];
+  for (let i = 1; i < spans.length; i++) {
+    if (spans[i][0] <= current[1] + TOUCH_TOLERANCE) {
+      current[1] = Math.max(current[1], spans[i][1]);
+    } else {
+      consider(current);
+      current = [spans[i][0], spans[i][1]];
+    }
   }
+  consider(current);
   return best;
 }
 
@@ -470,10 +504,36 @@ function anchorStations(projected, extent, count) {
       }
     }
 
-    if (best) points.push([(best.span[0] + best.span[1]) / 2, placedAt]);
+    // `index` is the station's own place along the leg and is carried to the
+    // output as STATION. A dropped station leaves a GAP in the sequence
+    // rather than renumbering the ones after it, so the indices stay evenly
+    // spaced along the leg and a frontend thinning on `STATION % n` thins
+    // evenly whatever was dropped here.
+    if (best)
+      points.push({
+        point: [(best.span[0] + best.span[1]) / 2, placedAt],
+        index: i,
+      });
     else dropped++;
   }
   return { points, dropped };
+}
+
+/** The extent of one projected polygon in the group frame. */
+function polygonExtent(polygon) {
+  let sMin = Infinity;
+  let sMax = -Infinity;
+  let tMin = Infinity;
+  let tMax = -Infinity;
+  for (const ring of polygon) {
+    for (const [s, t] of ring) {
+      if (s < sMin) sMin = s;
+      if (s > sMax) sMax = s;
+      if (t < tMin) tMin = t;
+      if (t > tMax) tMax = t;
+    }
+  }
+  return { sMin, sMax, tMin, tMax };
 }
 
 /** The group's extent in its own frame: `t` along the leg, `s` across it. */
@@ -483,16 +543,53 @@ function axisExtent(projected) {
   let tMin = Infinity;
   let tMax = -Infinity;
   for (const polygon of projected) {
-    for (const ring of polygon) {
-      for (const [s, t] of ring) {
-        if (s < sMin) sMin = s;
-        if (s > sMax) sMax = s;
-        if (t < tMin) tMin = t;
-        if (t > tMax) tMax = t;
-      }
-    }
+    const part = polygonExtent(polygon);
+    if (part.sMin < sMin) sMin = part.sMin;
+    if (part.sMax > sMax) sMax = part.sMax;
+    if (part.tMin < tMin) tMin = part.tMin;
+    if (part.tMax > tMax) tMax = part.tMax;
   }
   return { sMin, sMax, tMin, tMax };
+}
+
+/**
+ * The members of a group wide enough to carry an arrow: the "bearers".
+ *
+ * A quilt clip that grazes a lane leaves a sliver attached to it. The sliver
+ * touches the lane and carries the lane's ORIENT, so it is part of the group
+ * -- correctly, it is part of the lane's area -- but it is not part of the
+ * lane's BODY, and two things went wrong when it was treated as if it were:
+ *
+ *   * the group's along-axis extent stretched over the sliver's end, so
+ *     stations were laid out over ground the lane does not cover, and
+ *   * at such a station the sliver was the only member with any interior, so
+ *     it owned the station outright and the arrow landed at the sliver's
+ *     centre -- measured at 82.5% of the lane's half-width off the lane's
+ *     own centre line.
+ *
+ * Bearers are the members whose ACROSS-axis extent is at least this fraction
+ * of the widest member's. The test is relative because lane widths are not
+ * comparable between a strait and a harbour approach, and it is on the across
+ * extent because that is what a sliver lacks: a stub cut off the END of a lane
+ * is full width and stays a bearer, which is right -- it is lane.
+ *
+ * The widest member is always a bearer, so the set is never empty. Non-bearers
+ * still count towards the group's AREA and its mean ORIENT; they just never
+ * place an arrow.
+ */
+const SLIVER_WIDTH_FRACTION = 0.2;
+
+function bearingMembers(projected) {
+  const extents = projected.map(polygonExtent);
+  let widest = 0;
+  for (const { sMin, sMax } of extents) {
+    if (Number.isFinite(sMin) && sMax - sMin > widest) widest = sMax - sMin;
+  }
+  const floor = widest * SLIVER_WIDTH_FRACTION;
+  const bearers = projected.filter(
+    (_, index) => extents[index].sMax - extents[index].sMin >= floor,
+  );
+  return bearers.length > 0 ? bearers : projected;
 }
 
 /** The along-axis extent in nautical miles: what the anchor count divides. */
@@ -560,7 +657,11 @@ for (const members of buckets.values()) {
       member.polygon.map((ring) => ring.map(forward)),
     );
 
-    const extent = axisExtent(projected);
+    // Stations are laid out over, and placed inside, the members that are
+    // actually the lane's body; a sliver hanging off it neither extends the
+    // run of arrows nor moves one.
+    const bearers = bearingMembers(projected);
+    const extent = axisExtent(bearers);
     if (majorAxisNm(extent) < MIN_LEG_LENGTH_NM) {
       slivers++;
       continue;
@@ -572,18 +673,37 @@ for (const members of buckets.values()) {
         ? 1
         : Math.max(1, Math.round(axisLengthNm(extent) / ANCHOR_SPACING_NM));
 
-    const { points, dropped } = anchorStations(projected, extent, count);
+    const { points, dropped } = anchorStations(bearers, extent, count);
     droppedStations += dropped;
 
-    for (const station of points) {
+    for (const { point, index } of points) {
       features.push({
         type: "Feature",
-        geometry: { type: "Point", coordinates: inverse(station) },
+        // NOT a property: tippecanoe reads this member off the Feature itself.
+        // It drops a fraction of POINT features at every zoom below the
+        // maxzoom (-r/--drop-rate, default 2.5), and a dropped anchor is an
+        // arrow missing from a traffic lane. --drop-rate is a whole-run knob,
+        // so turning it off would also stop the SOUNDG thinning that keeps
+        // small-scale tiles readable; a per-feature `minzoom` is the only
+        // exemption tippecanoe scopes, and it is documented as preserving the
+        // feature "even if dot-dropping with -r would otherwise have dropped
+        // it". Zero, so it applies from whatever the tileset's own minimum
+        // zoom turns out to be. See bin/s57-to-tiles step 4.
+        tippecanoe: { minzoom: 0 },
+        geometry: { type: "Point", coordinates: inverse(point) },
         properties: {
           CLASS: className,
           ...(intu === null ? {} : { INTU: intu }),
           ...(orient === undefined ? {} : { ORIENT: orient }),
           AREA: area,
+          // The anchor's place in its leg's run of anchors, and how long that
+          // run is. Both are here so the frontend can thin a long leg EVENLY
+          // by zoom -- keep every anchor at z12, every other one at z11, and
+          // so on -- which it cannot do from a per-tile view of the layer,
+          // because the thinning has to be the same decision in every tile
+          // and STATION is the only thing that is the same in every tile.
+          STATION: index,
+          STATIONS: count,
         },
       });
     }

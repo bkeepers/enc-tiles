@@ -359,6 +359,130 @@ describe("deep hazards keep a plain symbol (deliberate deviation)", () => {
   });
 });
 
+describe("draw order: the sounding is emitted after its icon", () => {
+  // Array position IS draw order -- MapLibre paints layer n over layer n-1.
+  // The UWTROC deep-hazard branch was appended to the end of the class block,
+  // BELOW the SNDFRM04 entry, so every deep rock painted its own symbol over
+  // the depth figure that says how deep it is. `matchingLayers` returns hits
+  // in style order, so the index of the icon hit must precede the text hit.
+  const style = buildStyle({
+    ...options,
+    safetyContour: 12,
+    safetyDepth: 12,
+  });
+
+  const cases: [string, Record<string, unknown>, string][] = [
+    // The case the fix is measured on: a rock deeper than the safety depth.
+    ["UWTROC", { VALSOU: 20, WATLEV: 3, ...WATER.safe }, "UWTROC03"],
+    ["UWTROC", { VALSOU: 20, WATLEV: 4, ...WATER.safe }, "UWTROC04"],
+    // A shoal rock, whose icon branch already sat above the sounding.
+    ["UWTROC", { VALSOU: 4, WATLEV: 4, ...WATER.unsafe }, "UWTROC04"],
+    // OBSTRN, whose grouping the rock block now mirrors.
+    ["OBSTRN", { VALSOU: 20, WATLEV: 3, ...WATER.safe }, "OBSTRN01"],
+    ["OBSTRN", { VALSOU: 4, WATLEV: 3, ...WATER.unsafe }, "DANGER01"],
+  ];
+
+  for (const [hazard, feature, icon] of cases) {
+    test(`${hazard} ${JSON.stringify(feature)} draws ${icon} below its sounding`, () => {
+      const matches = hits(style, hazard, feature);
+      const iconAt = matches.findIndex((m) => m.icon === icon);
+      const soundingAt = matches.findIndex(
+        (m) => m.text && mentions(m.textField, "VALSOU"),
+      );
+      expect(iconAt, `no ${icon} layer matched`).toBeGreaterThanOrEqual(0);
+      expect(soundingAt, "no sounding layer matched").toBeGreaterThanOrEqual(0);
+      expect(soundingAt).toBeGreaterThan(iconAt);
+    });
+  }
+
+  test("every hazard icon of a sounded point precedes every sounding", () => {
+    // Not just the one symbol: nothing that draws an icon may sit after the
+    // sounding, or a second matching branch would cover it.
+    for (const hazard of HAZARDS) {
+      for (const valsou of [0, 4, 12, 20]) {
+        for (const watlev of [undefined, 1, 2, 3, 4, 5]) {
+          const feature = {
+            VALSOU: valsou,
+            ...(watlev === undefined ? {} : { WATLEV: watlev }),
+            ...WATER.safe,
+          };
+          const matches = hits(style, hazard, feature);
+          const lastIcon = matches.reduce(
+            (last, m, index) => (m.icon ? index : last),
+            -1,
+          );
+          const firstSounding = matches.findIndex(
+            (m) => m.text && mentions(m.textField, "VALSOU"),
+          );
+          if (firstSounding < 0 || lastIcon < 0) continue;
+          expect(
+            firstSounding,
+            `${hazard} ${JSON.stringify(feature)}`,
+          ).toBeGreaterThan(lastIcon);
+        }
+      }
+    }
+  });
+});
+
+describe("unsounded obstructions: OBSTRN01, not the danger oval", () => {
+  // 2,389 of Puget Sound's 2,455 snag/stump points carry no VALSOU. They were
+  // drawing DANGER01 -- the big filled oval, which asserts a hazard whose
+  // least depth is KNOWN and is at or above the safety depth. The S-101
+  // OBSTRN07 lua the fork ships (packages/s52/data/.../Rules/OBSTRN07.lua)
+  // defaults that arm to OBSTRN01, the small circle Coastal Explorer draws.
+  const cases: [Record<string, unknown>, string][] = [
+    [{}, "OBSTRN01"], // a snag/stump with nothing but its position
+    [{ CATOBS: 5 }, "OBSTRN01"], // CATOBS 5 = wellhead; any non-6 category
+    [{ CATOBS: 6 }, "OBSTRN01"], // foul area
+    [{ WATLEV: 1 }, "OBSTRN11"], // dry
+    [{ WATLEV: 2 }, "OBSTRN11"], // partly submerged
+    [{ WATLEV: 3 }, "OBSTRN01"], // always under water
+    [{ WATLEV: 4 }, "OBSTRN03"], // covers and uncovers
+    [{ WATLEV: 5 }, "OBSTRN03"], // awash
+  ];
+
+  for (const [attrs, expected] of cases) {
+    test(`OBSTRN ${JSON.stringify(attrs)} → ${expected}`, () => {
+      const matches = hits(withoutShallow, "OBSTRN", {
+        ...attrs,
+        ...WATER.unjoined,
+      });
+      expect(icons(matches)).toEqual([expected]);
+    });
+  }
+
+  test("no unsounded obstruction draws DANGER01 or a rock symbol", () => {
+    for (const catobs of [undefined, 1, 5, 6, 10]) {
+      for (const watlev of [undefined, 1, 2, 3, 4, 5]) {
+        for (const water of Object.values(WATER)) {
+          const properties = {
+            ...(catobs === undefined ? {} : { CATOBS: catobs }),
+            ...(watlev === undefined ? {} : { WATLEV: watlev }),
+            ...water,
+          };
+          const drawn = icons(hits(withShallow, "OBSTRN", properties));
+          const label = JSON.stringify(properties);
+          expect(drawn, label).not.toContain("DANGER01");
+          expect(drawn, label).not.toContain("UWTROC03");
+          expect(drawn, label).not.toContain("UWTROC04");
+        }
+      }
+    }
+  });
+
+  test("rocks keep their own symbols", () => {
+    // The OBSTRN change must not reach UWTROC: a rock with no VALSOU is still
+    // UWTROC03/UWTROC04, which is what S-52 and the lua both say.
+    expect(
+      icons(hits(withoutShallow, "UWTROC", { WATLEV: 3, ...WATER.unjoined })),
+    ).toEqual(["UWTROC03"]);
+    expect(
+      icons(hits(withoutShallow, "UWTROC", { WATLEV: 4, ...WATER.unjoined })),
+    ).toEqual(["UWTROC04"]);
+  });
+});
+
 describe("drying heights on awash rocks (deliberate deviation)", () => {
   test("WATLEV 4 rock keeps UWTROC04 and its sounding", () => {
     const matches = hits(withoutShallow, "UWTROC", {

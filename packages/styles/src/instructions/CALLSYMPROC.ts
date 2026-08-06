@@ -706,11 +706,18 @@ function LITDSN02(config: LayerConfig): Partial<LayerSpecification>[] {
  *   - OBSTRN with VALSOU: shallow → DANGER01, deep → DANGER02
  *   - OBSTRN with CATOBS 6 (foul area): WATLEV 1,2 → OBSTRN11, WATLEV 4,5 → OBSTRN03, else → DANGER01
  *   - OBSTRN without VALSOU: CATOBS 6 → OBSTRN01, WATLEV 1,2 → OBSTRN11,
- *     WATLEV 4,5 → UWTROC04, else → DANGER01
+ *     WATLEV 4,5 → OBSTRN03, else → OBSTRN01
  *
  * The UWTROC branches are gated with `objectClasses` rather than a filter: the
  * two classes are separate source-layers in the tiles and carry no attribute
  * that distinguishes them. See CSPLayerExtras.
+ *
+ * WITHIN EACH CLASS BLOCK THE ICON BRANCHES COME FIRST AND SNDFRM04 LAST.
+ * Array position is draw order: a layer later in the array paints over the
+ * layers before it. A hazard that draws both an icon and its sounding needs
+ * the sounding emitted after the icon, or the icon covers the number that
+ * says how deep the hazard is. Adding a branch to a class block means adding
+ * it above that block's SNDFRM04 entry, not at the end.
  *
  * Line obstructions (Continuation B):
  *   - Isolated danger → ISODGR01 + dotted CHBLK
@@ -749,9 +756,21 @@ export function OBSTRN07(config: LayerConfig): CSPLayer[] {
   ];
 
   /**
-   * The plain obstruction symbol, by CATOBS/WATLEV. Unlike the no-VALSOU
-   * look-up below it defaults to OBSTRN01 rather than DANGER01, because it is
-   * used where S-52 asks for a danger symbol and the user wants a plain one.
+   * The plain obstruction symbol, by CATOBS/WATLEV.
+   *
+   * This is the S-101 OBSTRN07 no-VALSOU ladder verbatim (see
+   * packages/s52/data/.../Rules/OBSTRN07.lua): CATOBS 6 → OBSTRN01,
+   * WATLEV 1,2 → OBSTRN11, WATLEV 4,5 → OBSTRN03, default OBSTRN01. It is
+   * used twice — for the features that have no sounding at all, and for the
+   * deep-hazard deviation below, which needs "the class's ordinary symbol"
+   * where S-52 asks for DANGER02.
+   *
+   * OBSTRN01 is the small circle (an obstruction of unknown depth) and is the
+   * right default: DANGER01, the big filled oval, asserts a hazard whose depth
+   * IS known and is at or above the safety depth, which is precisely what a
+   * feature with no VALSOU does not say. OBSTRN03 rather than UWTROC04 on the
+   * awash arm for the same reason — UWTROC04 is a rock symbol and this is not
+   * a rock.
    */
   const obstructionSymbol: ExpressionSpecification = [
     "case",
@@ -760,7 +779,7 @@ export function OBSTRN07(config: LayerConfig): CSPLayer[] {
     ["in", ["get", "WATLEV"], ["literal", [1, 2]]],
     "OBSTRN11",
     awash as ExpressionSpecification,
-    "UWTROC04",
+    "OBSTRN03",
     "OBSTRN01",
   ];
 
@@ -807,33 +826,6 @@ export function OBSTRN07(config: LayerConfig): CSPLayer[] {
       layout: iconLayout("DANGER01"),
     },
 
-    // Sounding text on rocks.
-    //
-    // DELIBERATE DEVIATION FROM S-52 — drying heights on awash rocks.
-    // S-52 sets SOUNDING = FALSE for the whole WATLEV 4,5 branch above. A
-    // WATLEV 4 rock (covers and uncovers) carries a drying height that Chart 1
-    // K11 shows against the symbol, and losing it costs the mariner the one
-    // number that says how far the rock dries. We therefore keep UWTROC04 for
-    // WATLEV 4 but still draw its sounding; WATLEV 5 (awash at chart datum,
-    // where the value is 0 by definition) keeps the S-52 suppression.
-    {
-      objectClasses: ["UWTROC"],
-      ...SNDFRM04(config, "VALSOU", [
-        "all",
-        ["==", ["geometry-type"], "Point"],
-        notDanger,
-        ["has", "VALSOU"],
-        [
-          "!",
-          [
-            "all",
-            ["<=", ["get", "VALSOU"], safetyDepth],
-            ["==", ["get", "WATLEV"], 5],
-          ],
-        ],
-      ]),
-    },
-
     // No VALSOU → WATLEV 3 (always under water) → UWTROC03, else UWTROC04.
     // UWTROC03 is the dangerous-rock symbol (rock with dots); UWTROC04 is the
     // rock-awash symbol, and S-52 uses it as the default for every other
@@ -868,6 +860,36 @@ export function OBSTRN07(config: LayerConfig): CSPLayer[] {
         [">", ["get", "VALSOU"], safetyDepth],
       ],
       layout: iconLayout(rockSymbol),
+    },
+
+    // Sounding text on rocks. LAST in the UWTROC block, after every branch
+    // that draws an icon: a sounding emitted before its icon is painted over
+    // by it, which is what the deep rocks above did while this entry sat in
+    // the middle of the block.
+    //
+    // DELIBERATE DEVIATION FROM S-52 — drying heights on awash rocks.
+    // S-52 sets SOUNDING = FALSE for the whole WATLEV 4,5 branch above. A
+    // WATLEV 4 rock (covers and uncovers) carries a drying height that Chart 1
+    // K11 shows against the symbol, and losing it costs the mariner the one
+    // number that says how far the rock dries. We therefore keep UWTROC04 for
+    // WATLEV 4 but still draw its sounding; WATLEV 5 (awash at chart datum,
+    // where the value is 0 by definition) keeps the S-52 suppression.
+    {
+      objectClasses: ["UWTROC"],
+      ...SNDFRM04(config, "VALSOU", [
+        "all",
+        ["==", ["geometry-type"], "Point"],
+        notDanger,
+        ["has", "VALSOU"],
+        [
+          "!",
+          [
+            "all",
+            ["<=", ["get", "VALSOU"], safetyDepth],
+            ["==", ["get", "WATLEV"], 5],
+          ],
+        ],
+      ]),
     },
 
     // ── OBSTRN (obstruction) ──
@@ -933,18 +955,19 @@ export function OBSTRN07(config: LayerConfig): CSPLayer[] {
       layout: iconLayout(obstructionSymbol),
     },
 
-    // Sounding text on point obstructions with VALSOU (SNDFRM04)
-    {
-      objectClasses: ["OBSTRN"],
-      ...SNDFRM04(config, "VALSOU", [
-        "all",
-        ["==", ["geometry-type"], "Point"],
-        notDanger,
-        ["has", "VALSOU"],
-      ]),
-    },
-
-    // No VALSOU, not isolated danger → symbol by CATOBS/WATLEV
+    // No VALSOU, not isolated danger → symbol by CATOBS/WATLEV.
+    //
+    // The ladder is `obstructionSymbol`, which is the S-101 OBSTRN07 lua's
+    // no-VALSOU ladder: CATOBS 6 → OBSTRN01, WATLEV 1,2 → OBSTRN11,
+    // WATLEV 4,5 → OBSTRN03, default OBSTRN01.
+    //
+    // This used to default to DANGER01 with UWTROC04 on the awash arm, which
+    // is what put the big filled danger oval on 2,389 of Puget Sound's 2,455
+    // unsounded snags and stumps. DANGER01 states a hazard whose least depth
+    // is KNOWN and is at or above the safety depth; a feature with no VALSOU
+    // states no such thing, and Coastal Explorer draws the small OBSTRN01
+    // circle for exactly these. (Round 3's note that the pre-existing OBSTRN
+    // divergences were being left alone no longer holds for this branch.)
     {
       objectClasses: ["OBSTRN"],
       type: "symbol",
@@ -954,20 +977,19 @@ export function OBSTRN07(config: LayerConfig): CSPLayer[] {
         notDanger,
         ["!", ["has", "VALSOU"]],
       ],
-      layout: iconLayout([
-        "case",
-        // CATOBS 6 (foul area) → OBSTRN01
-        ["==", ["get", "CATOBS"], 6],
-        "OBSTRN01",
-        // WATLEV 1,2 (dry/partly submerged) → OBSTRN11
-        ["in", ["get", "WATLEV"], ["literal", [1, 2]]],
-        "OBSTRN11",
-        // WATLEV 4,5 (covers/uncovers, awash) → UWTROC04
-        ["in", ["get", "WATLEV"], ["literal", [4, 5]]],
-        "UWTROC04",
-        // Default → DANGER01
-        "DANGER01",
-      ] as ExpressionSpecification),
+      layout: iconLayout(obstructionSymbol),
+    },
+
+    // Sounding text on point obstructions with VALSOU (SNDFRM04). LAST in the
+    // OBSTRN block, after every branch that draws an icon; see the header.
+    {
+      objectClasses: ["OBSTRN"],
+      ...SNDFRM04(config, "VALSOU", [
+        "all",
+        ["==", ["geometry-type"], "Point"],
+        notDanger,
+        ["has", "VALSOU"],
+      ]),
     },
 
     // ─── Line obstructions (Continuation B) ───

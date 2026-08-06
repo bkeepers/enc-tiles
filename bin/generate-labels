@@ -211,6 +211,15 @@ for (const group of groups.values()) {
   if (!group.best.anchor) continue;
   features.push({
     type: "Feature",
+    // NOT a property: tippecanoe reads this member off the Feature itself. It
+    // drops a fraction of POINT features at every zoom below the maxzoom
+    // (-r/--drop-rate, default 2.5), and there is exactly ONE label anchor per
+    // named area -- drop it and the area loses its name at that zoom with
+    // nothing to fall back on. --drop-rate is a whole-run knob, so turning it
+    // off would also stop the SOUNDG thinning that keeps small-scale tiles
+    // readable; a per-feature `minzoom` is the only exemption tippecanoe
+    // scopes. See bin/s57-to-tiles step 4.
+    tippecanoe: { minzoom: 0 },
     geometry: { type: "Point", coordinates: group.best.anchor },
     properties: {
       OBJNAM: group.name,
