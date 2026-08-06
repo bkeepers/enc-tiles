@@ -239,15 +239,17 @@ function isFaintOrObscured(litvis) {
 // carries. Past the band maxzoom the copies share the band-maxzoom tile; see
 // the header.
 //
-// Bounded by the publication ceiling when the caller passes one. A copy above
-// the ceiling would be stamped into a tile the national join deletes, so it is
-// not written -- and, more to the point, `_zmax` must not PROMISE it: the style
-// matches `_z` exactly against `min(floor(zoom), _zmax)`, so a `_zmax` naming a
-// copy that did not survive is a zoom at which nothing draws.
-const topZoom = Math.min(
-  maxzoom + OVERZOOM_LEVELS,
-  topZoomOption ?? Number.POSITIVE_INFINITY,
-);
+// Bounded by the publication ceiling when the caller passes one -- but only
+// for bands whose own maxzoom exceeds it. A copy for level z is stamped into
+// the tile at min(z, maxzoom), so it survives the national join exactly when
+// that tile does: a band at or under the ceiling keeps every overzoom copy
+// (they all ride the band-maxzoom tile, which survives), while a band above
+// it loses everything stamped past the ceiling, and `_zmax` must not PROMISE
+// those copies: the style matches `_z` exactly against
+// `min(floor(zoom), _zmax)`, so a `_zmax` naming a copy that did not survive
+// is a zoom at which nothing draws.
+const ceiling = topZoomOption ?? Number.POSITIVE_INFINITY;
+const topZoom = maxzoom <= ceiling ? maxzoom + OVERZOOM_LEVELS : ceiling;
 
 // The zooms whose copy of an `mm`-sized figure is small enough to be worth
 // writing, shallowest first. The size shrinks by half per level, so the cap can

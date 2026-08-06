@@ -215,8 +215,13 @@ describe("the publication ceiling", () => {
       const promised = [...new Set(copies.map((f) => f.properties._zmax))];
       expect(promised, "one _zmax for the whole cell").toHaveLength(1);
       const zmax = promised[0];
+      // The ceiling only binds a band whose own maxzoom exceeds it: everyone
+      // else's overzoom copies ride the band-maxzoom tile, which survives the
+      // join, so capping them would throw away sizing the archive still holds.
       expect(zmax).toBe(
-        Math.min(maxzoom + OVERZOOM_LEVELS, PUBLICATION_MAXZOOM),
+        maxzoom <= PUBLICATION_MAXZOOM
+          ? maxzoom + OVERZOOM_LEVELS
+          : PUBLICATION_MAXZOOM,
       );
 
       // The style's own selection, run at every zoom the layer draws at:
