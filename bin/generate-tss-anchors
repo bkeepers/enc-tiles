@@ -67,7 +67,22 @@
 // zoom and have every tile make the same decision: a per-tile view of the
 // layer cannot know how many arrows a leg has, and MapLibre's own symbol
 // collision is per tile too. STATION is stable across tiles and zooms, so
-// `STATION % n == 0` thins evenly and identically everywhere.
+// `STATION % n == 0` thins evenly WITHIN ONE CELL'S LEG and identically in
+// every tile that leg's anchors land in.
+//
+// Two things it deliberately does not do:
+//
+//   * It does not thin evenly across a cell boundary. The script runs per
+//     cell (see "What this does NOT fix" below), so a lane crossing one is two
+//     legs, each numbered from 0 along its own extent. `STATION % n` keeps a
+//     different subset of each, and the kept arrows are evenly spaced only
+//     within a cell's share of the lane.
+//   * It does not disambiguate anchors for a consumer keying on
+//     (ORIENT, AREA). Those two are per-GROUP and identical on every anchor of
+//     a leg, and the per-cell duplication above means two groups can carry the
+//     same ORIENT and near-identical AREA. STATION separates the anchors
+//     within one group, not one group's anchors from another's; a consumer
+//     needing a stable per-anchor identity has to key on the geometry.
 //
 // A long leg gets more than one anchor. A single arrow in the middle of a lane
 // that runs the length of a strait tells the mariner nothing at either end, so
@@ -553,31 +568,59 @@ function axisExtent(projected) {
 }
 
 /**
- * The members of a group wide enough to carry an arrow: the "bearers".
+ * The members of a group that carry the run of arrows: the "bearers".
  *
- * A quilt clip that grazes a lane leaves a sliver attached to it. The sliver
+ * A quilt clip that grazes a lane leaves a crumb attached to it. The crumb
  * touches the lane and carries the lane's ORIENT, so it is part of the group
  * -- correctly, it is part of the lane's area -- but it is not part of the
  * lane's BODY, and two things went wrong when it was treated as if it were:
  *
- *   * the group's along-axis extent stretched over the sliver's end, so
+ *   * the group's along-axis extent stretched over the crumb's end, so
  *     stations were laid out over ground the lane does not cover, and
- *   * at such a station the sliver was the only member with any interior, so
- *     it owned the station outright and the arrow landed at the sliver's
+ *   * at such a station the crumb was the only member with any interior, so
+ *     it owned the station outright and the arrow landed at the crumb's
  *     centre -- measured at 82.5% of the lane's half-width off the lane's
  *     own centre line.
  *
- * Bearers are the members whose ACROSS-axis extent is at least this fraction
- * of the widest member's. The test is relative because lane widths are not
- * comparable between a strait and a harbour approach, and it is on the across
- * extent because that is what a sliver lacks: a stub cut off the END of a lane
- * is full width and stays a bearer, which is right -- it is lane.
+ * A member is excluded only when it is BOTH:
+ *
+ *   * narrow -- its ACROSS-axis extent is under SLIVER_WIDTH_FRACTION of the
+ *     widest member's, and
+ *   * short -- its ALONG-axis extent is under one ANCHOR_SPACING_NM, i.e. it
+ *     is not long enough to have wanted an anchor of its own.
+ *
+ * Width alone is not enough, and testing it alone was wrong. A lane that
+ * TAPERS -- narrows and carries on, which is what a lane does where it feeds a
+ * precautionary area or a harbour approach -- is narrow by this measure for
+ * its whole length, so a width-only test threw the continuation off the
+ * station axis and the tail of the lane lost every one of its arrows. An 18 nm
+ * continuation at 15% of the lane's width is 18 nm of traffic lane with no
+ * direction arrow on it. A clip crumb fails BOTH conditions and is still
+ * excluded; a tapering lane fails only the width one and keeps its arrows.
+ *
+ * The relative width test is why the along-axis condition is needed rather
+ * than an absolute width: lane widths are not comparable between a strait and
+ * a harbour approach, so "narrow" can only ever mean "narrow for this group",
+ * and a group whose real shape is a taper has no wide member to be narrow
+ * against. Length is the thing a crumb cannot fake.
  *
  * The widest member is always a bearer, so the set is never empty. Non-bearers
- * still count towards the group's AREA and its mean ORIENT; they just never
- * place an arrow.
+ * still count towards the group's AREA, its mean ORIENT, and -- since the span
+ * union sees every member -- the cross-section an anchor is centred in; they
+ * just do not stretch the axis the stations are laid out along.
  */
 const SLIVER_WIDTH_FRACTION = 0.2;
+
+/**
+ * Slack on the width floor, as a fraction of it.
+ *
+ * The comparison runs on ROTATED and cos(latitude)-SCALED coordinates, so a
+ * member built as exactly SLIVER_WIDTH_FRACTION of the widest lands a few ulps
+ * either side of the floor depending on the group's bearing and latitude.
+ * Without the slack an exactly-at-the-floor member is a coin toss, and the
+ * documented "at least this fraction" is inclusive.
+ */
+const SLIVER_FLOOR_EPSILON = 1e-9;
 
 function bearingMembers(projected) {
   const extents = projected.map(polygonExtent);
@@ -585,10 +628,14 @@ function bearingMembers(projected) {
   for (const { sMin, sMax } of extents) {
     if (Number.isFinite(sMin) && sMax - sMin > widest) widest = sMax - sMin;
   }
-  const floor = widest * SLIVER_WIDTH_FRACTION;
-  const bearers = projected.filter(
-    (_, index) => extents[index].sMax - extents[index].sMin >= floor,
-  );
+  const floor = widest * SLIVER_WIDTH_FRACTION * (1 - SLIVER_FLOOR_EPSILON);
+  const bearers = projected.filter((_, index) => {
+    const { sMin, sMax, tMin, tMax } = extents[index];
+    if (!Number.isFinite(sMin) || !Number.isFinite(tMin)) return false;
+    const narrow = sMax - sMin < floor;
+    const short = (tMax - tMin) / DEGREES_PER_NM < ANCHOR_SPACING_NM;
+    return !(narrow && short);
+  });
   return bearers.length > 0 ? bearers : projected;
 }
 
@@ -657,10 +704,20 @@ for (const members of buckets.values()) {
       member.polygon.map((ring) => ring.map(forward)),
     );
 
-    // Stations are laid out over, and placed inside, the members that are
-    // actually the lane's body; a sliver hanging off it neither extends the
-    // run of arrows nor moves one.
-    const bearers = bearingMembers(projected);
+    // Stations are laid out over the members that are actually the lane's
+    // body, so a crumb hanging off it does not extend the run of arrows.
+    //
+    // With no ORIENT there is no lane axis: `frame` falls back to north-up, so
+    // "across-axis extent" is just the member's longitude span and means
+    // nothing about the group's shape. On a roundabout or a precautionary area
+    // -- exactly the classes that carry no ORIENT -- that measure can exclude
+    // the member the group mostly IS: an east-west connector at the end of a
+    // north-south lane is the wider of the two in longitude, so the lane was
+    // dropped and the group's one anchor landed 11 nm away, inside the
+    // connector. Skip the test for the whole group instead, which is what this
+    // did before the sliver rule existed.
+    const bearers =
+      orient === undefined ? projected : bearingMembers(projected);
     const extent = axisExtent(bearers);
     if (majorAxisNm(extent) < MIN_LEG_LENGTH_NM) {
       slivers++;
@@ -673,7 +730,16 @@ for (const members of buckets.values()) {
         ? 1
         : Math.max(1, Math.round(axisLengthNm(extent) / ANCHOR_SPACING_NM));
 
-    const { points, dropped } = anchorStations(bearers, extent, count);
+    // Stations come from the bearers' extent but are MEASURED against every
+    // member. The span union in `widestSpanAt` exists to put a lengthwise-split
+    // lane's cross-section back together before the anchor is centred in it,
+    // and handing it bearers only defeated that for exactly the split it was
+    // written for: where a cell boundary runs along a lane and leaves an 85/15
+    // pair of strips, the 15% strip is a non-bearer, the union sees one strip,
+    // and the anchor centres on the 85% strip's own middle rather than the
+    // lane's. A non-bearer is still lane; it just does not get a say in where
+    // the stations are.
+    const { points, dropped } = anchorStations(projected, extent, count);
     droppedStations += dropped;
 
     for (const { point, index } of points) {

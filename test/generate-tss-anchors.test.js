@@ -184,6 +184,29 @@ describe("one anchor per lane leg", () => {
     expect(features[0].properties).not.toHaveProperty("ORIENT");
     expect(features[0].properties.CLASS).toBe("TSSRON");
   });
+
+  test("with no ORIENT the sliver rule is skipped, not applied north-up", () => {
+    // With no ORIENT there is no lane axis, so `frame` falls back to north-up
+    // and "across-axis extent" is just the member's longitude span. That says
+    // nothing about the group's shape, and on the classes that carry no ORIENT
+    // it can throw out the member the group mostly IS: here a 24 nm east-west
+    // connector is the wider of the two in longitude, so the north-south lane
+    // it hangs off -- the larger part by area -- counted as a sliver, and the
+    // group's one anchor left the lane entirely and landed 11 nm away in the
+    // middle of the connector.
+    const features = run({
+      TSSRON: [
+        box({}, 0, 0, 0.03, 0.1), // the lane, north-south, the larger by area
+        box({}, 0, 0.1, 0.4, 0.105), // an east-west connector off its end
+      ],
+    });
+
+    expect(features).toHaveLength(1);
+    const [longitude, latitude] = features[0].geometry.coordinates;
+    // Mid-span of the LANE at the midpoint of the whole group's extent.
+    expect(longitude).toBeCloseTo(0.015, 6);
+    expect(latitude).toBeCloseTo(0.0525, 6);
+  });
 });
 
 describe("long legs repeat their arrow", () => {
@@ -374,22 +397,27 @@ describe("stations that land in a gap", () => {
 });
 
 describe("anchors sit on the lane's centre line", () => {
-  test("a sliver alongside the lane owns no station and moves no anchor", () => {
-    // The measured defect: a quilt clip grazing a lane leaves a narrow sliver
-    // attached to it. The sliver touches and carries the lane's ORIENT, so it
+  test("a clip crumb off the lane's end stretches no axis and moves no anchor", () => {
+    // The measured defect: a quilt clip grazing a lane's corner leaves a crumb
+    // attached to it. The crumb touches and carries the lane's ORIENT, so it
     // joins the group -- and it used to be scanned as an equal member, so
-    // (a) the group's axis stretched over the sliver's end and stations were
-    // laid out past the lane, and (b) at such a station the sliver was the
-    // only member with any interior, so the arrow landed at the SLIVER's
+    // (a) the group's axis stretched over the crumb's end and stations were
+    // laid out past the lane, and (b) at such a station the crumb was the
+    // only member with any interior, so the arrow landed at the CRUMB's
     // centre: 82.5% of the lane's half-width off the lane's own centre line.
+    //
+    // The crumb is narrow (10% of the lane's width) AND short (6 nm, under one
+    // station spacing), which is what makes it a crumb rather than a taper --
+    // a member that is merely narrow is a lane that narrows, and keeps its
+    // arrows. See "a tapering continuation keeps its arrows" below.
     const features = run({
       TSSLPT: [
         box({ ORIENT: 0 }, 0, 0, 0.005, 0.5), // the lane: 30 nm x 0.005
-        box({ ORIENT: 0 }, 0.005, 0.1, 0.0055, 0.6), // a 10%-wide sliver
+        box({ ORIENT: 0 }, 0.005, 0.5, 0.0055, 0.6), // a 10%-wide, 6 nm crumb
       ],
     });
 
-    // Four, from the LANE's 30 nm -- not five from the 36 nm the sliver's end
+    // Four, from the LANE's 30 nm -- not five from the 36 nm the crumb's end
     // used to stretch the axis to.
     expect(features).toHaveLength(4);
     for (const feature of features) {
@@ -397,11 +425,75 @@ describe("anchors sit on the lane's centre line", () => {
       expect(longitude).toBeCloseTo(0.0025, 6);
       expect(latitude).toBeLessThan(0.5);
     }
-    // The sliver is still part of the leg's area, it just places no arrow.
+    // The crumb is still part of the leg's area, it just places no arrow.
     expect(features[0].properties.AREA).toBeCloseTo(
-      0.005 * 0.5 + 0.0005 * 0.5,
+      0.005 * 0.5 + 0.0005 * 0.1,
       6,
     );
+  });
+
+  test("a tapering continuation keeps its arrows", () => {
+    // A lane that narrows and carries on -- into a precautionary area, or up a
+    // harbour approach -- is narrow for its whole length, so the width-only
+    // sliver test threw the continuation off the station axis and the tail of
+    // the lane drew no arrow at all. 18 nm of traffic lane with nothing on it.
+    const features = run({
+      TSSLPT: [
+        box({ ORIENT: 0 }, 0, 0, 0.01, 0.3), // the lane: 18 nm x 0.01
+        box({ ORIENT: 0 }, 0.00425, 0.3, 0.00575, 0.6), // 15% wide, 18 nm on
+      ],
+    });
+
+    // 36 nm of lane at one anchor per ~8 nm, laid out over the whole of it.
+    expect(features).toHaveLength(5);
+    const inTheTail = features.filter((f) => f.geometry.coordinates[1] > 0.31);
+    expect(inTheTail).toHaveLength(2);
+    // Both parts are centred on the same line, so every anchor is.
+    for (const feature of features) {
+      expect(feature.geometry.coordinates[0]).toBeCloseTo(0.005, 6);
+    }
+  });
+
+  test("an exactly-at-the-floor member is a bearer", () => {
+    // The one fixture NOT at the equator, deliberately: the width floor is
+    // documented as "at least this fraction", but the comparison runs on
+    // coordinates the frame has already rotated and scaled by cos(latitude),
+    // and that scaling does not distribute exactly over a multiply. At 34 N a
+    // stub built as exactly 20% of the lane's width comes out of the frame ONE
+    // ULP under 20% of it and a bare `>=` throws it out -- which here is the
+    // difference between four anchors and three, and on a real chart is the
+    // last stub of a lane silently losing its arrow on some cells and not
+    // others.
+    const features = run({
+      TSSLPT: [
+        box({ ORIENT: 0 }, 0, 34, 0.01, 34.4), // 24 nm x 0.01
+        box({ ORIENT: 0 }, 0.004, 34.4, 0.006, 34.5), // 6 nm at exactly 20%
+      ],
+    });
+
+    // 30 nm of axis, one anchor per ~8 nm. Without the stub the axis is 24 nm
+    // and rounds to three.
+    expect(features).toHaveLength(4);
+    const latitudes = features.map((f) => f.geometry.coordinates[1]);
+    expect(Math.max(...latitudes)).toBeGreaterThan(34.4);
+  });
+
+  test("a lengthwise 85/15 split centres on the lane, not the wide strip", () => {
+    // The span union in `widestSpanAt` exists to put a lengthwise-split lane's
+    // cross-section back together before the anchor is centred in it. Handing
+    // it bearers only defeated that for exactly the split it was written for:
+    // the 15% strip is a non-bearer, the union sees one strip, and the anchor
+    // centres on the 85% strip's own middle -- 0.00425 rather than the lane's
+    // own 0.005.
+    const features = run({
+      TSSLPT: [
+        box({ ORIENT: 0 }, 0, 0, 0.0085, 0.1), // 85% of the width
+        box({ ORIENT: 0 }, 0.0085, 0, 0.01, 0.1), // 15% of it, 6 nm long
+      ],
+    });
+
+    expect(features).toHaveLength(1);
+    expect(features[0].geometry.coordinates[0]).toBeCloseTo(0.005, 6);
   });
 
   test("a lane split ALONG its length is centred on the lane, not one half", () => {
