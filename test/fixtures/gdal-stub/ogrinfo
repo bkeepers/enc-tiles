@@ -60,6 +60,18 @@ case "$args" in
         emit_count "${STUB_HAS_MASK:-1}"
         exit 0
         ;;
+      *"pragma_table_info"*)
+        # Schema-as-data read quilt_columns uses. One row per column, the
+        # exact shape real GDAL prints for a sqlite-dialect SELECT. fid and
+        # geom rows included deliberately: the caller must exclude them.
+        i=0
+        for c in fid geom ${STUB_COLUMNS:-OBJNAM INTU}; do
+          echo "OGRFeature(SELECT):$i"
+          echo "  name (String) = $c"
+          i=$((i + 1))
+        done
+        exit 0
+        ;;
       *"DISTINCT QFLOOR"*)
         i=0
         for f in ${STUB_FINER_FLOORS:-}; do
@@ -110,6 +122,14 @@ case "$args" in
     esac
     ;;
   "-so "*)
+    # Real GDAL without -q prints an "INFO: Open of ..." banner before the
+    # summary — the line that parsed as a column named INFO and killed every
+    # copy INSERT. Emitted here so any future summary-parsing regresses
+    # loudly in the suite.
+    case " $* " in
+      *" -q "*) : ;;
+      *) echo "INFO: Open of \`$2' using driver \`GPKG' successful." ;;
+    esac
     # The layer summary the rung's mid-latitude and the copy ladder's column
     # list are read off. Anchored at the start of the argument line: a tmpdir
     # name is free to contain "-so".

@@ -385,16 +385,19 @@ fi
 # off the layer definition rather than the SQLite schema so it is GDAL that
 # decides what an attribute is.
 quilt_columns() {
-  # No -q: GDAL 3.13 suppresses the whole -so summary under it (only "Layer
-  # name:" survives), so a quiet read returns NO columns and the copy INSERT
-  # silently carries nothing but geometry — every ladder and fallback copy
-  # loses every attribute (gray depth areas, picks with nothing but the
-  # post-partition CSCALE stamp). Second instance of the trap quilt_mid_lat
-  # hit (e86f493); the gdal-stub mirrors the -q behaviour so a -q here fails
-  # the suite.
-  ogrinfo -so "$gpkg" "$1" 2>/dev/null |
-    sed -n 's/^\([A-Za-z_][A-Za-z0-9_]*\): [A-Za-z].*$/\1/p' |
-    grep -vxE 'Geometry|_QZMIN|_QZMAX|_QFALL' |
+  # pragma_table_info through the SQLite dialect, NOT a parse of ogrinfo's
+  # summary. The summary is a formatted report and both of its dressings have
+  # already produced silent corruption: under -q GDAL 3.13 prints no summary
+  # at all (every copy inserted as bare geometry, NULL in every attribute),
+  # and without -q the "INFO: Open of ..." banner line parses as a column
+  # named INFO (every copy INSERT dies on the nonexistent column, every cell
+  # skipped). A GPKG is SQLite, so the schema is queryable as data — one row
+  # per column, no prose to mis-parse. fid/geom and the partition's own
+  # stamps are excluded.
+  ogrinfo -q "$gpkg" -dialect sqlite \
+    -sql "SELECT name FROM pragma_table_info('$1')" 2>/dev/null |
+    sed -n 's/^ *name (String) = //p' |
+    grep -vxE 'fid|geom|_QZMIN|_QZMAX|_QFALL' |
     awk '{ printf "%s\"%s\"", (NR > 1 ? ", " : ""), $0 }'
 }
 
