@@ -385,7 +385,14 @@ fi
 # off the layer definition rather than the SQLite schema so it is GDAL that
 # decides what an attribute is.
 quilt_columns() {
-  ogrinfo -so -q "$gpkg" "$1" 2>/dev/null |
+  # No -q: GDAL 3.13 suppresses the whole -so summary under it (only "Layer
+  # name:" survives), so a quiet read returns NO columns and the copy INSERT
+  # silently carries nothing but geometry — every ladder and fallback copy
+  # loses every attribute (gray depth areas, picks with nothing but the
+  # post-partition CSCALE stamp). Second instance of the trap quilt_mid_lat
+  # hit (e86f493); the gdal-stub mirrors the -q behaviour so a -q here fails
+  # the suite.
+  ogrinfo -so "$gpkg" "$1" 2>/dev/null |
     sed -n 's/^\([A-Za-z_][A-Za-z0-9_]*\): [A-Za-z].*$/\1/p' |
     grep -vxE 'Geometry|_QZMIN|_QZMAX|_QFALL' |
     awk '{ printf "%s\"%s\"", (NR > 1 ? ", " : ""), $0 }'

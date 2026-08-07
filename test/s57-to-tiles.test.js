@@ -309,6 +309,26 @@ describe("the copy ladder", () => {
     }
   });
 
+  test("copies CARRY the table's attribute columns, not geometry alone", () => {
+    const { sql } = run(THREE_RUNG_CELL);
+
+    // The column list comes from `ogrinfo -so` WITHOUT -q: GDAL 3.13 prints
+    // nothing under -q (the stub mirrors that), and an empty list once
+    // shipped — every ladder and fallback copy inserted as bare geometry,
+    // NULL in every attribute: gray depth areas, picks with nothing but the
+    // post-partition CSCALE stamp. The stub's default column set is
+    // OBJNAM/INTU; every copy INSERT must enumerate them.
+    const inserts = sql.match(
+      /INSERT INTO "DEPARE"[\s\S]*?WHERE _QZMIN IS NULL AND _QFALL IS NULL/g,
+    );
+    expect(inserts).not.toBeNull();
+    for (const insert of inserts) {
+      expect(insert).toContain('"OBJNAM"');
+      expect(insert).toContain('"INTU"');
+      expect(insert).toMatch(/INSERT INTO "DEPARE" \("OBJNAM", "INTU", geom/);
+    }
+  });
+
   test("copies are cut from the original, not from the copy below", () => {
     const { sql } = run(THREE_RUNG_CELL);
 
