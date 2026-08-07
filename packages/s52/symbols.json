@@ -5497,5 +5497,464 @@
       11.5,
       0.5
     ]
+  },
+  "LM_ACHARE51": {
+    "description": "boundary of an anchorage area (marks)",
+    "width": 105,
+    "height": 21,
+    "offset": [
+      -0.5,
+      0.5
+    ]
+  },
+  "LM_ACHRES51": {
+    "description": "boundary of an area where anchoring is prohibited or restricted (marks)",
+    "width": 93,
+    "height": 22,
+    "offset": [
+      -0.5,
+      0
+    ]
+  },
+  "LM_ADMARE01": {
+    "description": "jurisdiction boundary (marks)",
+    "width": 1,
+    "height": 13,
+    "offset": [
+      -0.5,
+      0.5
+    ]
+  },
+  "LM_ARCSLN01": {
+    "description": "boundary of archipelagic sea lane (marks)",
+    "width": 12,
+    "height": 12,
+    "offset": [
+      0,
+      0
+    ]
+  },
+  "LM_CBLARE51": {
+    "description": "boundary of a submarine cable area (marks)",
+    "width": 105,
+    "height": 24,
+    "offset": [
+      -0.5,
+      0
+    ]
+  },
+  "LM_CBLSUB06": {
+    "description": "submarine cable (marks)",
+    "width": 69,
+    "height": 24,
+    "offset": [
+      0.5,
+      0
+    ]
+  },
+  "LM_CHCRDEL1": {
+    "description": "this line has been deleted by a manual update (marks)",
+    "width": 32,
+    "height": 32,
+    "offset": [
+      0,
+      0
+    ]
+  },
+  "LM_CHCRID01": {
+    "description": "this line has been manually updated (marks)",
+    "width": 13,
+    "height": 13,
+    "offset": [
+      0.5,
+      0.5
+    ]
+  },
+  "LM_CTNARE51": {
+    "description": "boundary of area with a specific caution (marks)",
+    "width": 105,
+    "height": 26,
+    "offset": [
+      -0.5,
+      0
+    ]
+  },
+  "LM_CTYARE51": {
+    "description": "boundary of area to be navigated with caution (marks)",
+    "width": 14,
+    "height": 14,
+    "offset": [
+      0,
+      0
+    ]
+  },
+  "LM_CURENT01": {
+    "description": "non-tidal current (marks)",
+    "width": 35,
+    "height": 9,
+    "offset": [
+      -0.5,
+      0.5
+    ]
+  },
+  "LM_DWLDEF01": {
+    "description": "deep water route centreline, direction not defined in the data (marks)",
+    "width": 76,
+    "height": 24,
+    "offset": [
+      0,
+      0
+    ]
+  },
+  "LM_DWRTCL05": {
+    "description": "two-way deep water route centreline, not based on fixed marks (marks)",
+    "width": 74,
+    "height": 24,
+    "offset": [
+      0,
+      0
+    ]
+  },
+  "LM_DWRTCL06": {
+    "description": "two-way deep water route centreline, based on fixed marks (marks)",
+    "width": 74,
+    "height": 24,
+    "offset": [
+      0,
+      0
+    ]
+  },
+  "LM_DWRTCL07": {
+    "description": "one-way deep water route centreline, not based on fixed marks (marks)",
+    "width": 61,
+    "height": 24,
+    "offset": [
+      -0.5,
+      0
+    ]
+  },
+  "LM_DWRTCL08": {
+    "description": "one-way deep water route centreline, based on fixed-marks (marks)",
+    "width": 61,
+    "height": 24,
+    "offset": [
+      -0.5,
+      0
+    ]
+  },
+  "LM_DWRUTE51": {
+    "description": "boundary of a deep water route (marks)",
+    "width": 105,
+    "height": 17,
+    "offset": [
+      -0.5,
+      -0.5
+    ]
+  },
+  "LM_ENTRES51": {
+    "description": "boundary of an area where entry is prohibited or restricted (marks)",
+    "width": 93,
+    "height": 23,
+    "offset": [
+      -0.5,
+      -0.5
+    ]
+  },
+  "LM_ESSARE01": {
+    "description": "boundary of an ESSA or PSSA (marks)",
+    "width": 1,
+    "height": 13,
+    "offset": [
+      -0.5,
+      0.5
+    ]
+  },
+  "LM_FERYRT01": {
+    "description": "ferry route (marks)",
+    "width": 20,
+    "height": 19,
+    "offset": [
+      0,
+      -0.5
+    ]
+  },
+  "LM_FERYRT02": {
+    "description": "cable ferry route (marks)",
+    "width": 20,
+    "height": 19,
+    "offset": [
+      0,
+      -0.5
+    ]
+  },
+  "LM_FSHFAC02": {
+    "description": "fishing stakes (marks)",
+    "width": 1,
+    "height": 13,
+    "offset": [
+      -0.5,
+      0.5
+    ]
+  },
+  "LM_FSHRES51": {
+    "description": "boundary of an area where trawling or fishing is prohibited or restricted (marks)",
+    "width": 93,
+    "height": 21,
+    "offset": [
+      -0.5,
+      -0.5
+    ]
+  },
+  "LM_LOWACC01": {
+    "description": "safety contour of low accuracy in position (marks)",
+    "width": 48,
+    "height": 102,
+    "offset": [
+      0,
+      0
+    ]
+  },
+  "LM_LOWACC21": {
+    "description": "coastline or shoreline construction of low accuracy in position (marks)",
+    "width": 6,
+    "height": 4,
+    "offset": [
+      0,
+      0
+    ]
+  },
+  "LM_LOWACC31": {
+    "description": "area of wrecks or obstructions of low accuracy (marks)",
+    "width": 6,
+    "height": 4,
+    "offset": [
+      0,
+      0
+    ]
+  },
+  "LM_LOWACC41": {
+    "description": "danger line of low accuracy surrounding a foul area (marks)",
+    "width": 6,
+    "height": 4,
+    "offset": [
+      0,
+      0
+    ]
+  },
+  "LM_MARSYS51": {
+    "description": "boundary between IALA-A and IALA-B systems of lateral buoys and beacons (marks)",
+    "width": 63,
+    "height": 13,
+    "offset": [
+      -0.5,
+      -0.5
+    ]
+  },
+  "LM_NAVARE51": {
+    "description": "boundary of a navigation feature such as a fairway, magnetic anomaly, etc. (marks)",
+    "width": 14,
+    "height": 14,
+    "offset": [
+      0,
+      0
+    ]
+  },
+  "LM_NEWOBJ01": {
+    "description": "new object (marks)",
+    "width": 24,
+    "height": 24,
+    "offset": [
+      0,
+      0
+    ]
+  },
+  "LM_NONHODAT": {
+    "description": "boundary of non-HO data (marks)",
+    "width": 13,
+    "height": 24,
+    "offset": [
+      0.5,
+      0
+    ]
+  },
+  "LM_PIPARE51": {
+    "description": "boundary of a submarine pipeline area with potentially dangerous contents (marks)",
+    "width": 105,
+    "height": 14,
+    "offset": [
+      -0.5,
+      0
+    ]
+  },
+  "LM_PIPARE61": {
+    "description": "boundary of a submarine pipeline area with generally non-dangerous contents (marks)",
+    "width": 105,
+    "height": 14,
+    "offset": [
+      -0.5,
+      0
+    ]
+  },
+  "LM_PIPSOL05": {
+    "description": "oil, gas pipeline, submerged or on land (marks)",
+    "width": 8,
+    "height": 8,
+    "offset": [
+      0,
+      0
+    ]
+  },
+  "LM_PIPSOL06": {
+    "description": "water pipeline, sewer, etc. (marks)",
+    "width": 6,
+    "height": 6,
+    "offset": [
+      0,
+      0
+    ]
+  },
+  "LM_PRCARE51": {
+    "description": "boundary of a precautionary area (marks)",
+    "width": 105,
+    "height": 21,
+    "offset": [
+      -0.5,
+      -0.5
+    ]
+  },
+  "LM_QUESMRK1": {
+    "description": "object which is not sufficiently described to be symbolized, or for which no symbol exists in the symbol library (marks)",
+    "width": 10,
+    "height": 18,
+    "offset": [
+      0,
+      0
+    ]
+  },
+  "LM_RCRDEF11": {
+    "description": "regulated recommended route centreline, details not defined (marks)",
+    "width": 90,
+    "height": 21,
+    "offset": [
+      0,
+      0.5
+    ]
+  },
+  "LM_RCRTCL11": {
+    "description": "regulated two-way recommended route centreline, not based on fixed marks (marks)",
+    "width": 54,
+    "height": 21,
+    "offset": [
+      0,
+      0.5
+    ]
+  },
+  "LM_RCRTCL12": {
+    "description": "regulated one-way recommended route centreline, not based on fixed marks (marks)",
+    "width": 32,
+    "height": 21,
+    "offset": [
+      0,
+      0.5
+    ]
+  },
+  "LM_RCRTCL13": {
+    "description": "regulated two-way recommended route centreline, based on fixed-marks (marks)",
+    "width": 54,
+    "height": 21,
+    "offset": [
+      0,
+      0.5
+    ]
+  },
+  "LM_RCRTCL14": {
+    "description": "regulated one-way recommended route centreline, based on fixed marks (marks)",
+    "width": 32,
+    "height": 21,
+    "offset": [
+      0,
+      0.5
+    ]
+  },
+  "LM_RECDEF02": {
+    "description": "non-regulated recommended track, direction not defined in data (marks)",
+    "width": 30,
+    "height": 18,
+    "offset": [
+      0,
+      0
+    ]
+  },
+  "LM_RECTRC09": {
+    "description": "non-regulated recommended two-way track, not based on fixed marks (marks)",
+    "width": 30,
+    "height": 13,
+    "offset": [
+      0,
+      -0.5
+    ]
+  },
+  "LM_RECTRC10": {
+    "description": "non-regulated recommended two-way track, based on fixed-marks (marks)",
+    "width": 30,
+    "height": 13,
+    "offset": [
+      0,
+      -0.5
+    ]
+  },
+  "LM_RECTRC11": {
+    "description": "non-regulated recommended one-way track, not based on fixed marks (marks)",
+    "width": 9,
+    "height": 13,
+    "offset": [
+      0.5,
+      -0.5
+    ]
+  },
+  "LM_RECTRC12": {
+    "description": "non-regulated recommended one-way track, based on fixed marks (marks)",
+    "width": 9,
+    "height": 13,
+    "offset": [
+      0.5,
+      -0.5
+    ]
+  },
+  "LM_RESARE51": {
+    "description": "boundary of a restricted area (marks)",
+    "width": 2,
+    "height": 14,
+    "offset": [
+      0,
+      0
+    ]
+  },
+  "LM_TIDINF51": {
+    "description": "boundary of an area for which there is tidal information (marks)",
+    "width": 107,
+    "height": 14,
+    "offset": [
+      -0.5,
+      0
+    ]
+  },
+  "LM_CHRVID02": {
+    "description": "This object has been inserted or modified by an automatic update (marks)",
+    "width": 16,
+    "height": 16,
+    "offset": [
+      0,
+      0
+    ]
+  },
+  "LM_CHRVDEL2": {
+    "description": "This object has been deleted by an automatic update (marks)",
+    "width": 19,
+    "height": 19,
+    "offset": [
+      0.5,
+      0.5
+    ]
   }
 }

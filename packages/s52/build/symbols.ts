@@ -4,7 +4,14 @@ import { fileURLToPath } from "url";
 import { JSDOM } from "jsdom";
 import { parse } from "css";
 
-const mmToPx = (mm) => Math.round(mm * 3.7795275591);
+/**
+ * CSS pixels per millimetre at 96 dpi — the scale every sprite is rasterized
+ * at, and therefore the scale the generated style has to draw a line style at
+ * for its marks and its dash schedule to agree with each other.
+ */
+export const PX_PER_MM = 3.7795275591;
+
+const mmToPx = (mm) => Math.round(mm * PX_PER_MM);
 
 // Anchored to the package rather than to process.cwd(): `vite build` runs with
 // the package as its working directory, but the test runner and any standalone
@@ -465,6 +472,357 @@ export function lineStyleGeometry(name) {
   return { length, top, bottom, body };
 }
 
+/** Millimetre tolerance for "these two dash positions are the same". */
+const DASH_EPSILON = 1e-6;
+
+/**
+ * One `ls:lineStyle` part's dash schedule as MapLibre wants to read it:
+ * alternating run lengths (dash, gap, dash, gap, …) in millimetres, summing to
+ * the repeat interval — or `null` for a solid pen.
+ *
+ * Four things S-101 does that `line-dasharray` cannot express directly:
+ *
+ * 1. A part with NO `<dash>` at all is a solid pen (that is how
+ *    `lineStyleGeometry` has always drawn it), and MapLibre spells solid as
+ *    "no `line-dasharray` property" — an empty array draws nothing. `null`.
+ *
+ * 2. A dash may be given BACKWARDS. FERYRT01/02 carry `<start>5.1</start>`
+ *    with `<length>-3.1</length>`, i.e. the run from 2.0 to 5.1. Unnormalized
+ *    it sorts into the wrong place and contributes a negative gap.
+ *
+ * 3. `line-dasharray` has no phase: the schedule always starts at the start of
+ *    the line, so the interval is ROTATED to begin at the first dash rather
+ *    than padded with a leading gap. Only the phase moves, and the phase of a
+ *    line style against the geometry was never meaningful — MapLibre's dash
+ *    phase and its line-placed symbol anchors are computed independently, so
+ *    the marks and the dashes cannot be registered to each other whatever we
+ *    emit here.
+ *
+ * 4. A dash may RUN PAST THE END of its own interval, or lie past it entirely.
+ *    Five catalogue styles do: QUESMRK1 (last dash 14.6–17.6 in a 17.5
+ *    interval), RCRDEF11 (21.5–25.0 in 24.6), RECDEF02 and RECTRC09
+ *    (21.3–24.6 in 19.3 — wholly outside) and RECTRC10 (0.3–20.9 in 17.6). A
+ *    repeat has no room for the overrun and the LC_ pattern tile these styles
+ *    have always shipped as does not draw it either: `lineStyleGeometry` emits
+ *    the overrunning `<path>` and the tile's viewBox, exactly one interval
+ *    wide, clips it away. So the overrun is CLIPPED to the same one-interval
+ *    window here, and the dashed pen comes out looking like the tile it
+ *    replaces.
+ *
+ *    Clipping is also what keeps the wrap gap non-negative. Unclipped,
+ *    RECTRC09's run [21.3, 24.6] wraps against a first run at 2.0 for a gap of
+ *    2.0 + 19.3 − 24.6 = −3.3 and the schedule was discarded whole, which
+ *    turned all three recommended-track styles — RECTRC09, RECDEF02, and
+ *    RECTRC10 via the whole-interval branch below — from dashed pens into
+ *    SOLID ones.
+ */
+export function dashSchedule(dashes, interval) {
+  const runs = dashes
+    .map((dash) => ({
+      start: Math.min(dash.start, dash.start + dash.length),
+      length: Math.abs(dash.length),
+    }))
+    // Clipped to one repeat — see (4).
+    .map((run) => {
+      const start = Math.max(run.start, 0);
+      const end = Math.min(run.start + run.length, interval);
+      return { start, length: end - start };
+    })
+    .filter((run) => run.length > DASH_EPSILON)
+    .sort((a, b) => a.start - b.start);
+
+  if (runs.length === 0) return null;
+
+  // Overlapping or abutting runs are one run; left separate they would emit a
+  // zero or negative gap, which MapLibre renders as a corrupt dash texture.
+  const merged = [{ ...runs[0] }];
+  for (const run of runs.slice(1)) {
+    const last = merged[merged.length - 1];
+    const end = last.start + last.length;
+    if (run.start <= end + DASH_EPSILON) {
+      last.length = Math.max(end, run.start + run.length) - last.start;
+    } else {
+      merged.push({ ...run });
+    }
+  }
+
+  // The merge above cannot see ACROSS the wrap: a run ending exactly at the
+  // interval and one starting exactly at 0 are one run of the repeating
+  // pattern, and left separate they emit a zero gap between them. Fold them
+  // together onto the LAST run's start — the schedule's phase origin moves,
+  // which (3) says costs nothing.
+  if (merged.length > 1) {
+    const first = merged[0];
+    const last = merged[merged.length - 1];
+    if (
+      first.start <= DASH_EPSILON &&
+      last.start + last.length >= interval - DASH_EPSILON
+    ) {
+      last.length += first.length;
+      merged.shift();
+    }
+  }
+
+  // One run covering the whole interval is a solid pen, not a dash with a
+  // zero-length gap.
+  if (merged.length === 1 && merged[0].length >= interval - DASH_EPSILON) {
+    return null;
+  }
+
+  const schedule = [];
+  for (let i = 0; i < merged.length; i++) {
+    const run = merged[i];
+    // The interval wraps: the gap after the last run runs into the first run of
+    // the next repeat.
+    const next =
+      i + 1 < merged.length ? merged[i + 1].start : merged[0].start + interval;
+    const gap = next - (run.start + run.length);
+    // Unreachable for a clipped, merged, wrap-folded schedule: every run lies
+    // inside [0, interval], so the wrap gap is at worst zero and a zero one has
+    // just been folded away. Kept as a fallback because a corrupt dash texture
+    // is a worse answer than a solid pen for a definition we have not seen.
+    if (gap <= DASH_EPSILON) return null;
+    schedule.push(roundToDecimal(run.length, 3), roundToDecimal(gap, 3));
+  }
+  return schedule;
+}
+
+/**
+ * One complex line style decomposed into the two things MapLibre can draw
+ * without distorting either: PENS (a dash schedule along the line) and MARKS
+ * (symbols repeated along it).
+ *
+ * WHY THE SPLIT EXISTS. `LC()` used to emit a single `line-pattern` of the
+ * whole repeat interval. MapLibre scales a line pattern along the line by
+ * `2^frac(zoom)` — a renderer property, not something a style can turn off —
+ * so every dentate tooth, every circle and the INFARE eye stretched by up to
+ * 2x between integer zooms and snapped back at each one. Splitting the style
+ * into a `line-dasharray` (which is scaled the same way, but a dash is a
+ * featureless run so the stretch is invisible) and a line-placed SYMBOL layer
+ * (which is not scaled at all) makes the marks zoom-stable at their design
+ * size.
+ *
+ * Millimetres throughout — the definition's own units. `lineStyleMetrics`
+ * converts.
+ *
+ * Returns undefined for a name that is neither an S-101 definition nor one of
+ * the two drawings `DRAWN_LINESTYLES` allows, which is the same "no drawing"
+ * answer `sourceSvg` gives.
+ */
+const lineStyleSpecs = new Map();
+export function lineStyleSpec(name) {
+  if (lineStyleSpecs.has(name)) return lineStyleSpecs.get(name);
+  const spec = readLineStyleSpec(name);
+  lineStyleSpecs.set(name, spec);
+  return spec;
+}
+
+function readLineStyleSpec(name) {
+  const path = resolve(LINESTYLE_DEFINITIONS, `${name}.xml`);
+
+  if (!existsSync(path)) {
+    if (!DRAWN_LINESTYLES.has(name)) return undefined;
+    // A drawn line style is a single glyph repeated along the line with no pen
+    // of its own — NEWOBJ01 is a magenta disc, LOWACC01 the low-accuracy
+    // flag. It becomes one mark on its pivot, repeated at the drawing's own
+    // width so the chain comes out at the spacing the tiled pattern had.
+    const box = symbolBox(name);
+    return {
+      name,
+      interval: box.width,
+      parts: [],
+      marks: [{ reference: name, position: 0, offset: 0 }],
+    };
+  }
+
+  const parts = lineStyleParts(parseXml(readFileSync(path, "utf8")));
+  // The parts' own declared interval, with no floor under it. `lineStyleParts`
+  // already substitutes DEFAULT_INTERVAL_LENGTH for a part that declares none,
+  // so a `Math.max(..., DEFAULT_INTERVAL_LENGTH)` on top of that is not a
+  // fallback but a MINIMUM, and it stretched the four styles whose repeat is
+  // genuinely shorter than 6 mm -- ADMARE01 and RESARE51 (5.1), ESSARE01
+  // (5.0), FSHFAC02 (2.4) -- to 6 mm with a dead tail. `lineStyleGeometry`
+  // still carries the floor: it builds the legacy LC_ pattern tiles, which
+  // already-shipped frontends fetch by name and which therefore have to stay
+  // byte-identical.
+  const interval = Math.max(...parts.map((part) => part.intervalLength));
+
+  return {
+    name,
+    interval,
+    parts: parts.map((part) => ({
+      offset: part.offset,
+      width: part.penWidth,
+      colour: part.colour,
+      dash: dashSchedule(part.dashes, part.intervalLength || interval),
+    })),
+    // A composite style's parts are parallel pens at different offsets, and a
+    // mark belongs to the pen it was declared under, so it carries that pen's
+    // offset across the line with it.
+    marks: parts.flatMap((part) =>
+      part.symbols.map((symbol) => ({
+        reference: symbol.reference,
+        position: symbol.position,
+        offset: part.offset,
+      })),
+    ),
+  };
+}
+
+/**
+ * viewBox and drawing of a line style's MARK sprite — every symbol the style
+ * places along its repeat interval, at its position within that interval.
+ *
+ * TWO PROPERTIES ARE DICTATED BY HOW MAPLIBRE PLACES A LINE SYMBOL, and both
+ * are the OPPOSITE of what `buildLineStyleSvg` needs for the same drawing.
+ *
+ * 1. CENTRING, vertically. A line-placed icon is a quad centred on its anchor,
+ *    and the anchor is ON the line, so the line axis — y = 0 in an S-101 line
+ *    style — has to be the middle of the viewBox. Same requirement as the
+ *    pattern tile, same fix, and it keeps `icon-offset` at [0, 0], which is
+ *    what the orientation derivation below assumes.
+ *
+ * 2. NO MIRRORING. Derivation, against MapLibre 4.7.1:
+ *
+ *    a. A line-placed icon's quad-local +y is the BOTTOM row of the sprite
+ *       image (`shaping.ts` `shapeIcon` returns `top < bottom`; `quads.ts`
+ *       builds `tl`/`bl` from them in that order, and those become `a_offset`).
+ *    b. The per-frame angle stored for the icon is the direction of TRAVEL
+ *       along the line, measured in the label plane (`projection.ts`
+ *       `placeGlyphAlongLine`: with `icon-offset` [0, 0] the walk lands on the
+ *       segment start and the two sign flips cancel to `θ_travel`).
+ *    c. With `icon-rotation-alignment: "map"`, `icon-pitch-alignment` inherits
+ *       it, so the label plane is tile coordinates scaled to screen pixels —
+ *       y DOWN, the same handedness as tile space.
+ *    d. `symbol_icon.vertex.glsl` builds `mat2(cos, -sin, sin, cos)` from
+ *       `-θ`; GLSL is column-major, so that expands to R(+θ) in the y-down
+ *       frame. R(θ)·(0,1) is 90° CLOCKWISE on screen from the travel
+ *       direction: image-DOWN faces the RIGHT of travel.
+ *    e. MVT winds exterior rings clockwise in y-down tile space and holes the
+ *       other way, so the FILLED side of any ring is on the right of travel
+ *       (measured over the tiler's own output: 37,306 rings, no exceptions).
+ *
+ *    d + e: image-DOWN points into the area. S-101 already draws the
+ *    inward-facing ticks at +y — the image's bottom — so the mark sprite is
+ *    emitted EXACTLY AS DRAWN. The `scale(1,-1)` that `buildLineStyleSvg` has
+ *    to apply is a property of `line-pattern` sampling (image TOP faces the
+ *    right of travel there), and applying it here would point every tooth out
+ *    of the area.
+ *
+ * Split out of `buildLineMarkSvg` so the sprite tests can assert the tick side
+ * against the figures rather than against a rendered image.
+ */
+export function lineMarkGeometry(name) {
+  const spec = lineStyleSpec(name);
+  if (!spec || spec.marks.length === 0) return undefined;
+
+  let top = 0;
+  let bottom = 0;
+  let left = Infinity;
+  let right = -Infinity;
+  const body = [];
+
+  const boxes = spec.marks.map((mark) => ({
+    mark,
+    box: symbolBox(mark.reference),
+  }));
+
+  for (const { mark, box } of boxes) {
+    top = Math.min(top, mark.offset + box.minY);
+    bottom = Math.max(bottom, mark.offset + box.minY + box.height);
+    left = Math.min(left, mark.position + box.minX);
+    right = Math.max(right, mark.position + box.minX + box.width);
+  }
+
+  // Centred on the marks' own extent in BOTH axes, which puts the sprite's
+  // pivot on its centre — `symbols.json`'s `offset` comes out at [0, 0] to
+  // within the half pixel the independent rounding of `minX`/`width` can
+  // leave. A line-placed icon is centred on its anchor, so `LC()` emits no
+  // `icon-offset` at all and the orientation derivation above — which assumes
+  // `icon-offset` [0, 0] — holds as written.
+  //
+  // Vertically that puts the LINE AXIS at the centre; horizontally
+  // the phase within the interval is arbitrary anyway (MapLibre computes the
+  // dash phase and the symbol anchors independently), so centring costs
+  // nothing.
+  const centre = (left + right) / 2;
+  const half = Math.max(-top, bottom);
+
+  for (const { mark, box } of boxes) {
+    body.push(
+      `<g transform="translate(${roundToDecimal(mark.position - centre, 3)},` +
+        `${roundToDecimal(mark.offset, 3)})">${box.content}</g>`,
+    );
+  }
+
+  return {
+    minX: -(right - left) / 2,
+    width: right - left,
+    top,
+    bottom,
+    half,
+    body,
+  };
+}
+
+/**
+ * Build the MARK sprite of one complex line style: the glyphs it repeats,
+ * without its pen. See `lineMarkGeometry` for the geometry and the
+ * orientation proof.
+ */
+export function buildLineMarkSvg(linestyle) {
+  const geometry = lineMarkGeometry(linestyle.name);
+  if (!geometry) return undefined;
+  const { minX, width, half, body } = geometry;
+
+  return svgDocument({
+    minX,
+    minY: -half,
+    width,
+    height: 2 * half,
+    title: `${linestyle.name} marks`,
+    desc: linestyle.description,
+    body: body.join("\n"),
+  });
+}
+
+/**
+ * One line style in the units the generated style emits: CSS pixels at the
+ * scale the sprites are rasterized at, plus the sprite key of its marks.
+ *
+ * This is what `linestyles.json` carries and what `LC()` reads. Pixels rather
+ * than millimetres because the two halves of the style have to agree: the
+ * symbol layer's `symbol-spacing` is screen pixels and the mark sprite is
+ * rasterized at `PX_PER_MM`, so the pen's width and its dash schedule are put
+ * on the same scale instead of on `LS()`'s 0.32 mm units. (`LC()` already drew
+ * at this scale — it set `line-width` to the pattern sprite's pixel height.)
+ *
+ * `dash` stays an absolute pixel schedule here, summing to `interval`, and
+ * `LC()` divides by the pen width for MapLibre: `line-dasharray` is in units
+ * of the line width, so the JSON would otherwise carry a ratio whose relation
+ * to the interval is invisible.
+ */
+export function lineStyleMetrics(name, description) {
+  const spec = lineStyleSpec(name);
+  if (!spec) return undefined;
+
+  const px = (mm) => roundToDecimal(mm * PX_PER_MM, 3);
+
+  return {
+    description,
+    interval: px(spec.interval),
+    parts: spec.parts.map((part) => ({
+      offset: px(part.offset),
+      width: px(part.width),
+      colour: part.colour,
+      ...(part.dash ? { dash: part.dash.map(px) } : {}),
+    })),
+    ...(spec.marks.length > 0
+      ? { mark: `${SPRITE_PREFIX.linemark}${name}` }
+      : {}),
+  };
+}
+
 /**
  * Sprite-sheet key prefix per S-52 name space.
  *
@@ -480,11 +838,22 @@ export function lineStyleGeometry(name) {
  * Symbols keep the bare name — they are what the rest of the style, the
  * frontend legend and the sprite CSS already reference — and the other two
  * name spaces take the prefix of the instruction that reads them.
+ *
+ * `linemark` is a FOURTH key space and not an S-52 one: it is the marks of a
+ * line style drawn on their own, for the symbol half of the `LC()` split (see
+ * `lineStyleSpec`). It cannot reuse the embedded symbol's own key even where a
+ * style places exactly one — `EMRESAR1` is filed with its S-101 pivot at the
+ * top of its box, and a line-placed icon is centred on its anchor, so the same
+ * DRAWING has to be re-boxed about the line axis to be usable here. The
+ * drawing is shared (`symbolBox` hands out the same content); only the box is
+ * ours. `LC_` sprites are still published: an already-shipped frontend still
+ * references them.
  */
 export const SPRITE_PREFIX = {
   symbol: "",
   pattern: "AP_",
   linestyle: "LC_",
+  linemark: "LM_",
 };
 
 /** The sprite-sheet key (and SVG file name) for one sprite source. */
@@ -521,6 +890,21 @@ export function spriteSources(data) {
       description: linestyle.lxpo?.[0] ?? linestyle.lind.linm,
       kind: "linestyle",
     })),
+    // The symbol half of the LC() split. Only line styles that actually place
+    // a mark get one: a pure dash schedule (INDHLT02, SCLBDY51, ERBLNA01) is
+    // drawn entirely by its `line-dasharray`, and emitting an empty source for
+    // it would put a blank sprite in the atlas and a dangling `icon-image` in
+    // the style.
+    ...data.linestyles
+      .filter((linestyle) => {
+        const spec = lineStyleSpec(linestyle.lind.linm);
+        return spec !== undefined && spec.marks.length > 0;
+      })
+      .map((linestyle) => ({
+        name: linestyle.lind.linm,
+        description: `${linestyle.lxpo?.[0] ?? linestyle.lind.linm} (marks)`,
+        kind: "linemark",
+      })),
   ].map((source) => ({ ...source, key: spriteKey(source) }));
 }
 
@@ -551,6 +935,14 @@ export function sourceSvg(source) {
     const drawn = readSymbolSvg(source.name);
     if (!drawn) throw new Error(`Missing symbol: ${source.name}`);
     return drawn;
+  }
+
+  // A mark sprite is built from the line style's placements whether or not the
+  // style itself ships as a drawing -- the DRAWN_LINESTYLES case synthesizes a
+  // single placement of the drawing on its own pivot, so it needs no special
+  // branch here.
+  if (source.kind === "linemark") {
+    return buildLineMarkSvg(source);
   }
 
   // A pattern or line style is built from its own S-101 definition. The name
@@ -651,6 +1043,20 @@ export default {
     writeFileSync(
       resolve("symbols.json"),
       JSON.stringify(symbols, null, 2) + "\n",
+    );
+
+    // The pen and the repeat interval of every complex line style, for the
+    // LC() split -- symbols.json only carries sprite boxes and the line half
+    // of a line style is not a sprite at all any more. See lineStyleMetrics.
+    const linestyles = {};
+    for (const source of spriteSources(data)) {
+      if (source.kind !== "linestyle" || linestyles[source.name]) continue;
+      const metrics = lineStyleMetrics(source.name, source.description);
+      if (metrics) linestyles[source.name] = metrics;
+    }
+    writeFileSync(
+      resolve("linestyles.json"),
+      JSON.stringify(linestyles, null, 2) + "\n",
     );
   },
 };

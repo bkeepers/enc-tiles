@@ -3,4 +3,5 @@ import type { DaiFile } from "@enc-tiles/dai";
 
 export default data as DaiFile;
 export * from "./symbols.js";
+export * from "./linestyles.js";
 export * from "./colours.js";

@@ -16,13 +16,17 @@ import { readFileSync } from "fs";
 import { JSDOM } from "jsdom";
 // @ts-expect-error -- the build plugin is untyped plain JS
 import {
+  dashSchedule,
+  lineMarkGeometry,
   lineStyleGeometry,
+  lineStyleSpec,
   patternLattice,
   readSymbolSvg,
   sourceSvg,
   spriteSources,
 } from "../build/symbols.js";
 import symbolsJson from "../symbols.json" with { type: "json" };
+import linestylesJson from "../linestyles.json" with { type: "json" };
 
 const data = JSON.parse(
   readFileSync(new URL("../data.json", import.meta.url), "utf8"),
@@ -68,7 +72,7 @@ function tileFor(source: { key: string }): string | undefined {
 }
 
 describe("sprite sources", () => {
-  test("covers symbols, patterns and line styles", () => {
+  test("covers symbols, patterns, line styles and line marks", () => {
     const kinds = sources.reduce<Record<string, number>>((counts, source) => {
       counts[source.kind] = (counts[source.kind] ?? 0) + 1;
       return counts;
@@ -77,6 +81,10 @@ describe("sprite sources", () => {
       symbol: data.symbols.length,
       pattern: data.patterns.length,
       linestyle: data.linestyles.length,
+      // One per line style that actually places a mark: 55 line styles, less
+      // LOWACC11 (no definition and no drawing) and the three that are pure
+      // dash schedules (INDHLT02, SCLBDY51, ERBLNA01).
+      linemark: 51,
     });
     expect(kinds["pattern"]).toBe(25);
   });
@@ -95,6 +103,13 @@ describe("sprite sources", () => {
     expect(byKind("symbol").every((s) => s.key === s.name)).toBe(true);
     expect(byKind("pattern").every((s) => s.key === `AP_${s.name}`)).toBe(true);
     expect(byKind("linestyle").every((s) => s.key === `LC_${s.name}`)).toBe(
+      true,
+    );
+    // A fourth key space, and not an S-52 one: the MARKS of a line style drawn
+    // on their own, for the symbol half of the LC() split. It cannot reuse the
+    // embedded symbol's key even where a style places exactly one -- the same
+    // drawing has to be re-boxed about the line axis.
+    expect(byKind("linemark").every((s) => s.key === `LM_${s.name}`)).toBe(
       true,
     );
 
@@ -433,11 +448,13 @@ describe("sprite sources", () => {
   });
 
   test(
-    "line style sprites are as tall as LC() makes the line wide",
+    "line style pattern sprites stay published at their tile height",
     () => {
-      // LC() sets line-width to the sprite's height so the pattern draws at its
-      // design scale; that only works if symbols.json is keyed by the prefixed
-      // name and carries the centred height.
+      // The generated style no longer references these -- LC() draws the pen
+      // and the marks separately now (see SHOWLINE.ts) -- but they are still
+      // built and published, because a frontend pinned to an older bundle asks
+      // the sheet for them by name and MapLibre answers a missing line-pattern
+      // with an ARBITRARY image from the atlas rather than with nothing.
       const pxPerMm = 3.7795275591;
       for (const source of sources) {
         if (source.kind !== "linestyle") continue;
@@ -466,4 +483,310 @@ describe("sprite sources", () => {
     },
     BULK_TIMEOUT,
   );
+});
+
+/**
+ * The SYMBOL half of the LC() split.
+ *
+ * A line style is drawn as a dashed pen plus a line-placed symbol layer, and
+ * the whole point of the change is that the symbol is NOT stretched with zoom
+ * the way the old `line-pattern` tile was. What is left to get wrong is the
+ * geometry of the mark sprite: which way it faces, and where its centre is.
+ */
+describe("line style mark sprites", () => {
+  /** The repeated tick of each restriction/area boundary family. */
+  const TICKS: Record<string, string> = {
+    ENTRES51: "EMACHRE2",
+    ACHRES51: "EMACHRE2",
+    FSHRES51: "EMACHRE2",
+    CTYARE51: "EMAREMG1",
+    ACHARE51: "EMAREMG1",
+    CTNARE51: "EMAREMG1",
+    PRCARE51: "EMAREMG1",
+    RESARE51: "EMRESAR1",
+  };
+
+  test("the sheet carries one LM_ sprite per line style that places a mark", () => {
+    const marks = sources.filter((source) => source.kind === "linemark");
+    expect(marks).toHaveLength(51);
+    for (const source of marks) {
+      expect(
+        symbols[source.key],
+        `${source.key} is in symbols.json`,
+      ).toBeDefined();
+      expect(symbols[source.key]!.width).toBeGreaterThan(0);
+      expect(symbols[source.key]!.height).toBeGreaterThan(0);
+    }
+
+    // A pure dash schedule gets no mark sprite: an empty one would be a blank
+    // image in the atlas and a dangling icon-image in the style.
+    for (const name of ["INDHLT02", "SCLBDY51", "ERBLNA01", "LOWACC11"]) {
+      expect(symbols[`LM_${name}`], `${name} places no mark`).toBeUndefined();
+    }
+
+    // The pattern tiles stay in the sheet alongside them -- older frontends.
+    expect(symbols["LC_RESARE51"]).toBeDefined();
+  });
+
+  test("the mark sprite is centred on the line axis, not on its ink", () => {
+    // A line-placed icon is a quad centred on its anchor and the anchor is ON
+    // the line, so y = 0 of the line style has to be the middle of the
+    // viewBox. Getting this wrong draws the whole style off to one side.
+    for (const source of sources) {
+      if (source.kind !== "linemark") continue;
+      const [minX, minY, width, height] = viewBoxNumbers(
+        sourceSvg(source) as string,
+      );
+      expect(minY, `${source.key} line axis is centred`).toBeCloseTo(
+        -height / 2,
+        6,
+      );
+      expect(minX, `${source.key} marks are centred`).toBeCloseTo(
+        -width / 2,
+        6,
+      );
+
+      // ...which makes the sprite's pivot its own centre, so LC() emits no
+      // icon-offset at all. The half pixel is minX and width rounding to
+      // whole pixels independently.
+      const sprite = symbols[source.key]!;
+      expect(
+        Math.abs(sprite.offset[0]),
+        `${source.key} pivot x`,
+      ).toBeLessThanOrEqual(0.5);
+      expect(
+        Math.abs(sprite.offset[1]),
+        `${source.key} pivot y`,
+      ).toBeLessThanOrEqual(0.5);
+    }
+  });
+
+  test("the ticks point image-DOWN, which is into the area", () => {
+    // The derivation is in lineMarkGeometry, and its conclusion is the one
+    // thing a test can pin: image-DOWN faces the right of travel, the right of
+    // travel is the filled side of any MVT-wound ring, and S-101 already draws
+    // the inward tick at +y. So the mark sprite is the S-101 drawing UNMIRRORED
+    // -- the exact opposite of the pattern tile, which has to carry a
+    // `scale(1,-1)` because line-pattern samples the image top on that side.
+    for (const [name, tick] of Object.entries(TICKS)) {
+      const tickSvg = readSymbolSvg(tick) as string;
+      const [, tickMinY, , tickHeight] = viewBoxOf(tickSvg);
+      // The tick is a one-sided stroke running from the axis into +y.
+      expect(tickMinY, `${tick} barely crosses the axis`).toBeGreaterThan(-0.5);
+      expect(tickMinY + tickHeight, `${tick} reaches into +y`).toBeGreaterThan(
+        1,
+      );
+
+      const marks = sourceSvg({ kind: "linemark", name }) as string;
+      const stroke = /<path d="([^"]+)"/.exec(tickSvg)![1]!;
+      expect(marks, `${name} places ${tick}`).toContain(stroke);
+      expect(marks, `${name} marks are NOT mirrored`).not.toContain(
+        "scale(1,-1)",
+      );
+
+      // The stroke is inlined verbatim and nothing flips it, so the tick still
+      // runs from the axis into +y in image space -- which is the whole claim.
+      // Nothing trims it off, either: the symmetric box reaches at least as
+      // far into +y as the tick does. (The style's OVERALL extent says nothing
+      // about the tick side: ENTRES51's EMENTRE1 ring straddles the axis and
+      // makes the box symmetric on its own.)
+      const { bottom } = lineMarkGeometry(name) as { bottom: number };
+      expect(bottom, `${name} keeps the whole tick`).toBeGreaterThanOrEqual(
+        tickMinY + tickHeight - 1e-9,
+      );
+    }
+  });
+
+  test("a mark sprite carries every placement of the interval, at its position", () => {
+    // MARSYS51 is the awkward one: two DIFFERENT glyphs 13.13 mm apart in a
+    // 25.5 mm interval, so the sprite has to hold both at their relative
+    // positions -- one sprite per style, not one per glyph.
+    const marsys = sourceSvg({ kind: "linemark", name: "MARSYS51" }) as string;
+    const [minX, , width] = viewBoxOf(marsys);
+    expect(marsys).toContain("M -1,1.4 L 0,-1.6 L 1,1.4"); // EMMARS01's "A"
+    const positions = [
+      ...marsys.matchAll(/translate\(([-\d.]+),([-\d.]+)\)/g),
+    ].map((match) => Number(match[1]));
+    expect(positions).toHaveLength(2);
+    expect(positions[1]! - positions[0]!).toBeCloseTo(20.44 - 7.31, 3);
+    // Centred: the two placements straddle x = 0 within the box.
+    expect(minX).toBeCloseTo(-width / 2, 6);
+
+    // The pen is NOT in it -- the dash schedule is the line layer's job, and a
+    // dash baked into the icon would be the stretched thing all over again.
+    expect(marsys).not.toContain(" M 2,0 L 5,0");
+  });
+
+  test("a drawn line style becomes one mark on its own pivot", () => {
+    // NEWOBJ01 has no S-101 definition; its same-named SVG really is the line
+    // style (a magenta disc chained along the line), so DRAWN_LINESTYLES lets
+    // it through. Under the split it is a single placement at position 0 and
+    // no pen at all.
+    const spec = lineStyleSpec("NEWOBJ01") as {
+      parts: unknown[];
+      marks: { reference: string; position: number }[];
+      interval: number;
+    };
+    expect(spec.parts).toEqual([]);
+    expect(spec.marks).toEqual([
+      { reference: "NEWOBJ01", position: 0, offset: 0 },
+    ]);
+    // Repeated at the drawing's own width, which is the spacing the tiled
+    // pattern had.
+    expect(spec.interval).toBeCloseTo(6.32, 2);
+    expect(sourceSvg({ kind: "linemark", name: "NEWOBJ01" })).toContain(
+      'r="3"',
+    );
+  });
+});
+
+/**
+ * `linestyles.json` — the pen and the repeat interval `LC()` reads.
+ */
+describe("line style metrics", () => {
+  const metrics = linestylesJson as Record<
+    string,
+    {
+      interval: number;
+      mark?: string;
+      parts: {
+        offset: number;
+        width: number;
+        colour: string;
+        dash?: number[];
+      }[];
+    }
+  >;
+
+  test("covers every drawable line style", () => {
+    const names = sources
+      .filter((source) => source.kind === "linestyle")
+      .map((source) => source.name);
+    expect(Object.keys(metrics).sort()).toEqual(
+      names.filter((name) => name !== "LOWACC11").sort(),
+    );
+  });
+
+  test("a dash schedule fills its interval exactly", () => {
+    // The invariant that makes the two halves of the style agree: the pen's
+    // schedule repeats on the same period the marks are spaced at. It is also
+    // what catches a dash the definition gives BACKWARDS -- FERYRT01 declares
+    // `<start>5.1</start><length>-3.1</length>`, and unnormalized that sorts
+    // into the wrong place and eats the gap either side of it.
+    for (const [name, style] of Object.entries(metrics)) {
+      for (const part of style.parts) {
+        if (!part.dash) continue;
+        expect(part.dash.length % 2, `${name} alternates dash and gap`).toBe(0);
+        expect(
+          part.dash.every((run) => run > 0),
+          `${name} has no empty run`,
+        ).toBe(true);
+        const total = part.dash.reduce((sum, run) => sum + run, 0);
+        expect(total, `${name} dash schedule fills the interval`).toBeCloseTo(
+          style.interval,
+          1,
+        );
+      }
+    }
+  });
+
+  test("a pure dash schedule has no mark, and a solid pen no dasharray", () => {
+    // INDHLT02 is a yellow pen over a wider black one, both solid: two parts,
+    // no dashes, no marks.
+    expect(metrics["INDHLT02"]!.mark).toBeUndefined();
+    expect(metrics["INDHLT02"]!.parts.map((p) => p.colour)).toEqual([
+      "BKAJ1",
+      "CHYLW",
+    ]);
+    expect(metrics["INDHLT02"]!.parts.every((p) => p.dash === undefined)).toBe(
+      true,
+    );
+
+    // CHRVDEL2's single dash covers the whole interval: solid, not a dash with
+    // a zero-length gap (which MapLibre renders as nothing at all).
+    expect(metrics["CHRVDEL2"]!.parts[0]!.dash).toBeUndefined();
+    expect(metrics["CHRVDEL2"]!.mark).toBe("LM_CHRVDEL2");
+  });
+
+  /**
+   * A dash that runs past the end of its own interval is CLIPPED to it, not
+   * allowed to discard the schedule.
+   *
+   * Five catalogue styles declare one. Unclipped, the overrun wraps against the
+   * first dash of the next repeat for a NEGATIVE gap, and the whole schedule
+   * was thrown away — which spells a dashed pen as a solid one. All three
+   * recommended-track styles went solid that way, against LC_ pattern tiles
+   * that have always drawn them dashed (the tile's viewBox is one interval
+   * wide, so it clips the overrun exactly as this does).
+   */
+  describe("a dash past the end of the interval", () => {
+    test("is clipped, not thrown away", () => {
+      // RECTRC09 verbatim: four 3.3 mm dashes at 2, 9, 16 and 21.3 in a 19.3 mm
+      // interval. The fourth lies wholly outside and drops; the rest stand.
+      expect(
+        dashSchedule(
+          [2, 9, 16, 21.3].map((start) => ({ start, length: 3.3 })),
+          19.3,
+        ),
+      ).toEqual([3.3, 3.7, 3.3, 3.7, 3.3, 2]);
+
+      // RECTRC10: one dash of 20.6 mm from 0.3 in a 17.6 mm interval. Clipped
+      // it is 17.3 long -- short of the interval, so it is a dash with a
+      // 0.3 mm gap and NOT the solid pen the whole-interval branch would make
+      // of it.
+      expect(dashSchedule([{ start: 0.3, length: 20.6 }], 17.6)).toEqual([
+        17.3, 0.3,
+      ]);
+
+      // A dash that genuinely fills the interval is still solid.
+      expect(dashSchedule([{ start: 0, length: 17.6 }], 17.6)).toBeNull();
+
+      // A run ending exactly at the interval and one starting exactly at 0 are
+      // the same run of the REPEATING pattern, and the merge above cannot see
+      // across the wrap to say so. Folded together they are one 16 mm dash
+      // with a 4 mm gap -- not two dashes with a zero-length gap between them,
+      // which MapLibre renders as a corrupt dash texture.
+      expect(
+        dashSchedule(
+          [
+            { start: 0, length: 4 },
+            { start: 8, length: 20 },
+          ],
+          20,
+        ),
+      ).toEqual([16, 4]);
+    });
+
+    test("leaves every style that declares one dashed", () => {
+      // The three recommended tracks are the regression; QUESMRK1 and RCRDEF11
+      // were merely drawing their last dash a little long.
+      for (const name of [
+        "RECTRC09",
+        "RECDEF02",
+        "RECTRC10",
+        "QUESMRK1",
+        "RCRDEF11",
+      ]) {
+        const dash = metrics[name]!.parts[0]!.dash;
+        expect(dash, `${name} draws a dashed pen`).toBeDefined();
+        expect(
+          dash!.reduce((sum, run) => sum + run, 0),
+          `${name} fills its interval`,
+        ).toBeCloseTo(metrics[name]!.interval, 1);
+      }
+    });
+  });
+
+  test("parallel pens keep their offsets, sign included", () => {
+    // SCLBDY51: a wide pen 1.0 mm to one side and two hairlines 1.74/2.43 mm
+    // to the other. S-101 measures +y INTO the area and MapLibre offsets a
+    // line to the right of travel for a positive value -- the same side -- so
+    // the sign carries straight through.
+    const pxPerMm = 3.7795275591;
+    expect(metrics["SCLBDY51"]!.parts.map((p) => p.offset)).toEqual([
+      Math.round(-1.0 * pxPerMm * 1000) / 1000,
+      Math.round(1.74 * pxPerMm * 1000) / 1000,
+      Math.round(2.43 * pxPerMm * 1000) / 1000,
+    ]);
+  });
 });

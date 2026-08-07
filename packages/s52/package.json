@@ -22,7 +22,8 @@
   "exports": {
     ".": "./dist/index.js",
     "./data.json": "./data.json",
-    "./symbols.json": "./symbols.json"
+    "./symbols.json": "./symbols.json",
+    "./linestyles.json": "./linestyles.json"
   },
   "scripts": {
     "build": "vite build",

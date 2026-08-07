@@ -19,20 +19,60 @@ import { buildStyle, icons, matchingLayers, type Match } from "./evaluate.js";
 const plain = buildStyle();
 const symbolized = buildStyle({ boundaries: BoundaryType.SYMBOLIZED });
 
+/** Every layer of one type matching a RESARE polygon. */
+function boundaryLayers(
+  style: StyleSpecification,
+  properties: Record<string, unknown>,
+  type: string,
+): LayerSpecification[] {
+  return matchingLayers(style, "RESARE", properties, "Polygon")
+    .filter((match: Match) => match.type === type)
+    .map((match: Match) =>
+      style.layers.find(
+        (candidate: LayerSpecification) => candidate.id === match.id,
+      )!,
+    );
+}
+
 /** The paint of every line layer matching a RESARE polygon. */
 function boundaryPaint(
   style: StyleSpecification,
   properties: Record<string, unknown>,
 ): Record<string, unknown>[] {
-  return matchingLayers(style, "RESARE", properties, "Polygon")
-    .filter((match: Match) => match.type === "line")
-    .map((match: Match) => {
-      const layer = style.layers.find(
-        (candidate: LayerSpecification) => candidate.id === match.id,
-      )!;
-      return ((layer as { paint?: Record<string, unknown> }).paint ??
-        {}) as Record<string, unknown>;
-    });
+  return boundaryLayers(style, properties, "line").map(
+    (layer) =>
+      ((layer as { paint?: Record<string, unknown> }).paint ?? {}) as Record<
+        string,
+        unknown
+      >,
+  );
+}
+
+/** The line style a layer is half of, if any. */
+function linestyleOf(layer: LayerSpecification): unknown {
+  return (layer as { metadata?: Record<string, unknown> }).metadata?.[
+    "s52:linestyle"
+  ];
+}
+
+/**
+ * The layout of the boundary MARK layers of a RESARE polygon.
+ *
+ * Selected by the line style they name rather than by being symbol layers: the
+ * centred restriction symbol (ENTRES51 and friends) is a symbol layer over the
+ * same feature and is not part of the boundary.
+ */
+function boundaryMarks(
+  style: StyleSpecification,
+  properties: Record<string, unknown>,
+): Record<string, unknown>[] {
+  return boundaryLayers(style, properties, "symbol")
+    .filter((layer) => linestyleOf(layer) !== undefined)
+    .map(
+      (layer) =>
+        ((layer as { layout?: Record<string, unknown> }).layout ??
+          {}) as Record<string, unknown>,
+    );
 }
 
 describe("RESARE restriction boundaries", () => {
@@ -56,18 +96,26 @@ describe("RESARE restriction boundaries", () => {
       const paint = boundaryPaint(symbolized, { RESTRN: restrn });
       expect(paint).toHaveLength(1);
 
-      // The prefixed sprite key, not the bare name: the bare name belongs to
-      // the centred point symbol of the same family.
-      expect(paint[0]!["line-pattern"]).toBe(`LC_${family}51`);
-      expect(paint[0]!["line-dasharray"]).toBeUndefined();
+      // THE PEN. No pattern at all: the line half of a complex line style is
+      // an ordinary dash schedule now, and the marks ride a symbol layer of
+      // their own so MapLibre's along-line pattern stretch cannot reach them.
+      expect(paint[0]!["line-pattern"]).toBeUndefined();
+      expect(paint[0]!["line-dasharray"]).toBeDefined();
+      expect(paint[0]!["line-width"]).toBeGreaterThan(0);
 
-      // MapLibre stretches a line-pattern across the full line width, so the
-      // width has to be the tile's height for the ticks to come out at their
-      // design size and centred on the boundary.
-      const sprite = symbols[`LC_${family}51`];
-      expect(sprite).toBeDefined();
-      expect(paint[0]!["line-width"]).toBe(sprite.height);
-      expect(paint[0]!["line-width"]).toBeGreaterThan(1);
+      // THE MARKS. One line-placed symbol layer, on the family's mark sprite,
+      // repeating at the style's own interval in constant screen pixels.
+      const layout = boundaryMarks(symbolized, { RESTRN: restrn });
+      expect(layout).toHaveLength(1);
+      expect(layout[0]!["symbol-placement"]).toBe("line");
+      expect(layout[0]!["icon-image"]).toBe(`LM_${family}51`);
+      expect(symbols[`LM_${family}51`]).toBeDefined();
+      expect(layout[0]!["symbol-spacing"]).toBeGreaterThan(1);
+      // The teeth point into the area, and stay pointing into it on a
+      // right-to-left edge — see `LC` for the derivation.
+      expect(layout[0]!["icon-rotation-alignment"]).toBe("map");
+      expect(layout[0]!["icon-keep-upright"]).toBe(false);
+      expect(layout[0]!["icon-allow-overlap"]).toBe(true);
     },
   );
 
@@ -78,8 +126,8 @@ describe("RESARE restriction boundaries", () => {
     expect(
       icons(matchingLayers(symbolized, "RESARE", properties, "Polygon")),
     ).toContain("ENTRES61");
-    expect(boundaryPaint(symbolized, properties)[0]!["line-pattern"]).toBe(
-      "LC_ENTRES51",
+    expect(boundaryMarks(symbolized, properties)[0]!["icon-image"]).toBe(
+      "LM_ENTRES51",
     );
 
     // Anchoring alone drops to the ACHRES family, boundary included.
@@ -87,19 +135,42 @@ describe("RESARE restriction boundaries", () => {
     expect(
       icons(matchingLayers(symbolized, "RESARE", anchoring, "Polygon")),
     ).toContain("ACHRES51");
-    expect(boundaryPaint(symbolized, anchoring)[0]!["line-pattern"]).toBe(
-      "LC_ACHRES51",
+    expect(boundaryMarks(symbolized, anchoring)[0]!["icon-image"]).toBe(
+      "LM_ACHRES51",
     );
   });
 
-  test("both settings emit the same number of boundary layers", () => {
-    // The layer ids have to stay aligned across the setting: the frontend
-    // toggles between two built styles and anything keyed on a layer id (the
-    // display-category filters, the inspector) would shift otherwise.
+  test("both settings emit the same number of boundary LINE layers", () => {
+    // The plain ring and the symbolized pen are the same one line layer in the
+    // same position, so anything keyed on a layer id (the display-category
+    // filters, the inspector) sees the same list either way. The symbolized
+    // setting ADDS the mark layer after it, which is the one difference.
     for (const restrn of ["7", "1", "3", "13"]) {
       expect(boundaryPaint(plain, { RESTRN: restrn })).toHaveLength(
         boundaryPaint(symbolized, { RESTRN: restrn }).length,
       );
+      expect(boundaryMarks(plain, { RESTRN: restrn })).toHaveLength(0);
+      expect(boundaryMarks(symbolized, { RESTRN: restrn })).toHaveLength(1);
     }
+  });
+
+  test("the symbolized boundary names the line style it came from", () => {
+    // The frontend has to tell the symbolized presentation from the plain one
+    // to decide which viewing group owns the boundary, and neither half of the
+    // pair is recognisable by its paint any more. Both carry the name.
+    const tagged = [
+      ...boundaryLayers(symbolized, { RESTRN: "7" }, "line"),
+      ...boundaryLayers(symbolized, { RESTRN: "7" }, "symbol"),
+    ].filter((layer) => linestyleOf(layer) !== undefined);
+    expect(tagged.map((layer) => layer.type)).toEqual(["line", "symbol"]);
+    for (const layer of tagged) {
+      expect(linestyleOf(layer)).toBe("ENTRES51");
+    }
+
+    // The plain ring carries no line style, so the two are distinguishable —
+    // which is what the frontend needs to know which viewing group owns the
+    // boundary, now that neither half is recognisable by its paint.
+    const [ring] = boundaryLayers(plain, { RESTRN: "7" }, "line");
+    expect(linestyleOf(ring!)).toBeUndefined();
   });
 });
