@@ -364,6 +364,57 @@ describe("INTU", () => {
   });
 });
 
+describe("the zoom partition", () => {
+  test("the copies of one lane anchor their own intervals", () => {
+    // The copies OVERLAP, so ungrouped they touch, union-find welds them into
+    // one leg of twice the area, and the single anchor that comes out carries
+    // no interval and draws its arrow at every zoom.
+    const features = run({
+      TSSLPT: [
+        box({ ORIENT: 0, _QZMIN: 6, _QZMAX: 8 }, 0, 0, 0.01, 0.1),
+        box({ ORIENT: 0, _QZMIN: 9 }, 0, 0, 0.01, 0.1),
+      ],
+    });
+
+    expect(features).toHaveLength(2);
+    expect(features.map((f) => f.properties._QZMIN)).toEqual([6, 9]);
+    expect(features[0].properties._QZMAX).toBe(8);
+    expect(features[1].properties).not.toHaveProperty("_QZMAX");
+    // Each interval's own area, not the sum over the ladder.
+    for (const feature of features) {
+      expect(feature.properties.AREA).toBeCloseTo(0.001, 6);
+    }
+  });
+
+  test("the fragments of one interval still collapse to one anchor", () => {
+    const features = run({
+      TSSLPT: [
+        box({ ORIENT: 0, _QZMIN: 9 }, 0, 0, 0.01, 0.04),
+        box({ ORIENT: 0, _QZMIN: 9 }, 0, 0.04, 0.01, 0.1),
+      ],
+    });
+    expect(features).toHaveLength(1);
+    expect(features[0].properties._QZMIN).toBe(9);
+    expect(features[0].properties.AREA).toBeCloseTo(0.001, 6);
+  });
+
+  test("a fallback continuation carries _QFALL onto its anchors", () => {
+    const features = run({
+      TSSLPT: [box({ ORIENT: 0, _QZMAX: 5, _QFALL: 1 }, 0, 0, 0.01, 0.1)],
+    });
+    expect(features[0].properties._QZMAX).toBe(5);
+    expect(features[0].properties._QFALL).toBe(1);
+    expect(features[0].properties).not.toHaveProperty("_QZMIN");
+  });
+
+  test("an unpartitioned lane carries nothing new", () => {
+    const features = run({ TSSLPT: [box({ ORIENT: 0 }, 0, 0, 0.01, 0.1)] });
+    for (const name of ["_QZMIN", "_QZMAX", "_QFALL"]) {
+      expect(features[0].properties).not.toHaveProperty(name);
+    }
+  });
+});
+
 describe("stations that land in a gap", () => {
   test("a sub-tolerance gap at a station does not lose the arrow", () => {
     // Grouping joins parts that come within TOUCH_TOLERANCE, so a lane with a

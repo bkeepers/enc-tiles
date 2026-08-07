@@ -142,6 +142,34 @@ describe("never fatal", () => {
   });
 });
 
+describe("the zoom partition", () => {
+  test("each copy is tested on its own and keeps its interval", () => {
+    note("TSS.TXT", "Traffic Separation Scheme approach.\n");
+    const features = run([
+      area({ LNAM: "aaa", TXTDSC: "TSS.TXT", _QZMIN: 6, _QZMAX: 8 }),
+      area({ LNAM: "aaa", TXTDSC: "TSS.TXT", _QZMIN: 9 }),
+      area({ LNAM: "bbb", _QZMIN: 9 }),
+    ]);
+    expect(features.map((f) => f.properties._TSSNOTE)).toEqual([
+      1,
+      1,
+      undefined,
+    ]);
+    expect(features[0].properties._QZMIN).toBe(6);
+    expect(features[0].properties._QZMAX).toBe(8);
+    expect(features[1].properties._QZMIN).toBe(9);
+  });
+
+  test("the working properties are not this script's to strip", () => {
+    const [feature] = run([area({ LNAM: "ccc", _QZMAX: 5, _QFALL: 1 })]);
+    expect(feature.properties).toEqual({
+      LNAM: "ccc",
+      _QZMAX: 5,
+      _QFALL: 1,
+    });
+  });
+});
+
 describe("shape of the output", () => {
   test("only the qualifying features gain the attribute", () => {
     note("TSS.TXT", "Traffic Separation Scheme approach.\n");

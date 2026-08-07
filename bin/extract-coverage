@@ -1,7 +1,12 @@
 #!/usr/bin/env bash
 # Extracts M_COVR (CATCOV=1) polygons from all charts into a single GPKG,
-# tagged with each chart's INTU. Used by s57-to-tiles to clip lower-INTU
-# features where higher-INTU charts provide coverage.
+# tagged with each chart's INTU, compilation scale and quilt floor. Used by
+# s57-to-tiles to partition a cell's features into the zoom intervals that cell
+# owns (docs/architecture/QUILT_ZOOM_PARTITION.md).
+#
+# EVERY chart's coverage is imported, not just the finer ones: the copy ladder
+# needs the finer rungs for its caps AND the union of the coarser ones to decide
+# where a cell has to keep serving below its own floor.
 #
 # Usage: bin/extract-coverage output.gpkg chart1.000 chart2.000 ...
 
@@ -15,12 +20,16 @@ fi
 output="$1"
 shift
 
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+# shellcheck source=bin/quilt-rung.sh
+. "$SCRIPT_DIR/quilt-rung.sh"
+
 export OGR_S57_OPTIONS="SPLIT_MULTIPOINT=ON,ADD_SOUNDG_DEPTH=ON,LIST_AS_STRING=ON"
 
 rm -f "$output"
 
 for input in "$@"; do
-  # Extract INTU
+  # Extract INTU and the compilation scale from the one DSID read
   dsid=$(ogrinfo -q "$input" DSID 2>/dev/null)
   intu=$(echo "$dsid" | grep DSID_INTU | awk '{print $NF}')
   [ -z "$intu" ] && continue
@@ -29,18 +38,44 @@ for input in "$@"; do
   layers=$(ogrinfo -q "$input" 2>/dev/null | awk '{print $2}')
   echo "$layers" | grep -q '^M_COVR$' || continue
 
-  # Append M_COVR features with CATCOV=1 to output, adding INTU
+  # DSPM_CSCL is the S-101 display-scale rung the cell was compiled at, and is
+  # what the partition is keyed on: navigation purpose must not drive selection,
+  # and NOAA's reschemed cells put two scales inside one band (Puget: 138 of 161
+  # band-5 cells at 1:12k against 23 at 1:22k, which a band-keyed partition
+  # mis-floors by a zoom).
+  cscale=$(quilt_dsid_cscale "$dsid")
+  if [ -z "$cscale" ]; then
+    if ! cscale=$(quilt_band_cscale "$intu"); then
+      echo "$input: INTU $intu is not a band, and no DSPM_CSCL to key on" >&2
+      continue
+    fi
+    echo "$input: no DSPM_CSCL; using the INTU $intu band scale 1:$cscale" >&2
+  fi
+
+  mid_lat=$(quilt_mid_lat "$input")
+  if [ -z "$mid_lat" ]; then
+    echo "$input: could not read the M_COVR extent; no floor to stamp" >&2
+    continue
+  fi
+
+  if ! qfloor=$(quilt_rung_floor "$cscale" "$mid_lat"); then
+    echo "$input: 1:$cscale at ${mid_lat} is not on the rung ladder" >&2
+    continue
+  fi
+
+  # Append M_COVR features with CATCOV=1 to output, adding INTU, the scale it
+  # was keyed from and the precomputed floor. s57-to-tiles groups masks by
+  # QFLOOR and re-derives nothing.
+  sql="SELECT *, ${intu} AS INTU, ${cscale} AS CSCALE, ${qfloor} AS QFLOOR FROM M_COVR WHERE CATCOV=1"
   if [ -f "$output" ]; then
     ogr2ogr -f GPKG "$output" "$input" M_COVR \
       -append -nln coverage \
-      -where "CATCOV=1" \
-      -sql "SELECT *, ${intu} AS INTU FROM M_COVR WHERE CATCOV=1" \
+      -sql "$sql" \
       -skipfailures 2>/dev/null
   else
     ogr2ogr -f GPKG "$output" "$input" M_COVR \
       -nln coverage \
-      -where "CATCOV=1" \
-      -sql "SELECT *, ${intu} AS INTU FROM M_COVR WHERE CATCOV=1" \
+      -sql "$sql" \
       -skipfailures 2>/dev/null
   fi
 done

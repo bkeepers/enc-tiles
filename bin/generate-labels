@@ -24,6 +24,18 @@
 // member), INTU, and AREA (the summed area of the group, in square degrees
 // scaled by cos(latitude) so it ranks sensibly across latitudes). The style
 // uses AREA to size and prioritise the text.
+//
+// THE ZOOM PARTITION
+//
+// A partitioned cell arrives as zoom-range COPIES of each source feature --
+// one per interval of the copy ladder, carrying _QZMIN/_QZMAX (and _QFALL on a
+// fallback continuation) -- which bin/stamp-quilt-zooms turns into per-feature
+// tippecanoe zoom bounds after this runs. The interval is therefore part of the
+// group key, and the group's interval is carried onto its anchor: without it
+// the copies of one island merge into a single group whose anchor is stamped
+// for no interval at all and draws at every zoom, which is the multi-band label
+// duplication the partition exists to remove. An input with none of those
+// properties is one group and behaves exactly as it did before them.
 
 import { readFileSync, writeFileSync } from "fs";
 
@@ -59,6 +71,24 @@ function readFeatures(path) {
   }
   if (!text.trim()) return [];
   return JSON.parse(text).features ?? [];
+}
+
+/** The partition properties a source copy carries; see THE ZOOM PARTITION. */
+const QUILT_PROPERTIES = ["_QZMIN", "_QZMAX", "_QFALL"];
+
+/** Those of them a feature actually has, to be copied onto its outputs. */
+function quiltRange(properties) {
+  const range = {};
+  for (const name of QUILT_PROPERTIES) {
+    const value = properties?.[name];
+    if (value !== null && value !== undefined) range[name] = value;
+  }
+  return range;
+}
+
+/** The group key of a range. Legacy inputs all share the empty one. */
+function quiltKey(range) {
+  return QUILT_PROPERTIES.map((name) => range[name] ?? "").join("\u0000");
 }
 
 /** The polygons of a geometry, each as an array of rings. */
@@ -188,12 +218,14 @@ for (const { className, path } of inputs) {
     const name = feature.properties?.OBJNAM;
     if (typeof name !== "string" || name.trim() === "") continue;
     const intu = feature.properties?.INTU ?? null;
-    const id = `${name}\u0000${intu}`;
+    const range = quiltRange(feature.properties);
+    const id = `${name}\u0000${intu}\u0000${quiltKey(range)}`;
 
     const area = featureArea(feature.geometry);
     const group = groups.get(id) ?? {
       name,
       intu,
+      range,
       area: 0,
       best: { area: -1, className, anchor: undefined },
     };
@@ -226,6 +258,9 @@ for (const group of groups.values()) {
       CLASS: group.best.className,
       ...(group.intu === null ? {} : { INTU: group.intu }),
       AREA: group.area,
+      // The interval the group's members serve, converted to tippecanoe
+      // bounds later by bin/stamp-quilt-zooms.
+      ...group.range,
     },
   });
 }

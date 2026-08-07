@@ -42,7 +42,7 @@
 // thousands; it is NOT flat, and a claim that it was is what this paragraph
 // replaces.
 //
-// Three bounds on the range.
+// Four bounds on the range.
 //
 // * OVERZOOM_LEVELS at the top. tippecanoe writes no tile above the cell's band
 //   maxzoom, and both `tile-join --overzoom` and the browser fill those levels
@@ -91,6 +91,16 @@
 //   under 50 km. That is the right reading (an overview chart has no room for a
 //   sector legend beside every light) but there is no z0..z6 copy to fall back
 //   to, and a tile dump of a band-1 cell showing only `_z: 7` is correct.
+// * THE PARTITION INTERVAL, when the cell is partitioned. A light arrives as
+//   one copy per interval of the quilt copy ladder, carrying _QZMIN/_QZMAX
+//   (and _QFALL on a fallback continuation), and bin/stamp-quilt-zooms composes
+//   those with the per-copy tippecanoe member by max()/min() after this runs.
+//   A copy whose TILE falls outside the interval would therefore compose to an
+//   empty range, so it is not authored at all: a light in a region capped at
+//   z9 emits no copy above z9. It is the tile and not `_z` that is bounded --
+//   the overzoom copies all ride the band-maxzoom tile and survive exactly
+//   when that tile is inside the interval. A light with none of those
+//   properties is bounded by the other three alone, as before them.
 
 import { readFileSync, writeFileSync } from "fs";
 
@@ -251,12 +261,42 @@ function isFaintOrObscured(litvis) {
 const ceiling = topZoomOption ?? Number.POSITIVE_INFINITY;
 const topZoom = maxzoom <= ceiling ? maxzoom + OVERZOOM_LEVELS : ceiling;
 
+// The properties a partitioned source copy carries, and the interval they
+// name; see THE PARTITION INTERVAL. An absent or unreadable bound binds
+// nothing, which is every legacy invocation.
+const QUILT_PROPERTIES = ["_QZMIN", "_QZMAX", "_QFALL"];
+
+function quiltRange(properties) {
+  const range = {};
+  for (const name of QUILT_PROPERTIES) {
+    const value = properties?.[name];
+    if (value !== null && value !== undefined) range[name] = value;
+  }
+  return range;
+}
+
+function zoomBound(value, fallback) {
+  if (value === null || value === undefined || value === "") return fallback;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : fallback;
+}
+
+function quiltBounds(properties) {
+  return {
+    min: zoomBound(properties?._QZMIN, Number.NEGATIVE_INFINITY),
+    max: zoomBound(properties?._QZMAX, Number.POSITIVE_INFINITY),
+  };
+}
+
 // The zooms whose copy of an `mm`-sized figure is small enough to be worth
-// writing, shallowest first. The size shrinks by half per level, so the cap can
-// only ever remove a prefix.
-function emittedZooms(mm, lat) {
+// writing AND whose tile the cell still serves, shallowest first. The size
+// shrinks by half per level, so the figure cap can only ever remove a prefix;
+// the partition interval removes either end.
+function emittedZooms(mm, lat, bounds) {
   const zooms = [];
   for (let z = minzoom; z <= topZoom; z++) {
+    const tile = Math.min(z, maxzoom);
+    if (tile < bounds.min || tile > bounds.max) continue;
     if (mmToMeters(mm, z, lat) <= MAX_FIGURE_METRES) zooms.push(z);
   }
   return zooms;
@@ -286,6 +326,8 @@ for (const feature of input.features) {
   if (!feature.geometry || feature.geometry.type !== "Point") continue;
 
   const props = feature.properties || {};
+  const range = quiltRange(props);
+  const bounds = quiltBounds(props);
   const sectr1 = props.SECTR1;
   const sectr2 = props.SECTR2;
 
@@ -309,6 +351,9 @@ for (const feature of input.features) {
       ...(props.LNAM != null && { LNAM: props.LNAM }),
       ...(props.SCAMIN != null && { SCAMIN: props.SCAMIN }),
       ...(props.INTU != null && { INTU: props.INTU }),
+      // Converted to tippecanoe bounds later by bin/stamp-quilt-zooms, which
+      // composes them with the per-copy member below.
+      ...range,
     };
 
     if (props.VALNMR != null) {
@@ -329,7 +374,7 @@ for (const feature of input.features) {
     } else {
       // No range to draw, so the leg falls back to the 25 mm screen-size
       // convention and is per-zoom like the sector figures.
-      const zooms = emittedZooms(LEG_LENGTH_MM, lat);
+      const zooms = emittedZooms(LEG_LENGTH_MM, lat, bounds);
       const zmax = zooms[zooms.length - 1];
       for (const z of zooms) {
         features.push({
@@ -385,12 +430,13 @@ for (const feature of input.features) {
     ...(props.LNAM != null && { LNAM: props.LNAM }),
     ...(props.SCAMIN != null && { SCAMIN: props.SCAMIN }),
     ...(props.INTU != null && { INTU: props.INTU }),
+    ...range,
   };
 
   // The zoom range is taken from the LARGEST of the three figures so the arc
   // and its two legs always appear and disappear together: a zoom that carried
   // the legs but not the arc would draw an unbounded pair of rays.
-  const zooms = emittedZooms(Math.max(arcRadiusMm, LEG_LENGTH_MM), lat);
+  const zooms = emittedZooms(Math.max(arcRadiusMm, LEG_LENGTH_MM), lat, bounds);
   const zmax = zooms[zooms.length - 1];
 
   for (const z of zooms) {

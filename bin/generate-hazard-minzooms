@@ -60,6 +60,33 @@
 // place for a cross-cell rule is after tile-join, where the features of every
 // contributing cell finally exist in one place.
 //
+// THE ZOOM PARTITION
+//
+// A partitioned cell arrives as zoom-range COPIES of each hazard -- one per
+// interval of the copy ladder, carrying _QZMIN/_QZMAX (and _QFALL on a fallback
+// continuation) -- which bin/stamp-quilt-zooms turns into tippecanoe bounds
+// after this runs. A copy competes ONLY at the zooms its own interval serves,
+// for the two reasons bin/thin-soundings states at length: a copy that does not
+// serve a zoom must not hold a grid cell at it, or it evicts the copy that
+// does; and the copies of one rock share a position, a VALSOU and an LNAM, so
+// nothing in the ranking can tell them apart and the winner would otherwise be
+// whichever copy ogr2ogr happened to export first.
+//
+// What is written is the THINNING minzoom alone; composing it with _QZMIN is
+// bin/stamp-quilt-zooms' job and it needs the properties to do it. Competing
+// inside the interval is also what keeps the promotion of a shoal hazard honest
+// at both ends: a copy is never promoted below the interval it serves, so the
+// partition floor has nothing to suppress, and the promotion that reaches an
+// overview zoom is the one on the FALLBACK copy -- this cell standing in where
+// no coarser chart exists, which is exactly the lone charted rock in open water.
+//
+// "No hazard is ever removed from the chart" survives this, said per interval: a
+// copy that wins nothing inside its own is stamped with the band maxzoom, which
+// composes against its _QZMAX to an empty range and publishes nothing THERE.
+// The rock is still charted at the zooms above -- by this cell's next copy up,
+// or, where a finer chart's footprint took that copy's point away, by the finer
+// chart, which charts the same rock itself.
+//
 // EFFECTIVE DEPTH
 //
 // VALSOU, in metres, and shallower is more dangerous -- so a drying height
@@ -136,6 +163,16 @@ function effectiveDepth(properties) {
   return Number.isFinite(value) ? value : Number.NEGATIVE_INFINITY;
 }
 
+/**
+ * The zoom interval a partitioned copy serves; see THE ZOOM PARTITION. An
+ * absent or unreadable bound binds nothing, which is every legacy invocation.
+ */
+function zoomBound(value, fallback) {
+  if (value === null || value === undefined || value === "") return fallback;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : fallback;
+}
+
 // Every point hazard across every input, competing as ONE population: a wreck
 // and a rock 30 m apart are two symbols in the same place on the chart, and
 // thinning each class against itself would leave exactly the pile-up this
@@ -164,6 +201,8 @@ for (const path of inputPaths) {
       key:
         properties.LNAM != null ? String(properties.LNAM) : `${path}#${index}`,
       mercator: mercator(lon, lat),
+      qzmin: zoomBound(properties._QZMIN, Number.NEGATIVE_INFINITY),
+      qzmax: zoomBound(properties._QZMAX, Number.POSITIVE_INFINITY),
       // Filled in below. Nothing that reaches this array leaves without one.
       minzoom: maxzoom,
     });
@@ -182,6 +221,7 @@ for (let zoom = minzoom; zoom < maxzoom; zoom++) {
   const cells = Math.pow(2, zoom) * (TILE_PIXELS / CELL_PIXELS);
   const winners = new Map();
   for (const hazard of hazards) {
+    if (zoom < hazard.qzmin || zoom > hazard.qzmax) continue;
     const [x, y] = hazard.mercator;
     const column = Math.min(cells - 1, Math.floor(x * cells));
     const row = Math.min(cells - 1, Math.floor(y * cells));

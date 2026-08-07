@@ -1,22 +1,30 @@
 #!/usr/bin/env bash
-# Stub GDAL ogr2ogr for exercising bin/s57-to-tiles' control flow.
+# Stub GDAL ogr2ogr for exercising bin/s57-to-tiles' and bin/extract-coverage's
+# control flow.
 #
 #   STUB_EXPORT_EMPTY_FILES  every layer export writes a ZERO-BYTE file, the
 #                            shape a failed export leaves behind while the rows
 #                            are still sitting in the GPKG
+#   STUB_SQL_LOG             file every invocation is appended to, so a test can
+#                            read back the coverage rows that were asked for --
+#                            the whole argument line, because the selection is
+#                            an -sql in extract-coverage and a -where in
+#                            s57-to-tiles
 set -u
 
 fmt="$2"
 out="$3"
 mkdir -p "$(dirname "$out")" 2>/dev/null
 
+[ -n "${STUB_SQL_LOG:-}" ] && printf '%s\n--\n' "$*" >>"$STUB_SQL_LOG"
+
 case "$fmt" in
   GPKG) : >"$out" ;;
   GeoJSON)
     case "$out" in
-      # The quilt coverage export is what the script tests with -s to decide
-      # whether there is a mask to build at all; it is never the failing one.
-      *quilting_coverage.geojson)
+      # The quilt coverage exports are what the script tests with -s to decide
+      # whether there is a mask to build at all; they are never the failing one.
+      *quilting_coverage.geojson | *quilting_all.geojson)
         printf '{"type":"FeatureCollection","features":[]}' >"$out"
         ;;
       *)

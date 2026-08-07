@@ -209,3 +209,104 @@ describe("scope", () => {
     expect(Object.values(minzooms(UWTROC))).toEqual([0, 0, 0]);
   });
 });
+
+describe("the zoom partition", () => {
+  /** One zoom-range copy of a hazard, as bin/s57-to-tiles step 2b exports it. */
+  function copy(lnam, valsou, lon, partition) {
+    const feature = rock(lnam, valsou, lon);
+    Object.assign(feature.properties, partition);
+    return feature;
+  }
+
+  /** The stamped minzooms in document order; the copies share an LNAM. */
+  function stamps(document) {
+    return document.features.map((feature) => feature.tippecanoe?.minzoom);
+  }
+
+  test("the copies of one hazard do not compete against each other", () => {
+    // Same rock, same position, same VALSOU, same LNAM: nothing in the ranking
+    // can tell two copies apart, so without the interval the winner is whichever
+    // one ogr2ogr exported first and the loser is stamped out of its own range.
+    const copies = [
+      copy("rock", 5, 0, { _QZMIN: 6, _QZMAX: 7 }),
+      copy("rock", 5, 0, { _QZMIN: 8 }),
+    ];
+    const forward = run({ UWTROC: copies }).UWTROC;
+    const reversed = run({ UWTROC: [...copies].reverse() }).UWTROC;
+
+    expect(stamps(forward)).toEqual([6, 8]);
+    expect(stamps(reversed)).toEqual([8, 6]);
+  });
+
+  test("a copy does not hold a grid cell at a zoom it does not serve", () => {
+    // The shoal rock serves z9 up; the deep one serves everything. Without the
+    // interval the shoal copy wins z0 and the deep rock -- the only hazard this
+    // cell publishes down there -- is stamped out of its own range.
+    const { UWTROC } = run({
+      UWTROC: [
+        copy("deep", 30, 0, {}),
+        copy("shoal", 2, 0.0001, { _QZMIN: 9 }),
+      ],
+    });
+
+    expect(stamps(UWTROC)).toEqual([0, 9]);
+  });
+
+  test("a capped copy competes below the cap and nowhere above it", () => {
+    // A fallback continuation (_QFALL, capped at the cell's own floor) against
+    // the whole copy of a deeper hazard that starts where the cap ends. The
+    // promotion that reaches an overview zoom is the fallback one: nothing
+    // coarser covers that water, which is the lone charted rock in open water.
+    const { UWTROC } = run({
+      UWTROC: [
+        copy("fallback", 3, 0, { _QZMAX: 5, _QFALL: 1 }),
+        copy("whole", 25, 0.0001, { _QZMIN: 6 }),
+      ],
+    });
+
+    expect(stamps(UWTROC)).toEqual([0, 6]);
+  });
+
+  test("a copy that wins nothing inside its interval is stamped at the top", () => {
+    // Both copies are capped at z8, so the deeper one never wins: it is stamped
+    // with the band maxzoom, which composes against _QZMAX to an empty range
+    // and publishes nothing in this interval. Another copy serves above it.
+    const { UWTROC } = run({
+      UWTROC: [
+        copy("shoal", 4, 0, { _QZMIN: 6, _QZMAX: 8 }),
+        copy("deep", 22, 0.0001, { _QZMIN: 6, _QZMAX: 8 }),
+      ],
+    });
+
+    expect(stamps(UWTROC)).toEqual([6, 12]);
+  });
+
+  test("the partition properties are left for bin/stamp-quilt-zooms", () => {
+    // Composing them here would stamp the partition floor twice and strip
+    // nothing; the composition is that pass's job and it needs the properties.
+    const { UWTROC } = run({
+      UWTROC: [copy("whole", 5, 0, { _QZMIN: 6, _QZMAX: 8 })],
+    });
+    const [feature] = UWTROC.features;
+
+    expect(feature.properties).toEqual({
+      LNAM: "whole",
+      VALSOU: 5,
+      _QZMIN: 6,
+      _QZMAX: 8,
+    });
+    expect(feature.tippecanoe).toEqual({ minzoom: 6 });
+  });
+
+  test("a null bound is an absent one", () => {
+    // A GeoJSON export writes the column of an unstamped copy as null.
+    const { UWTROC } = run({
+      UWTROC: [
+        copy("west", 9, -60, { _QZMIN: null, _QZMAX: null, _QFALL: null }),
+        copy("east", 9, 60, { _QZMIN: null, _QZMAX: null, _QFALL: null }),
+      ],
+    });
+
+    expect(stamps(UWTROC)).toEqual([0, 0]);
+  });
+});

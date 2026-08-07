@@ -279,6 +279,114 @@ describe("the band no longer decides the size", () => {
   });
 });
 
+describe("the zoom partition", () => {
+  // 48°N, where a 25 mm figure first fits under MAX_FIGURE_METRES at z7, so a
+  // band-5 cell has copies on both sides of every bound tested here.
+  const CHART_LAT = 48;
+
+  /** The distinct `_z` of the copies, ascending. */
+  function zooms(output) {
+    return [...new Set(output.features.map((f) => f.properties._z))].sort(
+      (a, b) => a - b,
+    );
+  }
+
+  test("a light in a capped region emits no copy above the cap", () => {
+    const capped = run(
+      [light({ ...SECTOR, _QZMIN: 6, _QZMAX: 9 }, 0, CHART_LAT)],
+      {
+        maxzoom: 11,
+      },
+    );
+    expect(zooms(capped)).toEqual([7, 8, 9]);
+    // Every copy is confined to a tile the cell still serves, so composing the
+    // member with the interval in bin/stamp-quilt-zooms changes nothing.
+    for (const feature of capped.features) {
+      expect(feature.tippecanoe.minzoom).toBeGreaterThanOrEqual(6);
+      expect(feature.tippecanoe.maxzoom).toBeLessThanOrEqual(9);
+    }
+    // _zmax is the deepest copy that exists, so the style's exact match on
+    // `_z == min(floor(zoom), _zmax)` still names one.
+    for (const feature of capped.features) {
+      expect(feature.properties._zmax).toBe(9);
+    }
+  });
+
+  test("the overzoom copies survive a cap at the band maxzoom", () => {
+    // They ride the band-maxzoom TILE, which the interval still holds, so
+    // bounding `_z` rather than the tile would throw away sizing the cell
+    // publishes. The cap only binds when it falls below that tile.
+    const output = run(
+      [light({ ...SECTOR, _QZMIN: 9, _QZMAX: 11 }, 0, CHART_LAT)],
+      {
+        maxzoom: 11,
+      },
+    );
+    expect(zooms(output)).toEqual([9, 10, 11, 12, 13, 14]);
+    for (const feature of output.features) {
+      if (feature.properties._z <= 11) continue;
+      expect(feature.tippecanoe).toEqual({ minzoom: 11, maxzoom: 11 });
+    }
+  });
+
+  test("a light in a floored region emits no copy below the floor", () => {
+    const output = run([light({ ...SECTOR, _QZMIN: 10 }, 0, CHART_LAT)], {
+      maxzoom: 11,
+    });
+    expect(zooms(output)).toEqual([10, 11, 12, 13, 14]);
+  });
+
+  test("a cap below the smallest figure that fits emits nothing", () => {
+    // The figure floor and the interval can leave no zoom between them, and an
+    // empty layer is the right answer: the cell does not serve those zooms.
+    const output = run([light({ ...SECTOR, _QZMAX: 5 }, 0, CHART_LAT)], {
+      maxzoom: 11,
+    });
+    expect(output.features).toHaveLength(0);
+  });
+
+  test("every copy carries the interval it was derived from", () => {
+    const output = run(
+      [light({ ...SECTOR, _QZMIN: 8, _QFALL: 1 }, 0, CHART_LAT)],
+      { maxzoom: 11 },
+    );
+    expect(output.features.length).toBeGreaterThan(0);
+    for (const feature of output.features) {
+      expect(feature.properties._QZMIN).toBe(8);
+      expect(feature.properties._QFALL).toBe(1);
+      expect(feature.properties).not.toHaveProperty("_QZMAX");
+    }
+  });
+
+  test("a VALNMR leg carries the interval and no zoom copies", () => {
+    // Geographic, so it means the same thing at every scale and gets one copy
+    // with no tippecanoe member of its own; the interval is all it needs.
+    const output = run(
+      [
+        light(
+          { LNAM: "bbb", CATLIT: "1", ORIENT: 90, VALNMR: 10, _QZMIN: 9 },
+          0,
+          CHART_LAT,
+        ),
+      ],
+      { maxzoom: 11 },
+    );
+    expect(output.features).toHaveLength(1);
+    expect(output.features[0].properties._QZMIN).toBe(9);
+    expect(output.features[0]).not.toHaveProperty("tippecanoe");
+  });
+
+  test("an unpartitioned light is bounded by the other three rules alone", () => {
+    const output = run([light(SECTOR, 0, CHART_LAT)], { maxzoom: 11 });
+    expect(zooms(output)).toEqual([7, 8, 9, 10, 11, 12, 13, 14]);
+    for (const feature of output.features) {
+      expect(feature.properties).not.toHaveProperty("_QZMIN");
+      expect(feature.properties).not.toHaveProperty("_QZMAX");
+      expect(feature.properties).not.toHaveProperty("_QFALL");
+    }
+  });
+});
+
 describe("directional lights", () => {
   const DIRECTIONAL = { LNAM: "bbb", CATLIT: "1", ORIENT: 90 };
 

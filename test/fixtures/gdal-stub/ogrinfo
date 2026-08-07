@@ -1,11 +1,23 @@
 #!/usr/bin/env bash
-# Stub GDAL ogrinfo for exercising bin/s57-to-tiles' control flow.
+# Stub GDAL ogrinfo for exercising bin/s57-to-tiles' and bin/extract-coverage's
+# control flow.
 #
-# See test/s57-to-tiles.test.js. Every knob is an environment variable:
+# See test/s57-to-tiles.test.js and test/extract-coverage.test.js. Every knob is
+# an environment variable:
 #
 #   STUB_TABLES            feature tables the GPKG appears to hold
 #                          (default "DEPARE M_COVR SOUNDG"; " " for none)
-#   STUB_HAS_MASK          rows in quilt_mask (0 = the quilt clip never runs)
+#   STUB_COLUMNS           attribute columns every layer appears to hold
+#                          (default "OBJNAM INTU")
+#   STUB_HAS_MASK          rows in quilt_mask, the union of all FINER coverage
+#                          (0 = no finer chart overlaps this cell)
+#   STUB_HAS_COARSER       rows in quilt_mask_coarser, the union of all COARSER
+#                          coverage (0 = nothing lies beneath this cell)
+#   STUB_FINER_FLOORS      the distinct QFLOORs of the finer coverage, ascending
+#                          (default none: no ladder above the whole copy)
+#   STUB_CSCALE            DSPM_CSCL on the DSID layer ("none" to omit it)
+#   STUB_INTU              DSID_INTU on the DSID layer (default 5)
+#   STUB_EXTENT            the M_COVR bbox `-so` reports, as GDAL prints it
 #   STUB_PRE_TOTAL         rows counted BEFORE the clip (default STUB_TOTAL)
 #   STUB_TOTAL             rows counted AFTER the clip (default 0)
 #   STUB_PRE_COUNT_FAILS   the pre-clip counting query exits non-zero
@@ -14,6 +26,9 @@
 #   STUB_COUNT_TYPE        the count column's OGR type (Integer/Integer64)
 #   STUB_STATE             file used to tell the pre-clip count from the
 #                          post-clip one; they are the same query text
+#   STUB_SQL_LOG           file every -sql statement is appended to, so a test
+#                          can read back the copy ladder the script built. One
+#                          file per RUN: the entries accumulate.
 set -u
 
 args="$*"
@@ -27,13 +42,38 @@ emit_count() {
 case "$args" in
   *-sql*)
     sql="${args#*-sql }"
+    [ -n "${STUB_SQL_LOG:-}" ] && printf '%s\n--\n' "$sql" >>"$STUB_SQL_LOG"
     case "$sql" in
-      # Checked before the generic "AS n" arm: the mask probe is also aliased n.
-      *quilt_mask*WHERE*)
+      # Checked before the generic "AS n" arm: the mask probes are also aliased
+      # n. Most specific table name first -- quilt_mask_coarser also matches the
+      # per-rung pattern, and both also match the bare one.
+      *"AS n FROM quilt_mask_coarser WHERE"*)
+        emit_count "${STUB_HAS_COARSER:-0}"
+        exit 0
+        ;;
+      *"AS n FROM quilt_mask_"*)
+        # A rung mask is built from rows that exist, so it is never empty.
+        emit_count 1
+        exit 0
+        ;;
+      *"AS n FROM quilt_mask WHERE"*)
         emit_count "${STUB_HAS_MASK:-1}"
         exit 0
         ;;
-      *GeometryType*)
+      *"DISTINCT QFLOOR"*)
+        i=0
+        for f in ${STUB_FINER_FLOORS:-}; do
+          echo "OGRFeature(SELECT):$i"
+          echo "  QFLOOR (Integer) = $f"
+          i=$((i + 1))
+        done
+        exit 0
+        ;;
+      *"FROM coverage"*)
+        emit_count "${STUB_TOTAL:-1}"
+        exit 0
+        ;;
+      *"SELECT DISTINCT GeometryType"*)
         echo "POLYGON"
         exit 0
         ;;
@@ -63,13 +103,32 @@ case "$args" in
         exit 0
         ;;
       *)
-        # ALTER TABLE / UPDATE / CREATE TABLE: no output, no failure.
+        # ALTER TABLE / UPDATE / INSERT / DELETE / CREATE TABLE: no output, no
+        # failure.
         exit 0
         ;;
     esac
     ;;
+  "-so "*)
+    # The layer summary the rung's mid-latitude and the copy ladder's column
+    # list are read off. Anchored at the start of the argument line: a tmpdir
+    # name is free to contain "-so".
+    echo "Layer name: ${*: -1}"
+    echo "Geometry: Polygon"
+    echo "Feature Count: 1"
+    echo "Extent: ${STUB_EXTENT-(-122.900000, 48.000000) - (-122.100000, 49.000000)}"
+    echo "FID Column = fid"
+    echo "Geometry Column = geom"
+    for c in ${STUB_COLUMNS:-OBJNAM INTU}; do
+      echo "$c: String (0.0)"
+    done
+    exit 0
+    ;;
   *DSID*)
-    echo "  DSID_INTU (Integer) = 5"
+    # Empty rather than absent for either field: GDAL leaves the line out of a
+    # DSID dump when the chart does not carry it.
+    [ -z "${STUB_INTU-5}" ] || echo "  DSID_INTU (Integer) = ${STUB_INTU-5}"
+    [ "${STUB_CSCALE:-12000}" = "none" ] || echo "  DSPM_CSCL (Integer) = ${STUB_CSCALE:-12000}"
     exit 0
     ;;
 esac

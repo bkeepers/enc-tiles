@@ -1,0 +1,252 @@
+#!/usr/bin/env node
+
+// Stamps a per-feature tippecanoe `minzoom` on soundings so a dense survey
+// thins with zoom SHOALEST FIRST.
+//
+// Usage:
+//   bin/thin-soundings --minzoom N --maxzoom N <SOUNDG.geojson> ...
+//
+// Each input file is rewritten in place. Only POINT features are touched; the
+// pipeline exports with SPLIT_MULTIPOINT=ON, so every sounding is its own point
+// feature, and a MultiPoint that reaches this is left alone rather than thinned
+// as a lump.
+//
+// WHY THIS EXISTS
+//
+// Until the zoom partition, SOUNDG was the ONE class tippecanoe's dot-dropping
+// was right for: -r/--drop-rate throws away a fraction of the points at every
+// zoom below the maxzoom, chosen by a hash of position, and which soundings go
+// was not load-bearing because the contours and depth areas carry the same
+// information at that scale.
+//
+// The partition removes that. Every feature of a partitioned cell carries a
+// per-feature tippecanoe `minzoom`, and a per-feature minzoom is tippecanoe's
+// documented exemption from dot-dropping -- the feature is "preserved down to
+// that zoom level even if dot-dropping with -r would otherwise have dropped
+// it". So the moment soundings transition with their cell, nothing thins them
+// at all, and the overview tiles of a modern survey carry every sounding in it.
+//
+// The decision is therefore made here, by depth, before tippecanoe sees the
+// features -- and made better than the drop rate made it, because a hash of
+// position is depth-blind: it is as likely to keep the 40 m sounding as the
+// 2.1 m one beside it, and a chart that shows the deep one alone says the water
+// is clear where the shoal is.
+//
+// THE RULE
+//
+// At each zoom the world is cut into cells of about 64 screen pixels. In each
+// cell, the SHOALEST sounding wins that zoom, and a feature's stamped `minzoom`
+// is the shallowest zoom it ever wins at. A sounding that never wins is stamped
+// with the band maxzoom, where the grid is finest and the survey is drawn in
+// full.
+//
+// The rule is monotone, which is what makes the result stable: a cell at z+1 is
+// a quarter of a cell at z, so a sounding that was shoalest in the larger cell
+// is still shoalest in the smaller one. A winner never stops winning, and the
+// zoom it first wins at is therefore also every zoom after it -- the survivor
+// set at a zoom is a superset of the one below it, which is what makes the
+// lattice look like a survey thinning rather than a set of unrelated pickings.
+// Losers stay in the competition at every zoom for the same reason as in
+// bin/generate-hazard-minzooms: the winner from a coarser zoom is still on the
+// chart, and skipping it would let a deeper sounding claim the cell it already
+// occupies and double the density there.
+//
+// This is bin/generate-hazard-minzooms' rule over a different population and a
+// different ranking attribute, and deliberately so -- the two layers thin
+// against a screen grid of the same size, so a hazard symbol and a sounding
+// figure do not collide any worse than two soundings do. What it is NOT is one
+// competition: a hazard and a sounding in the same square are two different
+// statements about that square and both belong on the chart.
+//
+// WHAT THE RULE DOES NOT BOUND
+//
+// The competition is per S-57 CELL, because that is the unit this runs on: one
+// invocation of bin/s57-to-tiles converts one .000 and passes it that cell's
+// SOUNDG export. Neighbouring cells are separate runs that never see each
+// other's soundings, so "one sounding per 64 px" is true of a chart cell and
+// not of the screen. See the same paragraph in bin/generate-hazard-minzooms;
+// the honest place for a cross-cell rule is after tile-join.
+//
+// THE ZOOM PARTITION
+//
+// A partitioned cell arrives as zoom-range COPIES of each sounding -- one per
+// interval of the copy ladder, carrying _QZMIN/_QZMAX (and _QFALL on a fallback
+// continuation) -- which bin/stamp-quilt-zooms turns into tippecanoe bounds
+// after this runs, composing minzoom by max() and maxzoom by min().
+//
+// So a copy competes ONLY at the zooms its own interval serves, and two things
+// turn on that.
+//
+//   * Correctness of the thinning. A copy that does not serve a zoom must not
+//     hold a grid cell at it, or it evicts the copy that does.
+//   * Determinism. The copies of one sounding share a position, a DEPTH and an
+//     LNAM, so nothing in the ranking can tell them apart. Restricted to their
+//     own intervals -- which are disjoint by construction -- at most one of
+//     them is ever in the same contest.
+//
+// What is written is the THINNING minzoom alone. Composing it with _QZMIN here
+// would stamp the partition floor twice and strip nothing; the properties stay
+// exactly as they arrived, because composing them is bin/stamp-quilt-zooms'
+// job and it needs them to do it. A copy that wins nothing inside its own
+// interval is stamped with the band maxzoom, which composes to an empty range
+// and publishes nothing THERE -- which is the thinning decision, said in the
+// only vocabulary the tippecanoe member has: another copy of that sounding
+// serves the zooms above it.
+//
+// EFFECTIVE DEPTH
+//
+// DEPTH, in metres, from the S-57 export's ADD_SOUNDG_DEPTH=ON, and shallower
+// wins -- so a drying height (negative DEPTH) outranks everything wet. A
+// sounding with NO readable DEPTH sorts as the DEEPEST there is, which is the
+// opposite of the hazard rule and for the opposite reason: a wreck with no
+// VALSOU is a hazard of unknown least depth, which S-52 treats as the dangerous
+// case, while a sounding with no depth is not a shoal claim at all and cannot
+// displace one.
+//
+// Ties break on LNAM and then on position, so the same chart always produces
+// the same tiles. LNAM alone is not enough here and is in
+// bin/generate-hazard-minzooms: SPLIT_MULTIPOINT=ON splits one S-57 sounding
+// record into a point feature per depth and every one of them carries the
+// record's LNAM, so a tie on LNAM is the common case rather than the rare one,
+// and breaking it on export order would make the output depend on how ogr2ogr
+// happened to walk the record.
+
+import { readFileSync, writeFileSync } from "fs";
+
+// Screen size of a thinning cell, in pixels. A sounding figure is ~10 px of
+// ink; 64 px is bin/generate-hazard-minzooms' spacing, so the two layers thin
+// against the same grid.
+const CELL_PIXELS = 64;
+
+// The tile grid the pixel size is measured against. Matches bin/s57-to-tiles.
+const TILE_PIXELS = 512;
+
+const args = process.argv.slice(2);
+let minzoom = 0;
+let maxzoom = 16;
+const inputPaths = [];
+
+for (let i = 0; i < args.length; i++) {
+  if (args[i] === "--minzoom" && args[i + 1]) {
+    minzoom = parseInt(args[++i], 10);
+  } else if (args[i] === "--maxzoom" && args[i + 1]) {
+    maxzoom = parseInt(args[++i], 10);
+  } else {
+    inputPaths.push(args[i]);
+  }
+}
+
+if (inputPaths.length === 0) {
+  console.error(
+    "Usage: thin-soundings --minzoom N --maxzoom N <SOUNDG.geojson> ...",
+  );
+  process.exit(1);
+}
+
+/** Web Mercator, normalized to [0, 1) on both axes. */
+function mercator(lon, lat) {
+  const x = (lon + 180) / 360;
+  // Clamped short of the poles, where the projection diverges: an S-57 cell
+  // never reaches them, and a NaN here would silently unbucket the feature.
+  const clamped = Math.max(-85.05112878, Math.min(85.05112878, lat));
+  const sin = Math.sin((clamped * Math.PI) / 180);
+  const y = 0.5 - Math.log((1 + sin) / (1 - sin)) / (4 * Math.PI);
+  return [x, y];
+}
+
+/**
+ * Charted depth, shallower first. An unreadable one is the deepest there is.
+ *
+ * Returned as a number so the comparison is a plain `<`; the sentinel has to be
+ * above every real sounding, and no charted depth is infinite.
+ */
+function chartedDepth(properties) {
+  const value = Number(properties?.DEPTH);
+  return Number.isFinite(value) ? value : Number.POSITIVE_INFINITY;
+}
+
+/**
+ * The zoom interval a partitioned copy serves; see THE ZOOM PARTITION. An
+ * absent or unreadable bound binds nothing, which is every legacy invocation.
+ */
+function zoomBound(value, fallback) {
+  if (value === null || value === undefined || value === "") return fallback;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : fallback;
+}
+
+const soundings = [];
+const documents = [];
+
+for (const path of inputPaths) {
+  const document = JSON.parse(readFileSync(path, "utf8"));
+  documents.push({ path, document });
+  const features = document.features ?? [];
+  for (const feature of features) {
+    if (feature?.geometry?.type !== "Point") continue;
+    const coordinates = feature.geometry.coordinates;
+    if (!Array.isArray(coordinates) || coordinates.length < 2) continue;
+    const [lon, lat] = coordinates;
+    if (!Number.isFinite(lon) || !Number.isFinite(lat)) continue;
+    const properties = feature.properties ?? {};
+    soundings.push({
+      feature,
+      depth: chartedDepth(properties),
+      // The identity a tie is broken on, and it must not depend on the order
+      // the file happened to be written in: see the header on LNAM.
+      key: `${properties.LNAM ?? ""}\u0000${lon},${lat}`,
+      mercator: mercator(lon, lat),
+      qzmin: zoomBound(properties._QZMIN, Number.NEGATIVE_INFINITY),
+      qzmax: zoomBound(properties._QZMAX, Number.POSITIVE_INFINITY),
+      // Filled in below. Nothing that reaches this array leaves without one.
+      minzoom: maxzoom,
+    });
+  }
+}
+
+/** True when `a` is the shoaler of the two, ties broken on identity. */
+function outranks(a, b) {
+  if (a.depth !== b.depth) return a.depth < b.depth;
+  return a.key < b.key;
+}
+
+for (let zoom = minzoom; zoom < maxzoom; zoom++) {
+  // Cells per axis at this zoom. 2^zoom tiles of TILE_PIXELS, cut into
+  // CELL_PIXELS squares.
+  const cells = Math.pow(2, zoom) * (TILE_PIXELS / CELL_PIXELS);
+  const winners = new Map();
+  for (const sounding of soundings) {
+    if (zoom < sounding.qzmin || zoom > sounding.qzmax) continue;
+    const [x, y] = sounding.mercator;
+    const column = Math.min(cells - 1, Math.floor(x * cells));
+    const row = Math.min(cells - 1, Math.floor(y * cells));
+    const cell = `${column},${row}`;
+    const held = winners.get(cell);
+    if (held === undefined || outranks(sounding, held))
+      winners.set(cell, sounding);
+  }
+  for (const winner of winners.values()) {
+    // Ascending zooms, so the first zoom a feature wins at is the shallowest,
+    // and monotonicity means it wins every zoom after it too.
+    if (winner.minzoom === maxzoom) winner.minzoom = zoom;
+  }
+}
+
+for (const sounding of soundings) {
+  // NOT a property: tippecanoe reads this member off the Feature itself,
+  // beside `geometry`. See bin/s57-to-tiles step 4.
+  sounding.feature.tippecanoe = {
+    ...(sounding.feature.tippecanoe ?? {}),
+    minzoom: sounding.minzoom,
+  };
+}
+
+for (const { path, document } of documents) {
+  writeFileSync(path, JSON.stringify(document));
+}
+
+const early = soundings.filter((sounding) => sounding.minzoom < maxzoom).length;
+console.error(
+  `Thinned ${soundings.length} sounding(s) across z${minzoom}-${maxzoom}: ` +
+    `${early} visible before z${maxzoom}`,
+);

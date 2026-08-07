@@ -2,4 +2,10 @@
 # Stub node: the derived-layer generators in bin/ have their own fixture runs
 # (test/generate-*.test.js). Here they only have to not exist, so their outputs
 # stay absent and the -s guards in bin/s57-to-tiles skip them.
+#
+# STUB_NODE_LOG records the argv of every invocation, one per line, which is
+# where the tests read the arguments s57-to-tiles hands the generators.
+if [ -n "$STUB_NODE_LOG" ]; then
+  echo "$*" >> "$STUB_NODE_LOG"
+fi
 exit 0

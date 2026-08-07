@@ -84,6 +84,19 @@
 //     within one group, not one group's anchors from another's; a consumer
 //     needing a stable per-anchor identity has to key on the geometry.
 //
+// THE ZOOM PARTITION
+//
+// A partitioned cell arrives as zoom-range COPIES of each lane polygon -- one
+// per interval of the copy ladder, carrying _QZMIN/_QZMAX (and _QFALL on a
+// fallback continuation) -- which bin/stamp-quilt-zooms turns into per-feature
+// tippecanoe zoom bounds after this runs. The interval is part of the bucket
+// key for the same reason INTU is, and more strictly: the copies of one leg
+// OVERLAP, so ungrouped they touch, union-find welds them into a single group
+// with the summed area of all its intervals, and the one anchor that comes out
+// carries no interval and draws its arrow at every zoom. The group's interval
+// is carried onto its anchors. An input with none of those properties is one
+// bucket per (class, INTU) and behaves exactly as it did before them.
+//
 // A long leg gets more than one anchor. A single arrow in the middle of a lane
 // that runs the length of a strait tells the mariner nothing at either end, so
 // anchors repeat every ANCHOR_SPACING_NM along the leg's own axis -- which for
@@ -225,6 +238,24 @@ function meanOrient(group) {
   if (x === 0 && y === 0) return Math.round(group[0].orient) % 360;
   const degrees = (Math.atan2(y, x) * 180) / Math.PI;
   return Math.round(((degrees % 360) + 360) % 360) % 360;
+}
+
+/** The partition properties a source copy carries; see THE ZOOM PARTITION. */
+const QUILT_PROPERTIES = ["_QZMIN", "_QZMAX", "_QFALL"];
+
+/** Those of them a feature actually has, to be copied onto its outputs. */
+function quiltRange(properties) {
+  const range = {};
+  for (const name of QUILT_PROPERTIES) {
+    const value = properties?.[name];
+    if (value !== null && value !== undefined) range[name] = value;
+  }
+  return range;
+}
+
+/** The bucket key of a range. Legacy inputs all share the empty one. */
+function quiltKey(range) {
+  return QUILT_PROPERTIES.map((name) => range[name] ?? "").join("\u0000");
 }
 
 function readFeatures(path) {
@@ -663,13 +694,15 @@ for (const { className, path } of inputs) {
     // group's mean is ever rounded.
     const orient = Number.isFinite(raw) ? ((raw % 360) + 360) % 360 : undefined;
     const intu = feature.properties?.INTU ?? null;
-    const id = `${className}\u0000${intu}`;
+    const range = quiltRange(feature.properties);
+    const id = `${className}\u0000${intu}\u0000${quiltKey(range)}`;
     for (const polygon of polygons(feature.geometry)) {
       if (!polygon[0] || polygon[0].length < 4) continue;
       const bucket = buckets.get(id);
       const member = {
         className,
         intu,
+        range,
         orient,
         polygon,
         // Kept on the member: it weights the group's mean ORIENT as well as
@@ -688,7 +721,7 @@ let droppedStations = 0;
 
 for (const members of buckets.values()) {
   for (const group of contiguousGroups(members)) {
-    const { className, intu } = group[0];
+    const { className, intu, range } = group[0];
     // Parts of one leg only touch, so the areas do not overlap and their sum
     // is the union's area.
     const area = group.reduce((total, member) => total + member.area, 0);
@@ -770,6 +803,9 @@ for (const members of buckets.values()) {
           // and STATION is the only thing that is the same in every tile.
           STATION: index,
           STATIONS: count,
+          // The interval the group's members serve, converted to tippecanoe
+          // bounds later by bin/stamp-quilt-zooms.
+          ...range,
         },
       });
     }

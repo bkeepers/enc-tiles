@@ -34,6 +34,16 @@
 // stamped. The one that is not stamped is the Turn Point special operating
 // area, which is a standalone caution and the case this exists to tell apart.
 //
+// THE ZOOM PARTITION
+//
+// A partitioned cell arrives as zoom-range COPIES of each precautionary area,
+// carrying _QZMIN/_QZMAX (and _QFALL on a fallback continuation) for
+// bin/stamp-quilt-zooms to turn into tippecanoe bounds. Nothing here is derived
+// ACROSS features -- the evidence is one area's own text -- so every copy is
+// tested on its own and keeps the interval it came with: this rewrites the
+// features it is given and never rebuilds them, and the working properties are
+// not its to strip.
+//
 // NEVER FATAL. A cell whose .TXT files were not shipped, or are unreadable, or
 // are in an encoding this cannot make sense of, is a cell that gets no stamps --
 // not a cell that fails to convert. The attribute is an enhancement to how an
