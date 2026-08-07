@@ -130,10 +130,15 @@ describe("the rung stamped on each chart's coverage", () => {
     expect(alaska.qfloor).toBe(9);
   });
 
-  test("the floor is clamped into the web ladder", () => {
-    // Nothing below z0 exists to own, and nothing above z12 is tiled.
+  test("the floor is clamped into the PUBLISHED web ladder", () => {
+    // Nothing below z0 exists to own, and the top of the ladder is the
+    // published archive's maxzoom (11) rather than the deepest zoom any band
+    // tiles to (12). A floor of 12 stamps content into z12 tiles that the
+    // national join deletes, and the style then draws it at no zoom at all.
     expect(stamps(run({ STUB_CSCALE: "40000000" }).sql).qfloor).toBe(0);
-    expect(stamps(run({ STUB_CSCALE: "500" }).sql).qfloor).toBe(12);
+    expect(stamps(run({ STUB_CSCALE: "500" }).sql).qfloor).toBe(11);
+    // The shallowest scale that used to clamp past the cap at Puget latitude.
+    expect(stamps(run({ STUB_CSCALE: "5000" }).sql).qfloor).toBe(11);
   });
 });
 
@@ -153,7 +158,10 @@ describe("a chart whose DSID carries no DSPM_CSCL", () => {
     [2, 1500000, 4],
     [3, 350000, 6],
     [4, 90000, 8],
-    [6, 4000, 12],
+    // 1:4000 is z12 on the raw ladder and is clamped to the publication cap:
+    // a band-6 fallback floored at 12 published into tiles the national join
+    // deletes, so the content drew at NO zoom.
+    [6, 4000, 11],
   ])("band %i falls back to 1:%i", (intu, cscale, floor) => {
     expect(
       stamps(run({ STUB_CSCALE: "none", STUB_INTU: String(intu) }).sql),

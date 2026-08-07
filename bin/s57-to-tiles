@@ -27,15 +27,16 @@
 #       sysexits.h's EX_DATAERR and is not produced by ogr2ogr, ogrinfo or
 #       tippecanoe on any path this script takes.
 #
-#       ALL BUT UNREACHABLE since step 2b became the copy ladder: the whole
-#       copy is the UNCUT original and survives, so a cell that held rows
-#       before the partition holds at least as many after it. The exception is
-#       a cell whose deepest TILE is at or below its own rung with a finer
-#       chart over it: there is no uncut interval to serve, the top copy is the
-#       only copy, and a mask that covers the cell empties it as it always did.
-#       Kept for that and as insurance -- the counters below are what make it
-#       safe, and a partition that stopped emitting the whole copy would
-#       otherwise empty a cell silently.
+#       UNREACHABLE since step 2b became the copy ladder: the whole copy is the
+#       UNCUT original and survives, so a cell that held rows before the
+#       partition holds at least as many after it. The one exception -- a cell
+#       whose deepest TILE was at or below its own rung, leaving no uncut
+#       interval -- was an artefact of folding deep rungs onto the band
+#       maxzoom, and step 2b no longer folds: it raises the tiling range to the
+#       deepest rung instead, so every interval including the whole copy has a
+#       tile. Kept as insurance -- the counters below are what make it safe, and
+#       a partition that stopped emitting the whole copy would otherwise empty a
+#       cell silently.
 #
 #       65 is a PERMANENT verdict -- the caller records the cell as covered and
 #       never looks at it again -- so all THREE of these must hold before it is
@@ -168,9 +169,14 @@ if [ -z "$intu" ]; then
   exit 1
 fi
 
-# INTU → zoom range. Each chart generates tiles only at its native zoom levels.
-# tile-join --overzoom fills in higher zooms by scaling parent tiles where no
-# higher-INTU chart exists, so features don't disappear when zooming in.
+# INTU → zoom range. The STARTING tiling range: a chart generates tiles at its
+# own band's native zoom levels, and tile-join --overzoom fills in higher zooms
+# by scaling parent tiles where no finer chart exists, so features don't
+# disappear when zooming in.
+#
+# `maxzoom` is raised in step 2b when the copy ladder puts a rung deeper than
+# this band -- every interval of the ladder needs a tile to live in. Nothing
+# between here and there reads it.
 case "$intu" in
   1) minzoom=0; maxzoom=4  ;;
   2) minzoom=0; maxzoom=6  ;;
@@ -205,12 +211,15 @@ fi
 # The deepest zoom a PUBLISHED tileset holds, which is not the same number as
 # the ladder above.
 #
-# A cell is tiled to its own band maxzoom, but the archive a browser mounts is
-# the national join, and that join is capped at the MINIMUM band maxzoom across
-# its member regions -- 11 today, because only a berthing-band region reaches
-# z12 and letting --overzoom synthesize z12 for the regions that do not was what
-# OOM-killed the join. Every tile above the cap is deleted from the published
-# archive.
+# A cell is tiled to its band maxzoom or to its deepest ladder rung, whichever
+# is deeper, but the archive a browser mounts is the national join, and that
+# join is capped at the MINIMUM band maxzoom across its member regions -- 11
+# today, because only a berthing-band region reaches z12 and letting --overzoom
+# synthesize z12 for the regions that do not was what OOM-killed the join. Every
+# tile above the cap is deleted from the published archive.
+#
+# It is also the ceiling QUILT_FLOOR_MAX clamps every rung into, which is what
+# keeps step 2b's raise from ever tiling a cell past the cap.
 #
 # It matters here because a derived layer can carry a PROMISE about zooms in its
 # attributes, and a promise about a deleted tile is a zoom at which nothing
@@ -463,6 +472,10 @@ quilt_copy() {
 # a no-op. The top copy is today's fully-clipped output, and the whole copy is
 # what finally renders a coarse chart complete and seam-free in its own range.
 #
+# Every one of those K+2 intervals gets a real tile: this block raises the
+# cell's tiling maxzoom to fK when fK is deeper than its INTU band, rather than
+# folding the deep rungs down onto the band and emptying the zooms between.
+#
 # Rows at this cell's OWN floor -- its own M_COVR among them -- are peers of it
 # and clip nothing, which is also what keeps the cell from clipping itself.
 if [ -n "$coverage" ] && [ -f "$coverage" ] && [ -n "$quilt_floor" ]; then
@@ -522,33 +535,23 @@ if [ -n "$coverage" ] && [ -f "$coverage" ] && [ -n "$quilt_floor" ]; then
     # One cumulative mask per distinct finer floor: everything finer than this
     # cell up to and including that rung. Typically K <= 3.
     #
-    # A rung above this cell's deepest TILE gets no interval of its own, because
-    # there is no tile to serve it in. It FOLDS into the top copy instead, whose
-    # mask is the full finer union rather than a cumulative rung: the deepest
-    # tile is the one `tile-join --overzoom` lifts over every finer chart, so
-    # the geometry in it has to be cut against all of them or a 1:90k coastline
-    # draws over the 1:12k harbour it was clipped out of. A folded rung needs no
-    # cumulative mask of its own for the same reason, and it is known non-empty
-    # because `quilting` holds the rows the DISTINCT query returned it for.
-    # Folding can land on this cell's own floor, which leaves the whole copy an
-    # empty interval; that is handled where the whole copy is stamped.
+    # EVERY finer rung gets an interval, including the ones above this cell's
+    # own INTU-band tiling maxzoom. Folding them down onto the band maxzoom is
+    # what this replaces, and it emptied whole zoom bands: a 1:180k cell (band
+    # maxzoom 8) under finer rungs {9, 10, 11} folded all three onto 8, which
+    # collapsed the ladder to a whole copy of [7..7] and a top copy of [8..]
+    # cut against the FULL finer union -- so at z8 the coarse chart had been
+    # cut away while none of the finer charts had reached its own floor yet,
+    # and the tile came back all but empty (measured: 6 DEPARE features in a z8
+    # tile over the whole Puget basin against 1791 in the z7 tile above it).
+    # The same fold emptied z10 under a 1:45k cell whose 1:12k neighbours floor
+    # at 11.
+    #
+    # The tiling range is what moves instead: see the raise below.
     ladder_floors=()
     for floor in $(ogrinfo -q "$gpkg" -dialect sqlite \
       -sql "SELECT DISTINCT QFLOOR FROM quilting WHERE QFLOOR > ${quilt_floor} ORDER BY QFLOOR" \
       2>/dev/null | grep -oE '=[[:space:]]*[0-9]+' | grep -oE '[0-9]+'); do
-      folded=0
-      if [ "$floor" -gt "$maxzoom" ]; then
-        floor="$maxzoom"
-        [ "$floor" -lt "$quilt_floor" ] && floor="$quilt_floor"
-        folded=1
-      fi
-      # Several folded rungs land on the same interval; it is built once.
-      [ ${#ladder_floors[@]} -gt 0 ] &&
-        [ "${ladder_floors[-1]}" = "$floor" ] && continue
-      if [ "$folded" = "1" ]; then
-        [ "$has_mask" -gt 0 ] && ladder_floors+=("$floor")
-        continue
-      fi
       ogrinfo --quiet "$gpkg" -dialect sqlite -sql \
         "CREATE TABLE quilt_mask_${floor} AS SELECT ST_Union(geom) as geom FROM quilting WHERE QFLOOR > ${quilt_floor} AND QFLOOR <= ${floor}"
       rung_rows=$(count_rows \
@@ -556,6 +559,27 @@ if [ -n "$coverage" ] && [ -f "$coverage" ] && [ -n "$quilt_floor" ]; then
         "quilt mask ${floor} count")
       [ "$rung_rows" -gt 0 ] && ladder_floors+=("$floor")
     done
+
+    # A ladder interval needs a TILE to live in. tippecanoe writes nothing above
+    # --maximum-zoom and bin/stamp-quilt-zooms drops any copy whose interval
+    # falls entirely outside it, so a cell whose finer neighbours floor deeper
+    # than its own band maxzoom is tiled to the deepest of those rungs instead.
+    #
+    # That is the whole cost of not folding, and it is the right way round: the
+    # extra zooms carry the coarse chart's RESIDUE -- the original minus the
+    # coverage that has actually started serving at that zoom -- which is
+    # exactly the content the fold deleted. The top copy then sits at the
+    # deepest rung, which is also where `tile-join --overzoom` starts lifting
+    # this cell over the finer charts, so the tile it lifts is the one cut
+    # against all of them.
+    #
+    # The publication ceiling is untouched: QUILT_FLOOR_MAX clamps every rung
+    # into the published archive's maxzoom, so this can never raise a cell past
+    # a zoom the national join keeps.
+    if [ ${#ladder_floors[@]} -gt 0 ] &&
+      [ "${ladder_floors[-1]}" -gt "$maxzoom" ]; then
+      maxzoom="${ladder_floors[-1]}"
+    fi
 
     if [ "$has_mask" -gt 0 ]; then
       # Recorded so an empty export below can be reported as "fully covered"
@@ -606,10 +630,14 @@ if [ -n "$coverage" ] && [ -f "$coverage" ] && [ -n "$quilt_floor" ]; then
           rung_max=$((${ladder_floors[$next]} - 1))
           rung_mask="quilt_mask_${floor}"
         else
-          # The top copy runs to the band maxzoom and past it through overzoom,
-          # so it is cut against ALL finer coverage -- including the rungs that
-          # folded into this interval because they start above the cell's
-          # deepest tile, which is the tile overzoom lifts over them.
+          # The top copy runs to the tiling maxzoom and past it through
+          # overzoom, so it is cut against ALL finer coverage: its deepest tile
+          # is the one `tile-join --overzoom` lifts over every finer chart, and
+          # geometry left in it would draw a 1:90k coastline over the 1:12k
+          # harbour it was clipped out of. Since the ladder no longer folds,
+          # `quilt_mask_${floor}` for this last rung is that same full union;
+          # the shared table is used so the intent does not depend on the
+          # cumulative query happening to reach the end.
           rung_max="NULL"
           rung_mask="quilt_mask"
         fi
@@ -630,13 +658,15 @@ if [ -n "$coverage" ] && [ -f "$coverage" ] && [ -n "$quilt_floor" ]; then
       # Whatever is left unstamped is the whole copy: the uncut original over
       # the cell's own rung.
       if [ "$whole_max" != "NULL" ] && [ "$whole_max" -lt "$quilt_floor" ]; then
-        # Unless the cell's deepest tile is at or below its own rung and a finer
-        # chart covers it, in which case the top copy -- cut against every one
-        # of them, because overzoom lifts that tile over all of them -- is the
-        # only copy the cell can serve. Rows stamped into the empty interval
-        # would be dropped after the export instead, which would hide a
-        # fully-covered cell from the exit-65 guard and fail the run in
-        # tippecanoe with no explanation.
+        # Insurance, and UNREACHABLE by construction since the ladder stopped
+        # folding: every ladder floor comes from `QFLOOR > quilt_floor`, so the
+        # first one is at least quilt_floor + 1 and the whole copy's cap is at
+        # least quilt_floor. It was the fold that could land a rung on the
+        # cell's own floor and leave [f0 .. f0-1] behind.
+        #
+        # Kept because rows stamped into an empty interval are dropped after
+        # the export instead, which would hide a fully-covered cell from the
+        # exit-65 guard and fail the run in tippecanoe with no explanation.
         ogrinfo --quiet "$gpkg" -dialect sqlite -sql "
           DELETE FROM \"${table}\" WHERE _QZMIN IS NULL AND _QFALL IS NULL
         "

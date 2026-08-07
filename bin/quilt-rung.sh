@@ -11,7 +11,7 @@
 # See docs/architecture/QUILT_ZOOM_PARTITION.md ("the rung function"):
 #
 #   nativeZ(S, lat) = log2(559_082_264 * cos(lat_mid) / S)   WebMercator, 96 dpi
-#   rungFloor       = clamp(round(nativeZ) - 4, 0, 12)
+#   rungFloor       = clamp(round(nativeZ) - 4, 0, 11)
 
 # WebMercator scale denominator at zoom 0, 96 dpi.
 QUILT_SCALE_DENOMINATOR_Z0=559082264
@@ -22,8 +22,23 @@ QUILT_SCALE_DENOMINATOR_Z0=559082264
 QUILT_RUNG_OFFSET=4
 
 # The web ladder the rung is clamped into.
+#
+# The top is the PUBLISHED ARCHIVE's maxzoom, not the deepest zoom any band
+# tiles to. The archive a browser mounts is the national join, and that join is
+# capped at the MINIMUM band maxzoom across its member regions -- 11 today,
+# because only a berthing-band region reaches z12 (see publication_maxzoom in
+# bin/s57-to-tiles). Every tile above the cap is deleted from the published
+# archive.
+#
+# A floor of 12 therefore names a zoom the archive does not hold: band-6-ish
+# content (cscale <= ~5800 at Puget latitude, and the band-6 fallback cscale
+# 4000 exactly) would be stamped minzoom 12, its z12 tiles would die in the
+# join, and the style -- which gates on the stamped floor -- would draw it at
+# NO zoom at all. Clamping at the cap makes the deepest rung one the reader can
+# actually ask for. When every band-6 region reaches z12 and the join's minimum
+# moves, this moves with publication_maxzoom.
 QUILT_FLOOR_MIN=0
-QUILT_FLOOR_MAX=12
+QUILT_FLOOR_MAX=11
 
 # The compilation scale a chart falls back to when its DSID carries no
 # DSPM_CSCL: the COARSER rung of its INTU band's standard pair. A legacy chart

@@ -100,7 +100,19 @@ function run(env = {}, { coverage: withCoverage = true } = {}) {
     // Every generator invocation, argv per line: the arguments are the only
     // place the wiring between this script and bin/ is observable here.
     node: existsSync(nodeLog) ? readFileSync(nodeLog, "utf8") : "",
+    // tippecanoe's own argv, which is where the cell's tiling range is stated.
+    tippecanoe:
+      /^TIPPECANOE ARGV (.*)$/m.exec(result.stdout ?? "")?.[1] ?? null,
   };
+}
+
+/** The tiling range tippecanoe was actually asked for, or null if it never ran. */
+function tilingRange(tippecanoe) {
+  if (tippecanoe === null) return null;
+  const min = /--minimum-zoom=(\d+)/.exec(tippecanoe);
+  const max = /--maximum-zoom=(\d+)/.exec(tippecanoe);
+  if (!min || !max) return null;
+  return { min: Number(min[1]), max: Number(max[1]) };
 }
 
 /** The recorded invocations, one per entry; the stubs delimit them. */
@@ -396,9 +408,9 @@ describe("the copy ladder", () => {
 });
 
 /**
- * A 1:90k cell of band 4, which tiles to z10. Its own floor is 8, and it is
- * overlapped by 1:22k (floor 10) and 1:12k (floor 11) charts -- the second of
- * which starts BELOW the deepest tile this cell has.
+ * A 1:90k cell of band 4, whose BAND alone would tile it to z10. Its own floor
+ * is 8, and it is overlapped by 1:22k (floor 10) and 1:12k (floor 11) charts --
+ * the second of which floors deeper than that band maxzoom.
  */
 const CELL_UNDER_DEEPER_RUNGS = {
   STUB_INTU: "4",
@@ -410,17 +422,45 @@ const CELL_UNDER_DEEPER_RUNGS = {
   STUB_TOTAL: "9",
 };
 
-describe("rungs deeper than the cell's own tiles", () => {
-  test("a rung below the deepest tile folds into the top copy", () => {
+describe("rungs deeper than the cell's own band", () => {
+  test("a rung deeper than the band gets its own interval, not a fold", () => {
     const intervals = ladder(run(CELL_UNDER_DEEPER_RUNGS).sql, "DEPARE");
 
-    // No interval starts above z10: there is no tile of this cell to serve one
-    // in, and a copy built for it is dropped before tippecanoe sees it.
+    // Folding {10, 11} onto the band maxzoom 10 collapsed this to a whole copy
+    // of [8..9] and a top copy of [10..] cut against BOTH rungs -- so at z10
+    // the coarse chart was cut away for the sake of 1:12k charts that do not
+    // start serving until z11, and the tile came back all but empty. Each rung
+    // is now cut against only the coverage that has actually arrived.
     expect(intervals).toEqual([
       { min: null, max: 7, fallback: true },
       { min: 8, max: 9, fallback: false, whole: true },
-      { min: 10, max: null, fallback: false },
+      { min: 10, max: 10, fallback: false },
+      { min: 11, max: null, fallback: false },
     ]);
+  });
+
+  test("the cell is tiled down to its deepest rung", () => {
+    const result = run(CELL_UNDER_DEEPER_RUNGS);
+
+    // A ladder interval needs a tile to live in: tippecanoe writes nothing
+    // above --maximum-zoom, and bin/stamp-quilt-zooms drops any copy whose
+    // interval falls entirely outside the tiling range. Band 4 alone stops at
+    // z10, so the [11..] top copy is why the range moves.
+    expect(tilingRange(result.tippecanoe)).toEqual({ min: 0, max: 11 });
+
+    // --full-detail stays pinned: one extent, every tile, every band.
+    expect(result.tippecanoe).toContain("--full-detail=14");
+    expect(result.tippecanoe).toContain("--low-detail=14");
+    expect(result.tippecanoe).toContain("--minimum-detail=14");
+  });
+
+  test("a cell whose rungs all fit inside its band is not raised", () => {
+    // The raise is a consequence of the ladder, not a new default: THREE_RUNG
+    // is a band-5 cell (maxzoom 11) under rungs 8 and 10.
+    expect(tilingRange(run(THREE_RUNG_CELL).tippecanoe)).toEqual({
+      min: 0,
+      max: 11,
+    });
   });
 
   test("the top copy is cut against ALL finer coverage", () => {
@@ -433,49 +473,103 @@ describe("rungs deeper than the cell's own tiles", () => {
     const cut = statements(sql).find(
       (statement) =>
         statement.includes('UPDATE "DEPARE" SET geom = ST_Difference') &&
-        statement.includes("WHERE _QZMIN = 10"),
+        statement.includes("WHERE _QZMIN = 11"),
     );
     expect(cut).toMatch(/\(SELECT geom FROM quilt_mask\)/);
-    expect(sql).not.toContain("quilt_mask_11");
+
+    // And the rung BELOW it is cut against its own cumulative mask alone.
+    const rung = statements(sql).find(
+      (statement) =>
+        statement.includes('UPDATE "DEPARE" SET geom = ST_Difference') &&
+        statement.includes("WHERE _QZMIN = 10"),
+    );
+    expect(rung).toMatch(/\(SELECT geom FROM quilt_mask_10\)/);
   });
 
-  test("a cell whose finer neighbours ALL start deeper still cuts its deepest tile", () => {
-    // A band-3 cell tiles to z8; the 1:45k, 1:22k and 1:12k charts over it
-    // floor at 9, 10 and 11. Every one of them folds into one top copy at z8.
-    const { sql } = run({
+  test("a cell whose finer neighbours ALL start deeper keeps every rung", () => {
+    // A 1:180k cell floors at 7 and its band tiles to z8; the 1:45k, 1:22k and
+    // 1:12k charts over it floor at 9, 10 and 11. This is the live defect: all
+    // three folded onto z8, the whole copy shrank to [7..7], and the z8 tile --
+    // the only one left, cut against the full finer union -- came back with 6
+    // DEPARE features over the whole Puget basin against 1791 at z7.
+    const { sql, tippecanoe } = run({
       ...CELL_UNDER_DEEPER_RUNGS,
       STUB_INTU: "3",
-      STUB_CSCALE: "350000",
+      STUB_CSCALE: "180000",
       STUB_FINER_FLOORS: "9 10 11",
     });
 
-    expect(ladder(sql, "DEPARE")).toEqual([
-      { min: null, max: 5, fallback: true },
-      { min: 6, max: 7, fallback: false, whole: true },
-      { min: 8, max: null, fallback: false },
+    const intervals = ladder(sql, "DEPARE");
+    expect(intervals).toEqual([
+      { min: null, max: 6, fallback: true },
+      { min: 7, max: 8, fallback: false, whole: true },
+      { min: 9, max: 9, fallback: false },
+      { min: 10, max: 10, fallback: false },
+      { min: 11, max: null, fallback: false },
     ]);
-    expect(sql).not.toContain("quilt_mask_9");
+
+    // Exactly-one-owner over the whole tiling range: the intervals meet end to
+    // end from z0, the last is unbounded, and every zoom the cell now tiles is
+    // inside one of them.
+    expect(intervals[0].min ?? 0).toBe(0);
+    for (let i = 0; i < intervals.length - 1; i++) {
+      expect(intervals[i].max).toBe((intervals[i + 1].min ?? 0) - 1);
+    }
+    expect(intervals[intervals.length - 1].max).toBeNull();
+
+    // A cumulative mask per rung, none of them folded away.
+    for (const floor of [9, 10, 11]) {
+      expect(sql).toContain(
+        `CREATE TABLE quilt_mask_${floor} AS SELECT ST_Union(geom) as geom ` +
+          `FROM quilting WHERE QFLOOR > 7 AND QFLOOR <= ${floor}`,
+      );
+    }
+
+    // And a tile for every one of them.
+    expect(tilingRange(tippecanoe)).toEqual({ min: 0, max: 11 });
   });
 
-  test("a cell with no uncut interval left publishes the top copy alone", () => {
-    // A 1:12k cell floors at 11 and tiles to 11: one tile zoom, and a berthing
-    // chart over it folds onto that same zoom. The whole copy would be [11..10]
-    // -- an empty interval -- so it is removed rather than stamped, which is
-    // what keeps a fully-covered cell reaching the exit-65 guard.
+  test("the whole copy is never an empty interval", () => {
+    // The fold could land a rung on the cell's OWN floor, leaving [f0..f0-1] --
+    // the one geometry that made exit 65 reachable, and why bin/s57-to-tiles
+    // deletes the unstamped rows rather than stamping them. Ladder floors come
+    // straight off `QFLOOR > f0` now, so the first is at least f0+1 and the
+    // whole copy always holds at least its own rung. The guard is kept as
+    // insurance; nothing self-consistent reaches it.
     const { sql } = run({
       ...CELL_UNDER_DEEPER_RUNGS,
       STUB_INTU: "5",
       STUB_CSCALE: "12000",
-      STUB_FINER_FLOORS: "12",
+      // 1:12k floors at 11, which is the publication cap and therefore the
+      // finest rung the ladder has: nothing can be finer than this cell.
+      STUB_FINER_FLOORS: "",
+      STUB_HAS_MASK: "0",
     });
 
     expect(ladder(sql, "DEPARE")).toEqual([
       { min: null, max: 10, fallback: true },
-      { min: 11, max: null, fallback: false },
+      { min: 11, max: null, fallback: false, whole: true },
     ]);
-    expect(sql).not.toMatch(/UPDATE "DEPARE" SET _QZMIN/);
-    expect(sql).toContain(
+    expect(sql).toContain("-where QFLOOR <> 11");
+    expect(sql).not.toContain(
       'DELETE FROM "DEPARE" WHERE _QZMIN IS NULL AND _QFALL IS NULL',
+    );
+  });
+
+  test("the band-6 fallback scale floors at the publication cap", () => {
+    // 1:4000 is z12 on the raw ladder. A floor of 12 stamped content into z12
+    // tiles that the national join deletes, so it drew at no zoom at all;
+    // bin/quilt-rung.sh clamps at 11 and both consumers of it must agree.
+    const { sql } = run({
+      ...THREE_RUNG_CELL,
+      STUB_CSCALE: "4000",
+      // Nothing can floor finer than the cap, so this cell has no finer rungs.
+      STUB_FINER_FLOORS: "",
+    });
+
+    expect(sql).toContain("-where QFLOOR <> 11");
+    expect(sql).toContain(
+      "CREATE TABLE quilt_mask AS SELECT ST_Union(geom) as geom FROM quilting WHERE QFLOOR > 11",
     );
   });
 });
