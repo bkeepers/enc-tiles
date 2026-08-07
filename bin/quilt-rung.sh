@@ -56,8 +56,13 @@ quilt_dsid_cscale() {
 # Empty when the extent cannot be read, which is the caller's signal that the
 # chart cannot be placed on the ladder at all.
 quilt_mid_lat() {
-  ogrinfo -so -q "$1" M_COVR 2>/dev/null |
-    sed -n 's/^Extent: //p' | tr -d '(),' |
+  # No -q here: GDAL 3.13's ogrinfo suppresses the whole -so summary under -q
+  # (only "Layer name:" survives), so a quiet read never prints the Extent
+  # line at all — every chart then skips as "could not read the extent"
+  # (2026-08-07, first real-GDAL run; the test stub now mirrors this). The
+  # sed tolerates the CRS-annotated form ("Extent (EPSG:4326): ...") too.
+  ogrinfo -so "$1" M_COVR 2>/dev/null |
+    sed -n 's/^Extent[^:]*: //p' | tr -d '(),' |
     awk 'NF >= 5 { printf "%.6f", ($2 + $5) / 2; exit }'
 }
 

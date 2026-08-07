@@ -113,6 +113,17 @@ case "$args" in
     # The layer summary the rung's mid-latitude and the copy ladder's column
     # list are read off. Anchored at the start of the argument line: a tmpdir
     # name is free to contain "-so".
+    #
+    # Real GDAL 3.13 suppresses this whole summary under -q — only the layer
+    # name survives — which is exactly how every extract-coverage invocation
+    # in the first real v4 run read no extent and skipped every chart. The
+    # stub mirrors that so a -q on this read can never pass the suite again.
+    case " $* " in
+      *" -q "*)
+        echo "Layer name: ${*: -1}"
+        exit 0
+        ;;
+    esac
     echo "Layer name: ${*: -1}"
     echo "Geometry: Polygon"
     echo "Feature Count: 1"
