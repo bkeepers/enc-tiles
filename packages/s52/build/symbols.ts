@@ -11,6 +11,34 @@ import { parse } from "css";
  */
 export const PX_PER_MM = 3.7795275591;
 
+/**
+ * Slack (px) allowed when snapping an extent up to a whole pixel, so that a
+ * box already ON a pixel boundary to within floating-point noise is left where
+ * it is instead of being grown by a whole pixel.
+ */
+const PX_SNAP_TOLERANCE = 1e-6;
+
+/**
+ * HALF of an extent (mm), grown so that the whole extent rasterizes to a whole
+ * number of CSS pixels with nothing clipped off it.
+ *
+ * Two roundings have to come out right, which is why this returns the half and
+ * not the extent. The rasterizer sizes the pixmap from the mm the viewBox is
+ * WRITTEN at — three decimals, `svgDocument` — so landing the exact extent on
+ * a pixel is not enough: 21 px is 5.55625 mm, written as 5.556, which is
+ * 20.999 px and a pixel row shorter again. So the half is taken up to the
+ * 0.001 mm grid, which can only ever push the extent further past the pixel
+ * boundary (by at most 0.0076 px, nowhere near the next one). Taking the HALF
+ * to that grid rather than the extent is what keeps `minX`/`minY` at exactly
+ * minus half the extent once they are rounded too — the sprite stays centred
+ * on its own pivot, which is what lets `LC()` emit no `icon-offset`.
+ */
+const snapHalfMm = (extentMm) =>
+  Math.ceil(
+    (Math.ceil(extentMm * PX_PER_MM - PX_SNAP_TOLERANCE) / (2 * PX_PER_MM)) *
+      1000,
+  ) / 1000;
+
 const mmToPx = (mm) => Math.round(mm * PX_PER_MM);
 
 // Anchored to the package rather than to process.cwd(): `vite build` runs with
@@ -746,7 +774,27 @@ export function lineMarkGeometry(name) {
   // dash phase and the symbol anchors independently), so centring costs
   // nothing.
   const centre = (left + right) / 2;
-  const half = Math.max(-top, bottom);
+
+  // The box above is the ink's own bounding box, so the drawing touches all
+  // four viewBox edges with ZERO padding — and an extent that lands on a
+  // fraction of a pixel then loses that fraction when the rasterizer sizes the
+  // pixmap in whole pixels. PRCARE51 is the worked example: 27.91 mm x 3.7795
+  // = 105.487 px becomes a 105 px sprite, and the half pixel it drops is the
+  // right leg of the fourth dentate tooth (measured 13 px wide against its
+  // siblings' 14). Vertically 5.6 mm = 21.165 px becomes 21 and shaves the
+  // triangle's base row. Every ink-tight mark whose mm extent lands on a
+  // fraction >= .5 has the same clip — ACHARE51/CBLARE51/CTNARE51/DWRUTE51/
+  // PIPARE51/PIPARE61 all share PRCARE51's 27.91 mm width.
+  //
+  // So grow the box out to whole CSS pixels. SYMMETRICALLY, in both axes: the
+  // sprite has to stay centred on its anchor for `LC()` to keep emitting no
+  // `icon-offset` (see the centring note above), and the body translates are
+  // relative to `centre`/the axis, so nothing inside the box moves. The mark
+  // width is not consumed anywhere downstream — `LC()` spaces the icons by
+  // `style.interval` — so the extra pixel is inert beyond the atlas.
+  const halfWidth = snapHalfMm(right - left);
+  const half = snapHalfMm(2 * Math.max(-top, bottom));
+  const width = 2 * halfWidth;
 
   for (const { mark, box } of boxes) {
     body.push(
@@ -756,8 +804,8 @@ export function lineMarkGeometry(name) {
   }
 
   return {
-    minX: -(right - left) / 2,
-    width: right - left,
+    minX: -halfWidth,
+    width,
     top,
     bottom,
     half,

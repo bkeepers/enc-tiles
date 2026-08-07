@@ -710,6 +710,162 @@ describe("the census key reaches the tiles", () => {
   });
 });
 
+describe("the chart's own name", () => {
+  /** A cell whose tables include the ones the new step-2 work touches. */
+  const NAMED_CELL = {
+    ...THREE_RUNG_CELL,
+    STUB_TABLES: "DEPARE M_COVR BUAARE M_QUAL",
+  };
+
+  test("DSNM is stamped on M_COVR, and on nothing else", () => {
+    // The pick resolves the covering chart through the coverage polygon, so
+    // that is the one feature that carries the name. On every layer it would
+    // be one string per feature in every tile.
+    const { sql } = run(NAMED_CELL);
+
+    expect(sql).toContain("ALTER TABLE M_COVR ADD COLUMN DSNM TEXT");
+    expect(sql).toContain("UPDATE M_COVR SET DSNM = 'US5WA22M'");
+    expect(sql).not.toMatch(/ALTER TABLE "?DEPARE"? ADD COLUMN DSNM/);
+    expect(sql).not.toMatch(/ALTER TABLE "?BUAARE"? ADD COLUMN DSNM/);
+  });
+
+  test("the .000 extension is stripped, and an update file names its cell", () => {
+    // DSID_DSNM is the DATASET name: `.000` is the base cell and `.001`, ...
+    // are its updates. All of them are the same chart.
+    const { sql } = run({ ...NAMED_CELL, STUB_DSNM: "US3AK1FP.004" });
+
+    expect(sql).toContain("UPDATE M_COVR SET DSNM = 'US3AK1FP'");
+  });
+
+  test("a chart with no readable DSNM still tiles, unstamped", () => {
+    // Advisory: the name is a label, and nothing the rung, the clip or the
+    // census does depends on it.
+    const result = run({ ...NAMED_CELL, STUB_DSNM: "none" });
+
+    expect(result.status).toBe(0);
+    expect(result.sql).not.toContain("ADD COLUMN DSNM");
+    expect(result.stderr).toContain("no readable DSID_DSNM");
+  });
+
+  test("a name that is not an 8-character cell is refused, not stamped", () => {
+    // Anything else in that field is not the chart identity the frontend puts
+    // at the head of a pick, and a wrong name is worse than none.
+    const { sql } = run({ ...NAMED_CELL, STUB_DSNM: "SOMETHING_ELSE.000" });
+
+    expect(sql).not.toContain("ADD COLUMN DSNM");
+  });
+});
+
+describe("BUAARE fragments of one town", () => {
+  const TOWN_CELL = {
+    ...THREE_RUNG_CELL,
+    STUB_TABLES: "DEPARE M_COVR BUAARE",
+  };
+
+  /**
+   * The three statements of the dissolve, in order, and none of the copy
+   * ladder's -- which also rewrites BUAARE geometry and would otherwise be
+   * swept up by anything looser.
+   */
+  const DISSOLVE = [
+    /CREATE TABLE buaare_dissolve/,
+    /DELETE FROM BUAARE WHERE/,
+    /UPDATE BUAARE SET geom = \(/,
+  ];
+  function dissolveStatements(sql) {
+    const all = statements(sql);
+    return DISSOLVE.map((pattern) => {
+      const statement = all.find((entry) => pattern.test(entry));
+      expect(statement, `${pattern} ran`).toBeDefined();
+      return statement;
+    });
+  }
+
+  test("same-named areas are unioned and the extra rows dropped", () => {
+    // S-57 splits a named area across every polygon its topology needs, and
+    // the shared border between two fragments of ONE town was being stroked as
+    // though it separated two different places.
+    const { sql } = run(TOWN_CELL);
+
+    expect(sql).toContain(
+      "SELECT OBJNAM AS objnam, ST_Union(geom) AS geom\n       FROM BUAARE",
+    );
+    expect(sql).toMatch(/GROUP BY OBJNAM/);
+    expect(sql).toMatch(/DELETE FROM BUAARE WHERE .* ROWID NOT IN/s);
+    expect(sql).toMatch(/UPDATE BUAARE SET geom = \(\s*SELECT d\.geom/);
+    // The working table must not survive into the export.
+    expect(sql).toContain("DROP TABLE buaare_dissolve");
+  });
+
+  test("an unnamed area is left completely alone", () => {
+    // "Both have no name" is not evidence that two built-up areas are the same
+    // place; grouping them would union every unrelated one in the cell.
+    const dissolve = dissolveStatements(run(TOWN_CELL).sql);
+
+    expect(dissolve).toHaveLength(3);
+    for (const statement of dissolve) {
+      expect(statement).toContain("OBJNAM IS NOT NULL AND OBJNAM <> ''");
+    }
+  });
+
+  test("the un-cast SQL convention holds here too", () => {
+    // Same trap as the quilt clip: AsGPB() of an already-GPKG blob is NULL, and
+    // the write-back would erase every fragment it touched.
+    for (const statement of dissolveStatements(run(TOWN_CELL).sql)) {
+      expect(statement).not.toContain("AsGPB");
+      expect(statement).not.toContain("CastAutomagic");
+    }
+  });
+
+  test("a cell with no BUAARE runs no dissolve at all", () => {
+    const { sql } = run(THREE_RUNG_CELL);
+
+    expect(sql).not.toContain("buaare_dissolve");
+  });
+});
+
+describe("the M_QUAL edge generator", () => {
+  test("it is handed the quality layer and both coverage inputs", () => {
+    // Without the coverage inputs the layer draws a line at every cell border,
+    // which is the defect it exists to remove.
+    const { node } = run({
+      ...THREE_RUNG_CELL,
+      STUB_TABLES: "DEPARE M_COVR M_QUAL",
+    });
+
+    expect(node).toMatch(
+      /generate-mqual-edges \S+_MQUAL_EDGE\.geojson --quality \S+M_QUAL\.geojson/,
+    );
+    expect(node).toMatch(
+      /generate-mqual-edges .*--coverage \S+quilting_coverage/,
+    );
+    expect(node).toMatch(
+      /generate-mqual-edges .*--cell-coverage \S+M_COVR\.geojson/,
+    );
+  });
+
+  test("it runs BEFORE the zoom stamping, so its ranges are converted", () => {
+    // It propagates _QZMIN/_QZMAX onto its outputs as properties;
+    // stamp-quilt-zooms is what turns those into tippecanoe members.
+    const { node } = run({
+      ...THREE_RUNG_CELL,
+      STUB_TABLES: "DEPARE M_COVR M_QUAL",
+    });
+
+    const lines = node.trim().split("\n");
+    const edges = lines.findIndex((l) => l.includes("generate-mqual-edges"));
+    const stamp = lines.findIndex((l) => l.includes("stamp-quilt-zooms"));
+    expect(edges).toBeGreaterThanOrEqual(0);
+    expect(stamp).toBeGreaterThan(edges);
+  });
+
+  test("a cell with no M_QUAL does not run it", () => {
+    const { node } = run(THREE_RUNG_CELL);
+
+    expect(node).not.toContain("generate-mqual-edges");
+  });
+});
+
 describe("counts that cannot be read", () => {
   test("a failed post-clip count is exit 1, never a count of zero", () => {
     const result = run({

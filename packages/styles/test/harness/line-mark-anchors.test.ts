@@ -128,11 +128,18 @@ function largestGap(distances: number[], perimeterPx: number): number {
 describe("line-placed boundary marks reach the ends of the line", () => {
   // The widest mark sprites in the catalogue and therefore the worst case: a
   // line style packs a whole repeat interval's glyphs into one sprite.
+  //
+  // The widths are each ONE MORE than the ink they hold: the mark box is grown
+  // out to whole CSS pixels so the rasterizer cannot drop the fraction, which
+  // it was doing to the right leg of PRCARE51's fourth dentate tooth
+  // (`lineMarkGeometry`, packages/s52). The padding is at most a pixel and it
+  // is symmetric, so the reservation these anchors are placed against moves by
+  // at most half a pixel.
   test.each([
-    ["CTNARE51", 105],
-    ["PRCARE51", 105],
-    ["ACHARE51", 105],
-    ["TIDINF51", 107],
+    ["CTNARE51", 106],
+    ["PRCARE51", 106],
+    ["ACHARE51", 106],
+    ["TIDINF51", 108],
     ["RESARE51", undefined],
   ])("%s", (name, expectedWidth) => {
     const layout = markLayer(name).layout!;

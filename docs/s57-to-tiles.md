@@ -45,6 +45,24 @@ never matches an integer 1 — MapLibre's `==` is type-strict. See
 Each S-57 object class becomes a vector tile layer with the same name:
 `LIGHTS`, `BCNLAT`, `DEPARE`, `SOUNDG`, etc.
 
+### Attributes added to S-57 layers
+
+Two of them are not S-57 attributes at all, and are added at step 2:
+
+| Attribute | On       | Contents                                                                                                                                                                     |
+| --------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `INTU`    | every    | The cell's navigational purpose, so a style can prefer the finer chart where two overlap.                                                                                    |
+| `DSNM`    | `M_COVR` | The cell's own 8-character name, from `DSID_DSNM` with its `.000`/`.001` extension stripped. On the coverage polygon ALONE — that is what a pick resolves the chart through. |
+
+BUAARE is also **dissolved by name** at step 2: `ST_Union` grouped by `OBJNAM`,
+per cell, so the shared border between two fragments of one town is not stroked
+as though it separated two places. A NULL or empty `OBJNAM` is left alone —
+"neither has a name" is not evidence that two areas are the same place — and
+fragments of one name that do not touch come out as a MultiPolygon, which draws
+exactly as they did. Borders remain between differently-named areas, which is
+correct, and at CELL SEAMS, which is not: the other half of a town is in a
+different chart and a different GPKG. Accepted for now.
+
 ## Derived layers
 
 `bin/s57-to-tiles` also emits layers that are not S-57 object classes. They
@@ -57,7 +75,34 @@ with an underscore.
 | `_LIGHTS_SECTORS` | `bin/generate-sector-arcs`  | LineString arcs and radial legs for sector lights (LIGHTS06) — one copy per zoom, see below.                                                                                           |
 | `_DEPARE_EDGE`    | `bin/generate-depare-edges` | Shared edges of the DEPARE/DRGARE partition, with `DRVAL_LO`/`DRVAL_HI` on either side, a coincident `VALDCO`, and `SEAM` where the quilt clip or the cell's own M_COVR ring cut them. |
 | `_LABELS`         | `bin/generate-labels`       | One point per (`OBJNAM`, `INTU`) group of LNDARE/LNDRGN/SEAARE/BUAARE, with `CLASS` and the group's `AREA`.                                                                            |
+| `_MQUAL_EDGE`     | `bin/generate-mqual-edges`  | M_QUAL boundaries where the zone of confidence CHANGES, with `CATZOC_LO`/`CATZOC_HI` on either side — see below.                                                                       |
 | `_TSS_ANCHORS`    | `bin/generate-tss-anchors`  | One arrow anchor per traffic-lane leg — see below. Carries `CLASS`, `INTU`, `ORIENT`, `AREA`.                                                                                          |
+
+### `_MQUAL_EDGE`
+
+M_QUAL is a meta-object: it tiles the survey into zones of confidence, and its
+polygons are split for reasons that have nothing to do with quality — the
+topology they were digitised against, and above all the edge of the chart.
+Stroking M_QUAL's own boundaries therefore rules a single CATZOC 2 survey into
+one box per cell.
+
+Segments are hashed exactly as `_DEPARE_EDGE`'s are, and one is emitted only
+where its two sides DIFFER:
+
+- Two zones of the same `CATZOC` — the interior split. Dropped.
+- A zone beside no zone at all — emitted with `CATZOC_LO` = −1, which is also
+  what a neighbour carrying no `CATZOC` reads as, so two unassessed zones side
+  by side draw nothing between them.
+- A segment lying along a quilt cut (`--coverage`) or along this cell's own
+  M_COVR ring (`--cell-coverage`) — **dropped**, not flagged. The zone
+  continues into the next chart at a confidence this cell cannot see, and
+  asserting a change there is the defect. This is the one place `_MQUAL_EDGE`
+  parts company with `_DEPARE_EDGE`, which flags its seams because the safety
+  contour still has to be drawn along them.
+
+`CATZOC_LO` is the numerically LOWER of the two, which by S-57's numbering
+(1 = A1 … 6 = unassessed) is the better-surveyed side. There is no `DIFFER`
+flag: every feature in the layer is a difference, so it would be constant.
 
 ### `_TSS_ANCHORS`
 

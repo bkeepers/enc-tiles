@@ -16,6 +16,7 @@ import { readFileSync } from "fs";
 import { JSDOM } from "jsdom";
 // @ts-expect-error -- the build plugin is untyped plain JS
 import {
+  PX_PER_MM,
   dashSchedule,
   lineMarkGeometry,
   lineStyleGeometry,
@@ -559,6 +560,121 @@ describe("line style mark sprites", () => {
         `${source.key} pivot y`,
       ).toBeLessThanOrEqual(0.5);
     }
+  });
+
+  test("a mark sprite is a whole number of pixels, with all its ink inside", () => {
+    // The box used to be the ink's own bounding box, so the drawing touched
+    // all four edges and any fraction of a pixel in the extent was dropped
+    // when the rasterizer sized the pixmap. PRCARE51: 27.91 mm x 3.7795 =
+    // 105.487 px became 105 px and took the right leg of the fourth dentate
+    // tooth with it -- 13 px wide where its three siblings are 14.
+    //
+    // Two things have to hold for that not to come back, and BOTH are about
+    // the millimetres the file actually carries, not the exact geometry:
+    // resvg sizes the pixmap from the written viewBox, which is rounded to
+    // three decimals. So the box has to hold the ink, and the written mm have
+    // to land unambiguously on a whole pixel from ABOVE.
+    for (const source of sources) {
+      if (source.kind !== "linemark") continue;
+      const [minX, minY, width, height] = viewBoxNumbers(
+        sourceSvg(source) as string,
+      );
+
+      // Recomputed from the catalogue rather than from lineMarkGeometry, so
+      // this is an independent statement of where the ink is.
+      const spec = lineStyleSpec(source.name) as {
+        marks: { reference: string; position: number; offset: number }[];
+      };
+      let inkLeft = Infinity;
+      let inkRight = -Infinity;
+      let inkTop = 0;
+      let inkBottom = 0;
+      for (const mark of spec.marks) {
+        const [boxX, boxY, boxW, boxH] = viewBoxNumbers(
+          readSymbolSvg(mark.reference) as string,
+        );
+        inkLeft = Math.min(inkLeft, mark.position + boxX!);
+        inkRight = Math.max(inkRight, mark.position + boxX! + boxW!);
+        inkTop = Math.min(inkTop, mark.offset + boxY!);
+        inkBottom = Math.max(inkBottom, mark.offset + boxY! + boxH!);
+      }
+
+      // The box is centred on the ink, so only its extent can be short.
+      expect(
+        width,
+        `${source.key} holds its ink across`,
+      ).toBeGreaterThanOrEqual(inkRight! - inkLeft! - 1e-9);
+      expect(height, `${source.key} holds its ink down`).toBeGreaterThanOrEqual(
+        2 * Math.max(-inkTop, inkBottom) - 1e-9,
+      );
+
+      for (const [axis, mm] of [
+        ["width", width!],
+        ["height", height!],
+      ] as const) {
+        const px = mm * PX_PER_MM;
+        // Whichever way the rasterizer resolves the fraction it gets the same
+        // pixel count -- there is no fraction to resolve.
+        expect(Math.floor(px), `${source.key} ${axis} floors cleanly`).toBe(
+          Math.round(px),
+        );
+        // ...and it is the count symbols.json promises the frontend.
+        expect(symbols[source.key]![axis], `${source.key} ${axis}`).toBe(
+          Math.round(px),
+        );
+      }
+
+      // Growing the box does not stretch the drawing: a viewBox that does not
+      // match the declared size is exactly how a sprite comes out squished.
+      const declared = /width="([\d.]+)mm" height="([\d.]+)mm"/.exec(
+        sourceSvg(source) as string,
+      )!;
+      expect(Number(declared[1]), `${source.key} declared width`).toBe(width);
+      expect(Number(declared[2]), `${source.key} declared height`).toBe(height);
+      expect(minX, `${source.key} box grew symmetrically`).toBe(-width! / 2);
+      expect(minY, `${source.key} box grew symmetrically`).toBe(-height! / 2);
+    }
+  });
+
+  test("PRCARE51 draws its triangle at S-52's own proportions", () => {
+    // The mark that started it. EMPRCAR1 is 3.66 x 5.03 mm of vectors in
+    // `S-52 PresLib Ed 4.0.4.dai` (SYMD EMPRCAR1, PU1138,1098 PD1504,1098
+    // PD1313,595 PD1141,1098), which S-101 reproduces as a 3.98 x 5.35 mm
+    // viewBox once the 0.32 mm pen is allowed for. The sprite embeds that
+    // drawing UNSCALED -- it is translated into place and nothing else -- so
+    // the triangle in the atlas is the catalogue's triangle, not a squashed
+    // one. Pin the numbers rather than an aspect ratio: a ratio survives both
+    // sides being scaled, which is the failure a `line-pattern` tile has.
+    const [, , triangleW, triangleH] = viewBoxNumbers(
+      readSymbolSvg("EMPRCAR1") as string,
+    );
+    expect([triangleW, triangleH]).toEqual([3.98, 5.35]);
+
+    const marks = sourceSvg({ kind: "linemark", name: "PRCARE51" }) as string;
+    const stroke = /<path d="([^"]+)"/.exec(
+      readSymbolSvg("EMPRCAR1") as string,
+    )!;
+    expect(marks, "the triangle is inlined verbatim").toContain(stroke[1]);
+    // Only translates -- no scale(), which is the one transform that could
+    // change the drawn aspect.
+    expect(marks).not.toContain("scale(");
+
+    // 27.91 mm of ink in a 28.046 mm box: 106 px, so the fourth dentate tooth
+    // keeps its right leg. 5.6 mm of ink in 5.822: 22 px, so the triangle
+    // keeps its base row.
+    const sprite = symbols["LM_PRCARE51"]!;
+    expect([sprite.width, sprite.height]).toEqual([106, 22]);
+    // The grown box is padding, not room the drawing spread into: the whole
+    // triangle still fits between the axis and the bottom edge.
+    const { bottom, half } = lineMarkGeometry("PRCARE51") as {
+      bottom: number;
+      half: number;
+    };
+    expect(bottom).toBeCloseTo(5.35 - 2.55, 9);
+    expect(half).toBeGreaterThanOrEqual(bottom);
+    expect(half - bottom, "padding stays sub-pixel").toBeLessThan(
+      1 / PX_PER_MM,
+    );
   });
 
   test("the ticks point image-DOWN, which is into the area", () => {

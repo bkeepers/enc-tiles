@@ -17,6 +17,7 @@
 #                          (default none: no ladder above the whole copy)
 #   STUB_CSCALE            DSPM_CSCL on the DSID layer ("none" to omit it)
 #   STUB_INTU              DSID_INTU on the DSID layer (default 5)
+#   STUB_DSNM              DSID_DSNM on the DSID layer ("none" to omit it)
 #   STUB_EXTENT            the M_COVR bbox `-so` reports, as GDAL prints it
 #   STUB_PRE_TOTAL         rows counted BEFORE the clip (default STUB_TOTAL)
 #   STUB_TOTAL             rows counted AFTER the clip (default 0)
@@ -160,6 +161,7 @@ case "$args" in
     # DSID dump when the chart does not carry it.
     [ -z "${STUB_INTU-5}" ] || echo "  DSID_INTU (Integer) = ${STUB_INTU-5}"
     [ "${STUB_CSCALE:-12000}" = "none" ] || echo "  DSPM_CSCL (Integer) = ${STUB_CSCALE:-12000}"
+    [ "${STUB_DSNM:-US5WA22M.000}" = "none" ] || echo "  DSID_DSNM (String) = ${STUB_DSNM:-US5WA22M.000}"
     exit 0
     ;;
 esac

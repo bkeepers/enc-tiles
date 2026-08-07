@@ -169,6 +169,23 @@ if [ -z "$intu" ]; then
   exit 1
 fi
 
+# The cell's own name, off the same DSID read: `DSID_DSNM` is the S-57 dataset
+# name, `US5WA22M.000` for a base cell and `.001`, `.002`, ... for its updates,
+# so the 8 characters before the extension are the chart identity the frontend
+# puts at the head of a pick. Stamped onto M_COVR at step 2 -- M_COVR alone,
+# because M_COVR is the layer a pick already resolves the covering cell through
+# and a per-feature copy on every layer would be one string per feature in
+# every tile.
+#
+# Advisory: a chart whose DSID carries no usable name is tiled without the
+# stamp rather than refused. The name is a label, and the rung, the clip and
+# the census all key off numbers this does not touch.
+dsnm=$(printf '%s\n' "$dsid" | grep DSID_DSNM | awk '{print $NF}' |
+  sed 's/\.[0-9][0-9][0-9]$//' | grep -xE '[A-Za-z0-9]{8}' || true)
+if [ -z "$dsnm" ]; then
+  echo "$input: no readable DSID_DSNM; publishing M_COVR without a chart name" >&2
+fi
+
 # INTU → zoom range. The STARTING tiling range: a chart generates tiles at its
 # own band's native zoom levels, and tile-join --overzoom fills in higher zooms
 # by scaling parent tiles where no finer chart exists, so features don't
@@ -254,6 +271,67 @@ for table in $tables; do
   ogrinfo --quiet "$gpkg" -dialect sqlite \
     -sql "ALTER TABLE \"${table}\" ADD COLUMN INTU INTEGER DEFAULT ${intu}"
 done
+
+# The cell's own name, on M_COVR only: a pick already resolves which chart
+# covers the cursor through the coverage polygon, so that is the one feature
+# that has to carry the chart's identity, and putting it there costs one string
+# per coverage ring instead of one per feature in the tileset.
+if [ -n "$dsnm" ] && echo "$tables" | grep -q '^M_COVR$'; then
+  ogrinfo --quiet "$gpkg" -dialect sqlite \
+    -sql "ALTER TABLE M_COVR ADD COLUMN DSNM TEXT"
+  ogrinfo --quiet "$gpkg" -dialect sqlite \
+    -sql "UPDATE M_COVR SET DSNM = '${dsnm}'"
+fi
+
+# BUAARE: dissolve the fragments of one built-up area back together.
+#
+# S-57 splits a named area across every polygon its topology needs -- the same
+# reason bin/generate-labels exists -- and each fragment carries the whole
+# OBJNAM. Drawn directly, the shared border between two fragments of ONE town
+# is stroked as though it were the edge between two different places. Unioning
+# by name removes the interior border and leaves the outline.
+#
+# Grouped by OBJNAM alone, per cell:
+#
+#   * A NULL or empty OBJNAM is left completely alone. Grouping the unnamed
+#     areas together would union every unrelated built-up area of the cell into
+#     one feature; "these two both have no name" is not evidence that they are
+#     the same place.
+#   * Fragments of one name that do NOT touch come out as a MultiPolygon,
+#     which draws exactly as the separate polygons did -- ST_Union only removes
+#     a border where there was a shared one.
+#   * Lines remain between DIFFERENTLY-named areas, which is correct, and at
+#     CELL SEAMS, which is not: the neighbouring cell's half of a town is a
+#     different chart and is not in this GPKG. Accepted for now.
+#
+# The surviving row keeps the attributes of the lowest-ROWID fragment. They are
+# the same feature as far as the chart is concerned; where a group disagrees on
+# CATBUA or CONVIS, one of the answers is arbitrarily the one that ships.
+#
+# The geometry expressions are left UN-CAST, for the reason spelled out at
+# length in step 2b: GDAL's SQLite dialect already round-trips GPKG geometry
+# through the SpatiaLite functions, and an AsGPB()/CastAutomagic() wrapper on
+# the write-back double-encodes it to NULL.
+if echo "$tables" | grep -q '^BUAARE$'; then
+  buaare_named="OBJNAM IS NOT NULL AND OBJNAM <> ''"
+  ogrinfo --quiet "$gpkg" -dialect sqlite -sql \
+    "CREATE TABLE buaare_dissolve AS
+       SELECT OBJNAM AS objnam, ST_Union(geom) AS geom
+       FROM BUAARE WHERE ${buaare_named} GROUP BY OBJNAM"
+
+  # Drop the extra fragments FIRST: the union is already held aside, and
+  # deleting after the write-back would have to know which row was written.
+  ogrinfo --quiet "$gpkg" -dialect sqlite -sql \
+    "DELETE FROM BUAARE WHERE ${buaare_named} AND ROWID NOT IN (
+       SELECT MIN(ROWID) FROM BUAARE WHERE ${buaare_named} GROUP BY OBJNAM)"
+
+  ogrinfo --quiet "$gpkg" -dialect sqlite -sql \
+    "UPDATE BUAARE SET geom = (
+       SELECT d.geom FROM buaare_dissolve d WHERE d.objnam = BUAARE.OBJNAM)
+     WHERE ${buaare_named}"
+
+  ogrinfo --quiet "$gpkg" -dialect sqlite -sql "DROP TABLE buaare_dissolve"
+fi
 
 # UDWHAZ05: Store the surrounding depth of WRECKS, OBSTRN and UWTROC. The style
 # uses these at render time to evaluate isolated danger status against the
@@ -819,7 +897,34 @@ if [ ${#edge_args[@]} -gt 0 ]; then
   fi
 fi
 
-# Step 3d: Derive _LABELS — one label anchor per named land, sea or built-up
+# Step 3d: Derive _MQUAL_EDGE — the M_QUAL boundaries where the zone of
+# confidence actually changes, each carrying the CATZOC on either side.
+#
+# M_QUAL is split for reasons that have nothing to do with survey quality, the
+# edge of the CHART above all, so stroking its own polygons rules a single
+# survey into one box per cell. Derived here, after the quilt clip and beside
+# the depth-area edges, on the same segment classification: see
+# bin/generate-mqual-edges.
+if [ -f "$tmpdir/M_QUAL.geojson" ]; then
+  mqual_args=(--quality "$tmpdir/M_QUAL.geojson")
+  # The two ways a boundary can be a chart border rather than a change in
+  # confidence: the quilt cut against a finer chart, and this cell's own ring.
+  # Unlike the depth-area seams these are DROPPED rather than flagged -- a
+  # confidence boundary that is only a cell border has nothing to draw.
+  if [ -f "$tmpdir/quilting_coverage.geojson" ]; then
+    mqual_args+=(--coverage "$tmpdir/quilting_coverage.geojson")
+  fi
+  if [ -f "$tmpdir/M_COVR.geojson" ]; then
+    mqual_args+=(--cell-coverage "$tmpdir/M_COVR.geojson")
+  fi
+  mqual_geojson="$tmpdir/_MQUAL_EDGE.geojson"
+  node "$SCRIPT_DIR/generate-mqual-edges" "$mqual_geojson" "${mqual_args[@]}"
+  if [ -s "$mqual_geojson" ]; then
+    geojson_files+=("$mqual_geojson")
+  fi
+fi
+
+# Step 3e: Derive _LABELS — one label anchor per named land, sea or built-up
 # area. S-57 splits a named feature across every polygon its topology needs,
 # all carrying the same OBJNAM, so labelling the classes directly repeats the
 # name once per polygon. See bin/generate-labels.
@@ -837,7 +942,7 @@ if [ ${#label_args[@]} -gt 0 ]; then
   fi
 fi
 
-# Step 3e: Derive _TSS_ANCHORS — one arrow anchor per traffic-lane leg.
+# Step 3f: Derive _TSS_ANCHORS — one arrow anchor per traffic-lane leg.
 # S-57 splits a lane leg at every cell boundary into features with DIFFERENT
 # LNAMs, and tippecanoe copies each part into every tile it touches, so drawing
 # the arrow from TSSLPT directly repeats it and nothing at runtime can collapse
@@ -857,7 +962,7 @@ if [ ${#tss_args[@]} -gt 0 ]; then
   fi
 fi
 
-# Step 3f: Thin the point hazards by depth rather than by tippecanoe's
+# Step 3g: Thin the point hazards by depth rather than by tippecanoe's
 # position hash. Rewrites the exported UWTROC/WRECKS/OBSTRN files in place with
 # a per-feature minzoom, so the shoalest hazard of a cluster is the one that
 # survives to small scales. See bin/generate-hazard-minzooms; the files are
@@ -873,7 +978,7 @@ if [ ${#hazard_files[@]} -gt 0 ]; then
     --minzoom "$minzoom" --maxzoom "$maxzoom" "${hazard_files[@]}"
 fi
 
-# Step 3g: Mark the precautionary areas that belong to a traffic separation
+# Step 3h: Mark the precautionary areas that belong to a traffic separation
 # scheme. The evidence is free text -- INFORM, or the companion .TXT file
 # TXTDSC names -- and those files sit beside the chart in ENC_ROOT, which is
 # why this runs against the SOURCE directory rather than the GPKG. Advisory:
@@ -883,10 +988,10 @@ if [ -f "$tmpdir/PRCARE.geojson" ]; then
     --enc-dir "$(dirname "$input")"
 fi
 
-# Step 3h: Thin the soundings by depth, shoalest first, per cell.
+# Step 3i: Thin the soundings by depth, shoalest first, per cell.
 #
 # tippecanoe's own dot-dropping is what used to thin SOUNDG, and it chooses by a
-# hash of position. The partition takes that away: step 3i stamps every sounding
+# hash of position. The partition takes that away: step 3j stamps every sounding
 # with a per-feature minzoom, and a per-feature minzoom is tippecanoe's
 # documented exemption from dot-dropping. Without a deliberate rule in its place
 # a small-scale tile would carry every sounding of the survey.
@@ -895,7 +1000,7 @@ if [ -f "$tmpdir/SOUNDG.geojson" ]; then
     --minzoom "$minzoom" --maxzoom "$maxzoom"
 fi
 
-# Step 3i: Convert the partition's _QZMIN/_QZMAX properties into per-feature
+# Step 3j: Convert the partition's _QZMIN/_QZMAX properties into per-feature
 # tippecanoe min/maxzoom members, composing with whatever the generators above
 # already stamped. Runs last, over every file that reaches tippecanoe, because
 # it is the composition -- not the properties -- that has to be final.
