@@ -779,12 +779,12 @@ if [ ${#edge_args[@]} -gt 0 ]; then
   fi
 fi
 
-# Step 3d: Derive _LABELS — one label anchor per named land/sea area.
-# S-57 splits a named feature across every polygon its topology needs, all
-# carrying the same OBJNAM, so labelling the classes directly repeats the name
-# once per polygon. See bin/generate-labels.
+# Step 3d: Derive _LABELS — one label anchor per named land, sea or built-up
+# area. S-57 splits a named feature across every polygon its topology needs,
+# all carrying the same OBJNAM, so labelling the classes directly repeats the
+# name once per polygon. See bin/generate-labels.
 label_args=()
-for label_table in LNDARE LNDRGN SEAARE; do
+for label_table in LNDARE LNDRGN SEAARE BUAARE; do
   if [ -f "$tmpdir/${label_table}.geojson" ]; then
     label_args+=(--class "${label_table}:$tmpdir/${label_table}.geojson")
   fi

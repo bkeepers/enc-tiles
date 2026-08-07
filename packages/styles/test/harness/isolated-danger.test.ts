@@ -7,6 +7,7 @@
  *   shoal | deep  x  safe | unsafe | drying | unjoined water
  *                 x  shallowWaterDangers on | off
  *                 x  VALSOU present | absent | join value NULL
+ *                 x  QUASOU trusted | flagged (2 / 7) | absent
  *
  * and asserts both the S-52 outcomes and the deliberate deviations documented
  * in CALLSYMPROC.ts.
@@ -150,6 +151,172 @@ describe("isolated dangers: fail-safe DEPTH_VALUE (no VALSOU)", () => {
       expect(isDanger).toBe(expected);
     });
   }
+});
+
+describe("QUASOU: a flagged sounding is not a least depth", () => {
+  // DEVIATION, documented on `soundingTrusted` in CALLSYMPROC.ts: strict S-52
+  // reads VALSOU without ever consulting QUASOU. QUASOU 2 ("depth unknown")
+  // and 7 ("least depth unknown, safe clearance at value shown") are the
+  // source saying the least depth was never established, so a nominal VALSOU
+  // deeper than the safety contour used to compute a trusted "safe" depth and
+  // skip UDWHAZ05 entirely. The flagged sounding is now dropped and the
+  // feature takes the arms below it, ending at the DEPTH_UNKNOWN sentinel.
+
+  /** Deeper than the 10 m safety contour: trusted, this is no danger at all. */
+  const DEEP = { VALSOU: 20, WATLEV: 3 };
+
+  /** Codings that leave the sounding trusted. */
+  const trusted: [string, Record<string, unknown>][] = [
+    ["absent", {}],
+    ["1 (surveyed, MVT integer)", { QUASOU: 1 }],
+    ['"1" (surveyed, string)', { QUASOU: "1" }],
+    ['"1,6" (a list with neither flag)', { QUASOU: "1,6" }],
+    // The comma wrapping in `listIncludes` is what keeps these off: a bare
+    // ",2," must not match ",12," and ",7," must not match ",27,".
+    ['"12,27" (no bare 2 or 7)', { QUASOU: "12,27" }],
+  ];
+
+  /** Codings that distrust it. */
+  const flagged: [string, Record<string, unknown>][] = [
+    ["2 (depth unknown, MVT integer)", { QUASOU: 2 }],
+    ['"2" (depth unknown, string)', { QUASOU: "2" }],
+    ["7 (least depth unknown)", { QUASOU: 7 }],
+    ['"1,2" (a list containing 2)', { QUASOU: "1,2" }],
+    ['"6,7,9" (a list containing 7)', { QUASOU: "6,7,9" }],
+  ];
+
+  for (const hazard of HAZARDS) {
+    for (const [label, quasou] of trusted) {
+      test(`${hazard} deep sounding, QUASOU ${label} → ordinary symbol in safe water`, () => {
+        const matches = hits(withShallow, hazard, {
+          ...DEEP,
+          ...quasou,
+          ...WATER.safe,
+        });
+        expect(icons(matches)).not.toContain("ISODGR01");
+        expect(hasSounding(matches)).toBe(true);
+      });
+    }
+
+    for (const [label, quasou] of flagged) {
+      test(`${hazard} deep sounding, QUASOU ${label} → ISODGR01 in safe water`, () => {
+        const matches = hits(withShallow, hazard, {
+          ...DEEP,
+          ...quasou,
+          ...WATER.safe,
+        });
+        const isodgr = matches.find((m) => m.icon === "ISODGR01");
+        expect(isodgr).toBeDefined();
+        // Safe surrounding water, so this is the display-base family, not
+        // Continuation A.
+        expect(isodgr!.metadata["s52:family"]).toBeUndefined();
+        expect(hasSounding(matches)).toBe(false);
+      });
+    }
+
+    // The same two codings crossed with the surrounding water.
+    test(`${hazard} flagged deep sounding in UNSAFE water is a shallow-water danger`, () => {
+      const feature = { ...DEEP, QUASOU: 2, ...WATER.unsafe };
+      // With the option off, S-52's ordinary path stays in force.
+      expect(icons(hits(withoutShallow, hazard, feature))).not.toContain(
+        "ISODGR01",
+      );
+      const isodgr = hits(withShallow, hazard, feature).find(
+        (m) => m.icon === "ISODGR01",
+      );
+      expect(isodgr).toBeDefined();
+      expect(isodgr!.metadata["s52:family"]).toBe("shallow-water-dangers");
+    });
+
+    test(`${hazard} trusted deep sounding in UNSAFE water is marked by neither family`, () => {
+      const feature = { ...DEEP, QUASOU: 1, ...WATER.unsafe };
+      for (const style of [withoutShallow, withShallow]) {
+        const matches = hits(style, hazard, feature);
+        expect(icons(matches)).not.toContain("ISODGR01");
+        expect(hasSounding(matches)).toBe(true);
+      }
+    });
+  }
+
+  test("a flagged sounding with no categorical attributes reaches DEPTH_UNKNOWN", () => {
+    // A rock has no CATOBS/CATWRK arm and this one has no WATLEV either, so
+    // the ladder runs out at the -15 sentinel: shoal at every safety contour.
+    for (const quasou of [2, 7]) {
+      const matches = hits(withoutShallow, "UWTROC", {
+        VALSOU: 20,
+        QUASOU: quasou,
+        ...WATER.safe,
+      });
+      expect(icons(matches)).toContain("ISODGR01");
+    }
+  });
+
+  test("WRECKS falls through to DEPVAL02's own stand-ins, not straight to the sentinel", () => {
+    // Dropping the sounding hands the feature to the arms below it, which are
+    // still the ladder's: a non-dangerous wreck (CATWRK 1) scores 20.1 m,
+    // exactly as an unsounded one does, and is not a danger.
+    const matches = hits(withShallow, "WRECKS", {
+      VALSOU: 20,
+      QUASOU: 2,
+      CATWRK: 1,
+      ...WATER.safe,
+    });
+    expect(icons(matches)).not.toContain("ISODGR01");
+  });
+
+  test("QUASOU does not reach the ordinary shoal branches", () => {
+    // Only DEPTH_VALUE consults it. A shoal sounding is DANGER01 either way,
+    // and the flagged one is a danger for the reason it already was.
+    for (const hazard of HAZARDS) {
+      for (const quasou of [{}, { QUASOU: 1 }, { QUASOU: 2 }]) {
+        const matches = hits(withoutShallow, hazard, {
+          VALSOU: 5,
+          WATLEV: 3,
+          ...quasou,
+          ...WATER.unsafe,
+        });
+        expect(icons(matches), JSON.stringify(quasou)).toContain("DANGER01");
+      }
+    }
+  });
+
+  test("no filter throws for any QUASOU encoding, and marks off is still off", () => {
+    // MVT cannot carry a null property, but the guard must not throw on one
+    // either -- a filter that throws takes its whole layer down.
+    const encodings = [
+      undefined,
+      1,
+      2,
+      7,
+      "1",
+      "2",
+      "7",
+      "1,2",
+      "12",
+      "",
+      null,
+    ];
+    for (const style of [withoutShallow, withShallow, withoutMarks]) {
+      for (const hazard of HAZARDS) {
+        for (const quasou of encodings) {
+          for (const water of Object.values(WATER)) {
+            const properties = {
+              VALSOU: 20,
+              WATLEV: 3,
+              ...water,
+              ...(quasou === undefined ? {} : { QUASOU: quasou }),
+            };
+            const matches = hits(style, hazard, properties);
+            const label = `${hazard} ${JSON.stringify(properties)}`;
+            expect(matches.length, label).toBeGreaterThan(0);
+            if (style === withoutMarks) {
+              expect(icons(matches), label).not.toContain("ISODGR01");
+            }
+          }
+        }
+      }
+    }
+  });
 });
 
 describe("DEPVAL02 ladder order: CATWRK 1 outranks WATLEV", () => {

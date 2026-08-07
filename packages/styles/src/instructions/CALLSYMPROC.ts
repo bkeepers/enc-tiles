@@ -2149,6 +2149,38 @@ const DEPTH_UNKNOWN = -15;
 export type HazardClass = "OBSTRN" | "UWTROC" | "WRECKS";
 
 /**
+ * Whether the feature's own VALSOU may be read as its established least depth.
+ *
+ * DEVIATION from the standards: strict S-52 (OBSTRN07 / DEPVAL02) and S-101
+ * never consult QUASOU -- a populated VALSOU is taken at face value. But
+ * QUASOU is the source's own statement ABOUT that sounding, and two of its
+ * values say the least depth was never established: 2 ("depth unknown") and 7
+ * ("least depth unknown, safe clearance at value shown", i.e. the number is a
+ * clearance the surveyor could vouch for, not the shoalest point of the
+ * feature). Trusting the figure anyway computes a confident "safe" depth for a
+ * rock nobody has measured, and when that nominal value is deeper than the
+ * safety contour the hazard skips the ISODGR01 test entirely -- never reaching
+ * the DEPTH_UNKNOWN sentinel that the no-VALSOU case already falls to. That is
+ * the same failure the sentinel above exists to prevent, so the fail-safe
+ * principle stated there decides it: a least depth the source itself flags as
+ * not established is treated as no least depth at all, and the feature falls
+ * through the categorical arms to DEPTH_UNKNOWN.
+ *
+ * QUASOU is a comma-list attribute, and the tiler writes a single-valued list
+ * as an MVT integer rather than a string. `listIncludes` compares over
+ * `["concat", ",", ["get", attr], ","]`, whose stringification makes the test
+ * type-tolerant the same way `attributeFilters`' `to-string` does: 2, "2" and
+ * "1,2" all match, while "12" and "27" do not, and an absent QUASOU concatenates
+ * to ",," and matches nothing -- so an unflagged sounding is trusted exactly as
+ * before.
+ */
+const soundingTrusted: ExpressionFilterSpecification = [
+  "all",
+  ["has", "VALSOU"],
+  ["!", listIncludes("QUASOU", "2", "7")],
+];
+
+/**
  * DEPTH_VALUE for UDWHAZ05, per the S-52 fail-safe ladders.
  *
  * S-52 does not gate the isolated-danger test on VALSOU being present: when
@@ -2163,6 +2195,10 @@ export type HazardClass = "OBSTRN" | "UWTROC" | "WRECKS";
  *
  *   WRECKS (DEPVAL02): VALSOU, else 20.1 for a non-dangerous wreck
  *   (CATWRK 1), else 0 when WATLEV is 3 or 5, else DEPTH_UNKNOWN.
+ *
+ * A VALSOU that QUASOU flags as not established is not read at all and the
+ * feature takes the arms below it, exactly as if it carried no sounding; see
+ * `soundingTrusted`.
  *
  * The CATWRK arm comes BEFORE the WATLEV one, which is the order WRECKS05
  * reaches them: the flowchart tests "CATWRK = 1" first and only the branch
@@ -2184,7 +2220,7 @@ export function depthValue(hazard: HazardClass): ExpressionSpecification {
   if (hazard === "WRECKS") {
     return [
       "case",
-      ["has", "VALSOU"],
+      soundingTrusted,
       valsou,
       ["==", ["get", "CATWRK"], 1],
       20.1,
@@ -2196,7 +2232,7 @@ export function depthValue(hazard: HazardClass): ExpressionSpecification {
 
   return [
     "case",
-    ["has", "VALSOU"],
+    soundingTrusted,
     valsou,
     ["any", ["==", ["get", "CATOBS"], 6], ["==", ["get", "WATLEV"], 3]],
     0.01,
