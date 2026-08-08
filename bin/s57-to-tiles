@@ -199,7 +199,11 @@ case "$intu" in
   2) minzoom=0; maxzoom=6  ;;
   3) minzoom=0; maxzoom=8 ;;
   4) minzoom=0; maxzoom=10 ;;
-  5) minzoom=0; maxzoom=11 ;;
+  # Band 5's deepest rung is now 12 (a 1:12,000 cell's floor under the
+  # offset-3 ladder), and every interval of the ladder needs a tile to live
+  # in -- so the band tiles to 12 natively rather than relying on the step-2b
+  # raise for its own standard scales.
+  5) minzoom=0; maxzoom=12 ;;
   6) minzoom=0; maxzoom=12 ;;
   *) echo "Unknown INTU: $intu"; exit 1 ;;
 esac
@@ -230,10 +234,13 @@ fi
 #
 # A cell is tiled to its band maxzoom or to its deepest ladder rung, whichever
 # is deeper, but the archive a browser mounts is the national join, and that
-# join is capped at the MINIMUM band maxzoom across its member regions -- 11
-# today, because only a berthing-band region reaches z12 and letting --overzoom
-# synthesize z12 for the regions that do not was what OOM-killed the join. Every
-# tile above the cap is deleted from the published archive.
+# join is capped at the MINIMUM band maxzoom across its member regions -- 12
+# under the offset-3 ladder, because the harbour band (INTU 5) now tiles z12
+# natively in every region. Every tile above the cap is deleted from the
+# published archive. (Historical note: the cap was 11, and the old z12 join
+# OOM'd because tile-join SYNTHESIZED z12 for the regions that lacked it --
+# under this ladder the fine cells tile z12 natively, so the synthesis path is
+# gone.)
 #
 # It is also the ceiling QUILT_FLOOR_MAX clamps every rung into, which is what
 # keeps step 2b's raise from ever tiling a cell past the cap.
@@ -241,12 +248,12 @@ fi
 # It matters here because a derived layer can carry a PROMISE about zooms in its
 # attributes, and a promise about a deleted tile is a zoom at which nothing
 # draws: bin/generate-sector-arcs stamps `_zmax`, the style matches `_z` exactly
-# against min(floor(zoom), _zmax), and a band-6 cell promising z12..z15 copies
-# that the join had deleted blanked its sectors from z12 up.
+# against min(floor(zoom), _zmax), and a cell promising copies the join had
+# deleted blanks its sectors from the cap up -- the defect that surfaced as
+# band-6 sectors going blank from z12 when the cap was 11.
 #
-# When every band-6 region reaches z12 the join's minimum moves and so does
-# this, in one place.
-publication_maxzoom=11
+# If the join's minimum ever moves again, this moves with it, in one place.
+publication_maxzoom=12
 
 mkdir -p "$(dirname "$output")"
 
@@ -615,15 +622,16 @@ if [ -n "$coverage" ] && [ -f "$coverage" ] && [ -n "$quilt_floor" ]; then
     #
     # EVERY finer rung gets an interval, including the ones above this cell's
     # own INTU-band tiling maxzoom. Folding them down onto the band maxzoom is
-    # what this replaces, and it emptied whole zoom bands: a 1:180k cell (band
-    # maxzoom 8) under finer rungs {9, 10, 11} folded all three onto 8, which
-    # collapsed the ladder to a whole copy of [7..7] and a top copy of [8..]
-    # cut against the FULL finer union -- so at z8 the coarse chart had been
-    # cut away while none of the finer charts had reached its own floor yet,
-    # and the tile came back all but empty (measured: 6 DEPARE features in a z8
-    # tile over the whole Puget basin against 1791 in the z7 tile above it).
-    # The same fold emptied z10 under a 1:45k cell whose 1:12k neighbours floor
-    # at 11.
+    # what this replaces, and it emptied whole zoom bands (measured under the
+    # old offset-4 floors; the mechanism is ladder-independent): a 1:180k cell
+    # (band maxzoom 8) under finer rungs {9, 10, 11} folded all three onto 8,
+    # which collapsed the ladder to a whole copy of [7..7] and a top copy of
+    # [8..] cut against the FULL finer union -- so at z8 the coarse chart had
+    # been cut away while none of the finer charts had reached its own floor
+    # yet, and the tile came back all but empty (measured: 6 DEPARE features in
+    # a z8 tile over the whole Puget basin against 1791 in the z7 tile above
+    # it). The same fold emptied z10 under a 1:45k cell whose 1:12k neighbours
+    # floored at 11.
     #
     # The tiling range is what moves instead: see the raise below.
     ladder_floors=()
@@ -904,7 +912,11 @@ fi
 # edge of the CHART above all, so stroking its own polygons rules a single
 # survey into one box per cell. Derived here, after the quilt clip and beside
 # the depth-area edges, on the same segment classification: see
-# bin/generate-mqual-edges.
+# bin/generate-mqual-edges and the machinery it shares in bin/quilt-edges.mjs.
+#
+# _MQUAL_LABELS comes off the same class and is derived beside it: one CATZOC
+# letter per CONTIGUOUS zone instead of one per fragment, which is the labelling
+# half of the same defect. See bin/generate-mqual-labels.
 if [ -f "$tmpdir/M_QUAL.geojson" ]; then
   mqual_args=(--quality "$tmpdir/M_QUAL.geojson")
   # The two ways a boundary can be a chart border rather than a change in
@@ -921,6 +933,80 @@ if [ -f "$tmpdir/M_QUAL.geojson" ]; then
   node "$SCRIPT_DIR/generate-mqual-edges" "$mqual_geojson" "${mqual_args[@]}"
   if [ -s "$mqual_geojson" ]; then
     geojson_files+=("$mqual_geojson")
+  fi
+
+  # No coverage inputs: an anchor is a point INSIDE a zone, and a zone
+  # truncated by the cell border is still a zone that has to be lettered here.
+  mqual_labels_geojson="$tmpdir/_MQUAL_LABELS.geojson"
+  node "$SCRIPT_DIR/generate-mqual-labels" "$mqual_labels_geojson" \
+    --quality "$tmpdir/M_QUAL.geojson"
+  if [ -s "$mqual_labels_geojson" ]; then
+    geojson_files+=("$mqual_labels_geojson")
+  fi
+fi
+
+# Step 3d (cont.): Derive _BUAARE_EDGE — the built-up area outline with the
+# borders that are only the edge of the CHART left out of it.
+#
+# The dissolve at the top of this script already unions the fragments of one
+# town, but only within this cell: the neighbouring cell's half of the town is
+# a different chart and is not in this GPKG, so a town spanning two cells still
+# came out cut in half down the cell border. That border is a boundary of the
+# chart, not of the town, and the same derivation _MQUAL_EDGE uses removes it.
+# Derived here, after the quilt clip, so the edges match the geometry that
+# actually reaches the tiles. See bin/generate-buaare-edges.
+if [ -f "$tmpdir/BUAARE.geojson" ]; then
+  buaare_args=(--built-up "$tmpdir/BUAARE.geojson")
+  if [ -f "$tmpdir/quilting_coverage.geojson" ]; then
+    buaare_args+=(--coverage "$tmpdir/quilting_coverage.geojson")
+  fi
+  if [ -f "$tmpdir/M_COVR.geojson" ]; then
+    buaare_args+=(--cell-coverage "$tmpdir/M_COVR.geojson")
+  fi
+  buaare_geojson="$tmpdir/_BUAARE_EDGE.geojson"
+  node "$SCRIPT_DIR/generate-buaare-edges" "$buaare_geojson" "${buaare_args[@]}"
+  if [ -s "$buaare_geojson" ]; then
+    geojson_files+=("$buaare_geojson")
+  fi
+fi
+
+# Step 3d (cont.): Derive _AREA_EDGE — the boundary merge rule, generalised.
+#
+# Every stroked area class had the same defect _MQUAL_EDGE and _BUAARE_EDGE
+# each fixed for one class: S-57 splits an area at the edge of the CHART, so a
+# restricted area continuing across cell seams drew its toothed line at every
+# chart border. _AREA_EDGE is the same derivation run per class over every
+# remaining area class the style strokes — a boundary segment is emitted only
+# where the CONTENT differs across it (once per side, carrying that side's
+# attributes), and single-owner segments on the quilt cut or the cell's own
+# ring are dropped. The participating class list lives in the generator
+# (--list-classes), so this loop and the derivation cannot drift apart. See
+# bin/generate-area-edges.
+# The class list is captured FIRST so its exit status is observed: a process
+# substitution hides a failure from `set -e`, and a silently empty list would
+# publish the cell with no _AREA_EDGE at all — the frontend latch (a per-source
+# sighting) would then hide every per-polygon boundary over this cell with
+# nothing to replace them. Every other generator is a bare `node` call the
+# shell aborts on; this one must not be the exception.
+area_edge_classes=$(node "$SCRIPT_DIR/generate-area-edges" --list-classes)
+[ -n "$area_edge_classes" ] || { echo "generate-area-edges --list-classes returned nothing" >&2; exit 1; }
+area_edge_args=()
+while IFS= read -r area_class; do
+  if [ -f "$tmpdir/${area_class}.geojson" ]; then
+    area_edge_args+=(--area "${area_class}:$tmpdir/${area_class}.geojson")
+  fi
+done <<< "$area_edge_classes"
+if [ ${#area_edge_args[@]} -gt 0 ]; then
+  if [ -f "$tmpdir/quilting_coverage.geojson" ]; then
+    area_edge_args+=(--coverage "$tmpdir/quilting_coverage.geojson")
+  fi
+  if [ -f "$tmpdir/M_COVR.geojson" ]; then
+    area_edge_args+=(--cell-coverage "$tmpdir/M_COVR.geojson")
+  fi
+  area_edges_geojson="$tmpdir/_AREA_EDGE.geojson"
+  node "$SCRIPT_DIR/generate-area-edges" "$area_edges_geojson" "${area_edge_args[@]}"
+  if [ -s "$area_edges_geojson" ]; then
+    geojson_files+=("$area_edges_geojson")
   fi
 fi
 
@@ -959,6 +1045,35 @@ if [ ${#tss_args[@]} -gt 0 ]; then
   node "$SCRIPT_DIR/generate-tss-anchors" "$tss_geojson" "${tss_args[@]}"
   if [ -s "$tss_geojson" ]; then
     geojson_files+=("$tss_geojson")
+  fi
+fi
+
+# Step 3f (cont.): Derive _RESTR_ANCHORS — one centred-symbol anchor per
+# restriction feature. S-52 centres the crossed-anchor ACHRES family in the
+# AREA, the generated style draws that per polygon per tile, and restriction
+# polygons genuinely span land — so the symbols repeat along every quilt seam
+# and 28% of them landed ashore at z7. One point per (CLASS, LNAM, interval),
+# placed on the water side of the feature: --land is what the placement
+# differences against. ACHARE is deliberately absent — anchorages are fine as
+# drawn (user ruling). Run after the quilt clip, like the other anchor
+# generators, so the anchors sit on the geometry that actually reaches the
+# tiles. See bin/generate-restriction-anchors.
+restr_args=()
+for restr_table in RESARE CBLARE PIPARE MIPARE DMPGRD; do
+  if [ -f "$tmpdir/${restr_table}.geojson" ]; then
+    restr_args+=(--class "${restr_table}:$tmpdir/${restr_table}.geojson")
+  fi
+done
+if [ ${#restr_args[@]} -gt 0 ]; then
+  # Advisory, like every other input here: a cell with no LNDARE simply keeps
+  # the plain largest-part interior points.
+  if [ -f "$tmpdir/LNDARE.geojson" ]; then
+    restr_args+=(--land "$tmpdir/LNDARE.geojson")
+  fi
+  restr_geojson="$tmpdir/_RESTR_ANCHORS.geojson"
+  node "$SCRIPT_DIR/generate-restriction-anchors" "$restr_geojson" "${restr_args[@]}"
+  if [ -s "$restr_geojson" ]; then
+    geojson_files+=("$restr_geojson")
   fi
 fi
 
@@ -1025,16 +1140,18 @@ fi
 # (12) is the grid at THIS cell's own maxzoom, -D/--low-detail (12) the grid at
 # every zoom below it, and -m/--minimum-detail (7) the floor it silently drops
 # to when a tile trips the feature limit. Setting only --full-detail made the
-# extent depend on the cell's band: an INTU-5 cell (maxzoom 11) wrote its z11 at
-# 16384, while an INTU-6 cell (maxzoom 12) wrote its z11 -- below that cell's
-# maxzoom -- at 4096. tile-join then merges both cells' features into ONE layer
-# of one tile, and an MVT layer carries a single `extent`: two coordinate spaces
-# cannot both be right, and nothing in the format or in tile-join's contract
-# promises the loser gets rescaled rather than read against the wrong extent and
-# landing 4x off. Pinning all three knobs to the same value removes the question.
+# extent depend on the cell's band: an INTU-5 cell (then maxzoom 11) wrote its
+# z11 at 16384, while an INTU-6 cell (maxzoom 12) wrote its z11 -- below that
+# cell's maxzoom -- at 4096. tile-join then merges both cells' features into ONE
+# layer of one tile, and an MVT layer carries a single `extent`: two coordinate
+# spaces cannot both be right, and nothing in the format or in tile-join's
+# contract promises the loser gets rescaled rather than read against the wrong
+# extent and landing 4x off. Pinning all three knobs to the same value removes
+# the question. (Bands 4 and coarser still stop above their own maxzoom, so the
+# hazard is as live under the offset-3 ladder as it was then.)
 #
-# Why 14 (16384 units) rather than the default 12 (4096): band-5 cells stop at
-# maxzoom 11 and clients overzoom 3-5 levels past that. At a 4096-unit grid,
+# Why 14 (16384 units) rather than the default 12 (4096): the published archive
+# stops at maxzoom 12 and clients overzoom 3-5 levels past that. At a 4096-unit grid,
 # quantization opens ~1-unit slivers between adjacent DEPARE polygons that reach
 # 4-8 px on screen by z16-17, showing the basemap through depth-area seams. The
 # 16384-unit grid keeps them sub-pixel to roughly z16.

@@ -265,12 +265,13 @@ describe("what must NOT be recorded as covered", () => {
 
 /**
  * A cell compiled at 1:350k whose ground is covered by charts on two finer
- * rungs, with a coarser chart beneath it. Its own floor is 6 at the stub's
- * latitude, so the ladder is fallback [0..5], whole [6..7], [8..9], [10..].
+ * rungs, with a coarser chart beneath it. Its own floor is 7 at the stub's
+ * latitude (offset-3 ladder), so the ladder is fallback [0..6], whole [7..8],
+ * [9..10], [11..].
  */
 const THREE_RUNG_CELL = {
   STUB_CSCALE: "350000",
-  STUB_FINER_FLOORS: "8 10",
+  STUB_FINER_FLOORS: "9 11",
   STUB_HAS_COARSER: "1",
   STUB_HAS_MASK: "1",
   STUB_PRE_TOTAL: "9",
@@ -297,17 +298,17 @@ describe("the copy ladder", () => {
     // tile-join --overzoom lifts TILES and not features, so a cap AT the zoom
     // the finer chart arrives is a no-op and both copies draw there.
     expect(intervals).toEqual([
-      { min: null, max: 5, fallback: true },
-      { min: 6, max: 7, fallback: false, whole: true },
-      { min: 8, max: 9, fallback: false },
-      { min: 10, max: null, fallback: false },
+      { min: null, max: 6, fallback: true },
+      { min: 7, max: 8, fallback: false, whole: true },
+      { min: 9, max: 10, fallback: false },
+      { min: 11, max: null, fallback: false },
     ]);
   });
 
   test("the whole copy is the UNCUT original over the cell's own rung", () => {
     const { sql } = run(THREE_RUNG_CELL);
 
-    expect(sql).toContain('UPDATE "DEPARE" SET _QZMIN = 6, _QZMAX = 7');
+    expect(sql).toContain('UPDATE "DEPARE" SET _QZMIN = 7, _QZMAX = 8');
 
     // Every difference is scoped to a copy, so nothing ever cuts the rows the
     // closing UPDATE goes on to stamp. This is also what makes exit 65
@@ -357,12 +358,12 @@ describe("the copy ladder", () => {
 
     // Its own M_COVR row sits at its own floor. Peers at that rung are the
     // quilt-mates it tiles beside, not charts that cover it.
-    expect(sql).toContain("-where QFLOOR <> 6");
+    expect(sql).toContain("-where QFLOOR <> 7");
     expect(sql).toContain(
-      "CREATE TABLE quilt_mask AS SELECT ST_Union(geom) as geom FROM quilting WHERE QFLOOR > 6",
+      "CREATE TABLE quilt_mask AS SELECT ST_Union(geom) as geom FROM quilting WHERE QFLOOR > 7",
     );
     expect(sql).toContain(
-      "CREATE TABLE quilt_mask_coarser AS SELECT ST_Union(geom) as geom FROM quilting WHERE QFLOOR < 6",
+      "CREATE TABLE quilt_mask_coarser AS SELECT ST_Union(geom) as geom FROM quilting WHERE QFLOOR < 7",
     );
   });
 
@@ -370,10 +371,10 @@ describe("the copy ladder", () => {
     const { sql } = run(THREE_RUNG_CELL);
 
     expect(sql).toContain(
-      "CREATE TABLE quilt_mask_8 AS SELECT ST_Union(geom) as geom FROM quilting WHERE QFLOOR > 6 AND QFLOOR <= 8",
+      "CREATE TABLE quilt_mask_9 AS SELECT ST_Union(geom) as geom FROM quilting WHERE QFLOOR > 7 AND QFLOOR <= 9",
     );
     expect(sql).toContain(
-      "CREATE TABLE quilt_mask_10 AS SELECT ST_Union(geom) as geom FROM quilting WHERE QFLOOR > 6 AND QFLOOR <= 10",
+      "CREATE TABLE quilt_mask_11 AS SELECT ST_Union(geom) as geom FROM quilting WHERE QFLOOR > 7 AND QFLOOR <= 11",
     );
   });
 
@@ -385,8 +386,8 @@ describe("the copy ladder", () => {
     });
 
     expect(ladder(sql, "DEPARE")).toEqual([
-      { min: null, max: 5, fallback: true },
-      { min: 6, max: null, fallback: false, whole: true },
+      { min: null, max: 6, fallback: true },
+      { min: 7, max: null, fallback: false, whole: true },
     ]);
   });
 
@@ -397,10 +398,10 @@ describe("the copy ladder", () => {
     // write-back makes the empty sweep delete every row the clip touched.
     // plotroom's pipeline/Dockerfile probes these exact shapes at image build.
     expect(sql).toMatch(
-      /UPDATE "DEPARE" SET geom = ST_Difference\("DEPARE"\.geom, \(SELECT geom FROM quilt_mask_8\)\)/,
+      /UPDATE "DEPARE" SET geom = ST_Difference\("DEPARE"\.geom, \(SELECT geom FROM quilt_mask_9\)\)/,
     );
     expect(sql).toMatch(
-      /ST_Within\("DEPARE"\.geom, \(SELECT geom FROM quilt_mask_8\)\)/,
+      /ST_Within\("DEPARE"\.geom, \(SELECT geom FROM quilt_mask_9\)\)/,
     );
     expect(sql).not.toContain("AsGPB");
     expect(sql).not.toMatch(/CastAutomagic\([^)]*quilt_mask/);
@@ -409,13 +410,13 @@ describe("the copy ladder", () => {
 
 /**
  * A 1:90k cell of band 4, whose BAND alone would tile it to z10. Its own floor
- * is 8, and it is overlapped by 1:22k (floor 10) and 1:12k (floor 11) charts --
- * the second of which floors deeper than that band maxzoom.
+ * is 9 (offset-3 ladder), and it is overlapped by 1:22k (floor 11) and 1:12k
+ * (floor 12) charts -- both of which floor deeper than that band maxzoom.
  */
 const CELL_UNDER_DEEPER_RUNGS = {
   STUB_INTU: "4",
   STUB_CSCALE: "90000",
-  STUB_FINER_FLOORS: "10 11",
+  STUB_FINER_FLOORS: "11 12",
   STUB_HAS_COARSER: "1",
   STUB_HAS_MASK: "1",
   STUB_PRE_TOTAL: "9",
@@ -426,16 +427,17 @@ describe("rungs deeper than the cell's own band", () => {
   test("a rung deeper than the band gets its own interval, not a fold", () => {
     const intervals = ladder(run(CELL_UNDER_DEEPER_RUNGS).sql, "DEPARE");
 
-    // Folding {10, 11} onto the band maxzoom 10 collapsed this to a whole copy
-    // of [8..9] and a top copy of [10..] cut against BOTH rungs -- so at z10
-    // the coarse chart was cut away for the sake of 1:12k charts that do not
-    // start serving until z11, and the tile came back all but empty. Each rung
-    // is now cut against only the coverage that has actually arrived.
+    // Folding {11, 12} onto the band maxzoom 10 would collapse this to a whole
+    // copy of [9..9] and a top copy of [10..] cut against BOTH rungs -- so at
+    // z10 the coarse chart would be cut away for the sake of 1:12k charts that
+    // do not start serving until z12, and the tile would come back all but
+    // empty. Each rung is cut against only the coverage that has actually
+    // arrived.
     expect(intervals).toEqual([
-      { min: null, max: 7, fallback: true },
-      { min: 8, max: 9, fallback: false, whole: true },
-      { min: 10, max: 10, fallback: false },
-      { min: 11, max: null, fallback: false },
+      { min: null, max: 8, fallback: true },
+      { min: 9, max: 10, fallback: false, whole: true },
+      { min: 11, max: 11, fallback: false },
+      { min: 12, max: null, fallback: false },
     ]);
   });
 
@@ -445,8 +447,8 @@ describe("rungs deeper than the cell's own band", () => {
     // A ladder interval needs a tile to live in: tippecanoe writes nothing
     // above --maximum-zoom, and bin/stamp-quilt-zooms drops any copy whose
     // interval falls entirely outside the tiling range. Band 4 alone stops at
-    // z10, so the [11..] top copy is why the range moves.
-    expect(tilingRange(result.tippecanoe)).toEqual({ min: 0, max: 11 });
+    // z10, so the [12..] top copy is why the range moves.
+    expect(tilingRange(result.tippecanoe)).toEqual({ min: 0, max: 12 });
 
     // --full-detail stays pinned: one extent, every tile, every band.
     expect(result.tippecanoe).toContain("--full-detail=14");
@@ -456,10 +458,10 @@ describe("rungs deeper than the cell's own band", () => {
 
   test("a cell whose rungs all fit inside its band is not raised", () => {
     // The raise is a consequence of the ladder, not a new default: THREE_RUNG
-    // is a band-5 cell (maxzoom 11) under rungs 8 and 10.
+    // is a band-5 cell (maxzoom 12) under rungs 9 and 11.
     expect(tilingRange(run(THREE_RUNG_CELL).tippecanoe)).toEqual({
       min: 0,
-      max: 11,
+      max: 12,
     });
   });
 
@@ -467,13 +469,13 @@ describe("rungs deeper than the cell's own band", () => {
     const { sql } = run(CELL_UNDER_DEEPER_RUNGS);
 
     // The deepest tile is what `tile-join --overzoom` lifts over every finer
-    // chart, so cutting it against the floor-10 coverage alone would put this
-    // 1:90k cell's coastline over the 1:12k harbour charts at z11 -- the
+    // chart, so cutting it against the floor-11 coverage alone would put this
+    // 1:90k cell's coastline over the 1:12k harbour charts at z12 -- the
     // published cap, and the defect the quilt exists to remove.
     const cut = statements(sql).find(
       (statement) =>
         statement.includes('UPDATE "DEPARE" SET geom = ST_Difference') &&
-        statement.includes("WHERE _QZMIN = 11"),
+        statement.includes("WHERE _QZMIN = 12"),
     );
     expect(cut).toMatch(/\(SELECT geom FROM quilt_mask\)/);
 
@@ -481,31 +483,34 @@ describe("rungs deeper than the cell's own band", () => {
     const rung = statements(sql).find(
       (statement) =>
         statement.includes('UPDATE "DEPARE" SET geom = ST_Difference') &&
-        statement.includes("WHERE _QZMIN = 10"),
+        statement.includes("WHERE _QZMIN = 11"),
     );
-    expect(rung).toMatch(/\(SELECT geom FROM quilt_mask_10\)/);
+    expect(rung).toMatch(/\(SELECT geom FROM quilt_mask_11\)/);
   });
 
   test("a cell whose finer neighbours ALL start deeper keeps every rung", () => {
-    // A 1:180k cell floors at 7 and its band tiles to z8; the 1:45k, 1:22k and
-    // 1:12k charts over it floor at 9, 10 and 11. This is the live defect: all
-    // three folded onto z8, the whole copy shrank to [7..7], and the z8 tile --
-    // the only one left, cut against the full finer union -- came back with 6
-    // DEPARE features over the whole Puget basin against 1791 at z7.
+    // A 1:180k cell floors at 8 and its band tiles to z8; the 1:45k, 1:22k and
+    // 1:12k charts over it floor at 10, 11 and 12. This is the acceptance
+    // shape of the offset-3 shift: US3WA1DF owns [8..9] -- it fills the
+    // viewport through z9 -- and hands to the 1:45k charts at z10. (Under the
+    // old fold, all three rungs folded onto z8, the whole copy shrank to one
+    // zoom, and the deepest band tile -- cut against the full finer union --
+    // came back with 6 DEPARE features over the whole Puget basin against
+    // 1791 one zoom above it.)
     const { sql, tippecanoe } = run({
       ...CELL_UNDER_DEEPER_RUNGS,
       STUB_INTU: "3",
       STUB_CSCALE: "180000",
-      STUB_FINER_FLOORS: "9 10 11",
+      STUB_FINER_FLOORS: "10 11 12",
     });
 
     const intervals = ladder(sql, "DEPARE");
     expect(intervals).toEqual([
-      { min: null, max: 6, fallback: true },
-      { min: 7, max: 8, fallback: false, whole: true },
-      { min: 9, max: 9, fallback: false },
+      { min: null, max: 7, fallback: true },
+      { min: 8, max: 9, fallback: false, whole: true },
       { min: 10, max: 10, fallback: false },
-      { min: 11, max: null, fallback: false },
+      { min: 11, max: 11, fallback: false },
+      { min: 12, max: null, fallback: false },
     ]);
 
     // Exactly-one-owner over the whole tiling range: the intervals meet end to
@@ -518,15 +523,15 @@ describe("rungs deeper than the cell's own band", () => {
     expect(intervals[intervals.length - 1].max).toBeNull();
 
     // A cumulative mask per rung, none of them folded away.
-    for (const floor of [9, 10, 11]) {
+    for (const floor of [10, 11, 12]) {
       expect(sql).toContain(
         `CREATE TABLE quilt_mask_${floor} AS SELECT ST_Union(geom) as geom ` +
-          `FROM quilting WHERE QFLOOR > 7 AND QFLOOR <= ${floor}`,
+          `FROM quilting WHERE QFLOOR > 8 AND QFLOOR <= ${floor}`,
       );
     }
 
     // And a tile for every one of them.
-    expect(tilingRange(tippecanoe)).toEqual({ min: 0, max: 11 });
+    expect(tilingRange(tippecanoe)).toEqual({ min: 0, max: 12 });
   });
 
   test("the whole copy is never an empty interval", () => {
@@ -540,26 +545,28 @@ describe("rungs deeper than the cell's own band", () => {
       ...CELL_UNDER_DEEPER_RUNGS,
       STUB_INTU: "5",
       STUB_CSCALE: "12000",
-      // 1:12k floors at 11, which is the publication cap and therefore the
+      // 1:12k floors at 12, which is the publication cap and therefore the
       // finest rung the ladder has: nothing can be finer than this cell.
       STUB_FINER_FLOORS: "",
       STUB_HAS_MASK: "0",
     });
 
     expect(ladder(sql, "DEPARE")).toEqual([
-      { min: null, max: 10, fallback: true },
-      { min: 11, max: null, fallback: false, whole: true },
+      { min: null, max: 11, fallback: true },
+      { min: 12, max: null, fallback: false, whole: true },
     ]);
-    expect(sql).toContain("-where QFLOOR <> 11");
+    expect(sql).toContain("-where QFLOOR <> 12");
     expect(sql).not.toContain(
       'DELETE FROM "DEPARE" WHERE _QZMIN IS NULL AND _QFALL IS NULL',
     );
   });
 
   test("the band-6 fallback scale floors at the publication cap", () => {
-    // 1:4000 is z12 on the raw ladder. A floor of 12 stamped content into z12
-    // tiles that the national join deletes, so it drew at no zoom at all;
-    // bin/quilt-rung.sh clamps at 11 and both consumers of it must agree.
+    // 1:4000 is z13 on the raw offset-3 ladder; bin/quilt-rung.sh clamps it to
+    // the cap (12) and both consumers of it must agree. Band 6 tiles z12
+    // natively, so the clamped floor names a tile the archive actually holds
+    // -- the old cap-11 defect (content stamped into deleted z12 tiles) is
+    // what the clamp still guards against.
     const { sql } = run({
       ...THREE_RUNG_CELL,
       STUB_CSCALE: "4000",
@@ -567,9 +574,9 @@ describe("rungs deeper than the cell's own band", () => {
       STUB_FINER_FLOORS: "",
     });
 
-    expect(sql).toContain("-where QFLOOR <> 11");
+    expect(sql).toContain("-where QFLOOR <> 12");
     expect(sql).toContain(
-      "CREATE TABLE quilt_mask AS SELECT ST_Union(geom) as geom FROM quilting WHERE QFLOOR > 11",
+      "CREATE TABLE quilt_mask AS SELECT ST_Union(geom) as geom FROM quilting WHERE QFLOOR > 12",
     );
   });
 });
@@ -642,7 +649,7 @@ describe("the fallback continuation", () => {
 
     // The style keys its reduced floor on the ABSENCE of a stamped minzoom;
     // stamping one would gate the stand-in at the rung it is standing in for.
-    expect(fallback).toEqual({ min: null, max: 5, fallback: true });
+    expect(fallback).toEqual({ min: null, max: 6, fallback: true });
   });
 
   test("with nothing coarser beneath, the copy is left uncut", () => {
@@ -652,20 +659,21 @@ describe("the fallback continuation", () => {
     // return NULL geometry and the sweep would then delete the whole copy.
     expect(ladder(sql, "DEPARE")[0]).toEqual({
       min: null,
-      max: 5,
+      max: 6,
       fallback: true,
     });
     expect(sql).not.toContain("FROM quilt_mask_coarser)");
   });
 
   test("a cell already on the coarsest rung gets no fallback copy", () => {
-    // 1:20M floors at z0 -- there is nothing below it to continue into.
-    const { sql } = run({ ...THREE_RUNG_CELL, STUB_CSCALE: "20000000" });
+    // 1:40M floors at z0 -- there is nothing below it to continue into.
+    // (1:20M no longer does: the offset-3 ladder puts it at z1.)
+    const { sql } = run({ ...THREE_RUNG_CELL, STUB_CSCALE: "40000000" });
 
     expect(ladder(sql, "DEPARE")).toEqual([
-      { min: 0, max: 7, fallback: false, whole: true },
-      { min: 8, max: 9, fallback: false },
-      { min: 10, max: null, fallback: false },
+      { min: 0, max: 8, fallback: false, whole: true },
+      { min: 9, max: 10, fallback: false },
+      { min: 11, max: null, fallback: false },
     ]);
   });
 });
@@ -863,6 +871,247 @@ describe("the M_QUAL edge generator", () => {
     const { node } = run(THREE_RUNG_CELL);
 
     expect(node).not.toContain("generate-mqual-edges");
+  });
+});
+
+describe("the M_QUAL letter generator", () => {
+  const QUALITY_CELL = {
+    ...THREE_RUNG_CELL,
+    STUB_TABLES: "DEPARE M_COVR M_QUAL",
+  };
+
+  test("it is handed the quality layer", () => {
+    const { node } = run(QUALITY_CELL);
+
+    expect(node).toMatch(
+      /generate-mqual-labels \S+_MQUAL_LABELS\.geojson --quality \S+M_QUAL\.geojson/,
+    );
+  });
+
+  test("it is handed NO coverage inputs", () => {
+    // An anchor is a point INSIDE a zone, and a zone truncated by the cell
+    // border is still a zone this cell has to letter. The coverage inputs
+    // suppress BORDERS, which an anchor does not have.
+    const { node } = run(QUALITY_CELL);
+
+    const line = node
+      .trim()
+      .split("\n")
+      .find((entry) => entry.includes("generate-mqual-labels"));
+    expect(line).toBeDefined();
+    expect(line).not.toContain("--coverage");
+    expect(line).not.toContain("--cell-coverage");
+  });
+
+  test("it runs BEFORE the zoom stamping, so its ranges are converted", () => {
+    // It propagates _QZMIN/_QZMAX onto its anchors as properties, and composes
+    // with the {minzoom: 0} dot-drop exemption it stamps itself.
+    const { node } = run(QUALITY_CELL);
+
+    const lines = node.trim().split("\n");
+    const anchors = lines.findIndex((l) => l.includes("generate-mqual-labels"));
+    const stamp = lines.findIndex((l) => l.includes("stamp-quilt-zooms"));
+    expect(anchors).toBeGreaterThanOrEqual(0);
+    expect(stamp).toBeGreaterThan(anchors);
+  });
+
+  test("a cell with no M_QUAL does not run it", () => {
+    const { node } = run(THREE_RUNG_CELL);
+
+    expect(node).not.toContain("generate-mqual-labels");
+  });
+});
+
+describe("the restriction anchor generator", () => {
+  const RESTRICTED_CELL = {
+    ...THREE_RUNG_CELL,
+    STUB_TABLES: "DEPARE M_COVR LNDARE RESARE CBLARE MIPARE",
+  };
+
+  test("it is handed every restriction class the cell carries, and the land", () => {
+    const { node } = run(RESTRICTED_CELL);
+
+    expect(node).toMatch(
+      /generate-restriction-anchors \S+_RESTR_ANCHORS\.geojson .*--class RESARE:\S+RESARE\.geojson/,
+    );
+    expect(node).toMatch(
+      /generate-restriction-anchors .*--class CBLARE:\S+CBLARE\.geojson/,
+    );
+    expect(node).toMatch(
+      /generate-restriction-anchors .*--class MIPARE:\S+MIPARE\.geojson/,
+    );
+    // The water-side placement differences against LNDARE.
+    expect(node).toMatch(
+      /generate-restriction-anchors .*--land \S+LNDARE\.geojson/,
+    );
+  });
+
+  test("ACHARE is NOT handed to it", () => {
+    // Anchorages are fine as drawn (user ruling): their symbols never showed
+    // the per-polygon repetition on land.
+    const { node } = run({
+      ...RESTRICTED_CELL,
+      STUB_TABLES: "DEPARE M_COVR ACHARE RESARE",
+    });
+
+    const line = node
+      .trim()
+      .split("\n")
+      .find((entry) => entry.includes("generate-restriction-anchors"));
+    expect(line).toBeDefined();
+    expect(line).not.toContain("ACHARE");
+  });
+
+  test("a cell with no LNDARE still runs it, without --land", () => {
+    // Advisory: the generator falls back to the plain largest-part interior
+    // point, which is what the label generators emit too.
+    const { node } = run({
+      ...RESTRICTED_CELL,
+      STUB_TABLES: "DEPARE M_COVR RESARE",
+    });
+
+    const line = node
+      .trim()
+      .split("\n")
+      .find((entry) => entry.includes("generate-restriction-anchors"));
+    expect(line).toBeDefined();
+    expect(line).not.toContain("--land");
+  });
+
+  test("it runs BEFORE the zoom stamping, so its ranges are converted", () => {
+    // It propagates _QZMIN/_QZMAX onto its anchors as properties, and composes
+    // with the {minzoom: 0} dot-drop exemption it stamps itself.
+    const { node } = run(RESTRICTED_CELL);
+
+    const lines = node.trim().split("\n");
+    const anchorLine = lines.findIndex((l) =>
+      l.includes("generate-restriction-anchors"),
+    );
+    const stamp = lines.findIndex((l) => l.includes("stamp-quilt-zooms"));
+    expect(anchorLine).toBeGreaterThanOrEqual(0);
+    expect(stamp).toBeGreaterThan(anchorLine);
+  });
+
+  test("a cell with no restriction classes does not run it", () => {
+    const { node } = run(THREE_RUNG_CELL);
+
+    expect(node).not.toContain("generate-restriction-anchors");
+  });
+});
+
+describe("the BUAARE edge generator", () => {
+  const TOWN_CELL = {
+    ...THREE_RUNG_CELL,
+    STUB_TABLES: "DEPARE M_COVR BUAARE",
+  };
+
+  test("it is handed the built-up areas and both coverage inputs", () => {
+    // The import-time dissolve unions the fragments of one name within THIS
+    // cell; the coverage inputs are what remove the border the dissolve cannot
+    // reach across, which is the half of the defect that survived it.
+    const { node } = run(TOWN_CELL);
+
+    expect(node).toMatch(
+      /generate-buaare-edges \S+_BUAARE_EDGE\.geojson --built-up \S+BUAARE\.geojson/,
+    );
+    expect(node).toMatch(
+      /generate-buaare-edges .*--coverage \S+quilting_coverage/,
+    );
+    expect(node).toMatch(
+      /generate-buaare-edges .*--cell-coverage \S+M_COVR\.geojson/,
+    );
+  });
+
+  test("it runs BEFORE the zoom stamping, so its ranges are converted", () => {
+    const { node } = run(TOWN_CELL);
+
+    const lines = node.trim().split("\n");
+    const edges = lines.findIndex((l) => l.includes("generate-buaare-edges"));
+    const stamp = lines.findIndex((l) => l.includes("stamp-quilt-zooms"));
+    expect(edges).toBeGreaterThanOrEqual(0);
+    expect(stamp).toBeGreaterThan(edges);
+  });
+
+  test("it runs AFTER the dissolve, on the geometry that reaches the tiles", () => {
+    // Deriving the edges from the undissolved fragments would work -- two
+    // fragments of one name agree and drop their shared segment either way --
+    // but the export it reads is the dissolved one, and the two must not drift.
+    const { sql, node } = run(TOWN_CELL);
+
+    expect(sql).toContain("DROP TABLE buaare_dissolve");
+    expect(node).toContain("generate-buaare-edges");
+  });
+
+  test("a cell with no BUAARE does not run it", () => {
+    const { node } = run(THREE_RUNG_CELL);
+
+    expect(node).not.toContain("generate-buaare-edges");
+  });
+});
+
+describe("the area edge generator", () => {
+  // RESARE and CTNARE participate; DEPARE and M_COVR are handled elsewhere
+  // (their own derived layers) and must never be handed to it.
+  const RULED_CELL = {
+    ...THREE_RUNG_CELL,
+    STUB_TABLES: "DEPARE M_COVR RESARE CTNARE",
+  };
+
+  test("it is asked for its class list, then handed every participating class", () => {
+    // The participating list lives in the generator (--list-classes) so the
+    // wiring loop and the derivation cannot drift apart.
+    const { node } = run(RULED_CELL);
+
+    expect(node).toMatch(/generate-area-edges --list-classes/);
+    expect(node).toMatch(
+      /generate-area-edges \S+_AREA_EDGE\.geojson .*--area RESARE:\S+RESARE\.geojson/,
+    );
+    expect(node).toMatch(
+      /generate-area-edges .*--area CTNARE:\S+CTNARE\.geojson/,
+    );
+  });
+
+  test("it is handed both coverage inputs, like the other edge derivations", () => {
+    const { node } = run(RULED_CELL);
+
+    expect(node).toMatch(
+      /generate-area-edges .*--coverage \S+quilting_coverage/,
+    );
+    expect(node).toMatch(
+      /generate-area-edges .*--cell-coverage \S+M_COVR\.geojson/,
+    );
+  });
+
+  test("classes with their own derived edge layer are NOT handed to it", () => {
+    // DEPARE belongs to _DEPARE_EDGE (seams flagged, not dropped) and M_COVR
+    // is the coverage input itself, not a participant.
+    const { node } = run(RULED_CELL);
+
+    const line = node
+      .trim()
+      .split("\n")
+      .find((entry) => entry.includes("_AREA_EDGE.geojson"));
+    expect(line).toBeDefined();
+    expect(line).not.toContain("--area DEPARE");
+    expect(line).not.toContain("--area M_COVR");
+  });
+
+  test("it runs BEFORE the zoom stamping, so its ranges are converted", () => {
+    const { node } = run(RULED_CELL);
+
+    const lines = node.trim().split("\n");
+    const edges = lines.findIndex((l) => l.includes("_AREA_EDGE.geojson"));
+    const stamp = lines.findIndex((l) => l.includes("stamp-quilt-zooms"));
+    expect(edges).toBeGreaterThanOrEqual(0);
+    expect(stamp).toBeGreaterThan(edges);
+  });
+
+  test("a cell with no participating classes does not run it", () => {
+    // The class-list query still runs -- it is how the answer is known -- but
+    // no derivation is invoked over nothing.
+    const { node } = run(THREE_RUNG_CELL);
+
+    expect(node).not.toContain("_AREA_EDGE.geojson");
   });
 });
 

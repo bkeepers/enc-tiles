@@ -100,16 +100,18 @@ function stamps(sql) {
 }
 
 describe("the rung stamped on each chart's coverage", () => {
-  // The ladder the design pins at Puget latitude. Every one of these lands on
-  // an integer rung, which is what makes the intra-band handovers (22k -> 12k,
-  // 350k -> 180k) exact rather than a rounding artefact.
+  // The offset-3 ladder at Puget latitude: every chart one zoom later than the
+  // historical band floors, matching where ECDIS and Coastal Explorer time the
+  // same charts. Every one of these lands on an integer rung, which is what
+  // makes the intra-band handovers (22k -> 12k, 350k -> 180k) exact rather
+  // than a rounding artefact.
   test.each([
-    [350000, 6],
-    [180000, 7],
-    [90000, 8],
-    [45000, 9],
-    [22000, 10],
-    [12000, 11],
+    [350000, 7],
+    [180000, 8],
+    [90000, 9],
+    [45000, 10],
+    [22000, 11],
+    [12000, 12],
   ])("1:%i at Puget latitude floors at z%i", (cscale, floor) => {
     expect(stamps(run({ STUB_CSCALE: String(cscale) }).sql)).toEqual({
       intu: 5,
@@ -126,19 +128,19 @@ describe("the rung stamped on each chart's coverage", () => {
       run({ STUB_CSCALE: "22000", STUB_EXTENT: extentAt(70) }).sql,
     );
 
-    expect(puget.qfloor).toBe(10);
-    expect(alaska.qfloor).toBe(9);
+    expect(puget.qfloor).toBe(11);
+    expect(alaska.qfloor).toBe(10);
   });
 
   test("the floor is clamped into the PUBLISHED web ladder", () => {
     // Nothing below z0 exists to own, and the top of the ladder is the
-    // published archive's maxzoom (11) rather than the deepest zoom any band
-    // tiles to (12). A floor of 12 stamps content into z12 tiles that the
-    // national join deletes, and the style then draws it at no zoom at all.
+    // published archive's maxzoom (12, which every band's own tiling now
+    // reaches). A floor of 13 would stamp content into z13 tiles that the
+    // national join deletes, and the style would then draw it at no zoom.
     expect(stamps(run({ STUB_CSCALE: "40000000" }).sql).qfloor).toBe(0);
-    expect(stamps(run({ STUB_CSCALE: "500" }).sql).qfloor).toBe(11);
-    // The shallowest scale that used to clamp past the cap at Puget latitude.
-    expect(stamps(run({ STUB_CSCALE: "5000" }).sql).qfloor).toBe(11);
+    expect(stamps(run({ STUB_CSCALE: "500" }).sql).qfloor).toBe(12);
+    // A berthing scale past the cap at Puget latitude (raw rung 13).
+    expect(stamps(run({ STUB_CSCALE: "5000" }).sql).qfloor).toBe(12);
   });
 });
 
@@ -149,19 +151,20 @@ describe("a chart whose DSID carries no DSPM_CSCL", () => {
     // producing the tiles it always did.
     const result = run({ STUB_CSCALE: "none", STUB_INTU: "5" });
 
-    expect(stamps(result.sql)).toEqual({ intu: 5, cscale: 22000, qfloor: 10 });
+    expect(stamps(result.sql)).toEqual({ intu: 5, cscale: 22000, qfloor: 11 });
     expect(result.stderr).toContain("no DSPM_CSCL");
   });
 
   test.each([
-    [1, 10000000, 1],
-    [2, 1500000, 4],
-    [3, 350000, 6],
-    [4, 90000, 8],
-    // 1:4000 is z12 on the raw ladder and is clamped to the publication cap:
-    // a band-6 fallback floored at 12 published into tiles the national join
-    // deletes, so the content drew at NO zoom.
-    [6, 4000, 11],
+    [1, 10000000, 2],
+    [2, 1500000, 5],
+    [3, 350000, 7],
+    [4, 90000, 9],
+    // 1:4000 is z14 on the raw offset-3 ladder (round(16.52) - 3) — two rungs
+    // past the cap, not one — and is clamped to the
+    // publication cap -- which band 6 now tiles natively, so the clamped
+    // floor names a tile the archive actually holds.
+    [6, 4000, 12],
   ])("band %i falls back to 1:%i", (intu, cscale, floor) => {
     expect(
       stamps(run({ STUB_CSCALE: "none", STUB_INTU: String(intu) }).sql),

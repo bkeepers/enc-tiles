@@ -1,0 +1,366 @@
+#!/usr/bin/env node
+
+// Derives the _AREA_EDGE layer: the boundaries of EVERY styled area class,
+// drawn only where the content actually CHANGES across them.
+//
+// Usage:
+//   bin/generate-area-edges <output.geojson> \
+//     --area RESARE:RESARE.geojson [--area CTNARE:CTNARE.geojson ...] \
+//     [--coverage quilting_coverage.geojson] [--cell-coverage M_COVR.geojson]
+//
+//   bin/generate-area-edges --list-classes
+//     prints the participating classes, one per line, which is how
+//     bin/s57-to-tiles knows what to feed it -- one source of truth, here.
+//
+// THE BOUNDARY MERGE RULE (user directive, stated once):
+//
+//   An area feature's boundary draws ONLY where the content changes across it.
+//   Two polygons of the same class meeting at a chart (cell) seam with
+//   identical S-57 content merge silently -- no line, no dentate marks. ANY
+//   content difference keeps the full boundary presentation.
+//
+//   The live defect this generalises away: a restricted area continuing across
+//   cell seams drew its symbolized toothed line at every chart border, and the
+//   same ruled-into-boxes defect existed for every other stroked area class.
+//   _MQUAL_EDGE, _BUAARE_EDGE and _DEPARE_EDGE each fixed it for ONE class;
+//   this layer is the same derivation (bin/quilt-edges.mjs) run PER CLASS over
+//   every remaining area class the style strokes.
+//
+// WHAT COUNTS AS THE SAME CONTENT
+//
+//   The feature's full attribute set, minus the bookkeeping that identifies
+//   the RECORD rather than the thing in the water (see IDENTITY_EXCLUSIONS).
+//   Two RESARE fragments carrying the same RESTRN, the same INFORM and the
+//   same everything else are one regulated area however the topology split
+//   them; two differing in ANY surviving attribute -- a name, a restriction
+//   list, a category -- are different areas and the line between them stands.
+//
+// PER-SIDE EMISSION
+//
+//   An edge where content differs is emitted ONCE PER SIDE, each copy carrying
+//   ITS side's attributes and ITS side's ring orientation. Each area's own
+//   boundary presentation then draws its own style facing its own interior --
+//   the S-52 line-mark orientation invariant (marks point INTO the filled
+//   side) is what makes per-side emission the correct model rather than a
+//   duplication. Exact-duplicate sides of one segment are deduplicated: three
+//   owners two of which agree emit two edges, not three. An edge with only one
+//   side present (the ordinary outline) is emitted once, with that side's
+//   attributes.
+//
+// THE CHART BORDER
+//
+//   A single-owner segment lying along a quilt cut (--coverage) or along this
+//   cell's own M_COVR ring (--cell-coverage) is DROPPED, exactly as
+//   _MQUAL_EDGE and _BUAARE_EDGE drop theirs: the area continues onto the next
+//   chart, this cell cannot see what is there, and a line at every cell border
+//   is the defect this layer exists to remove. See THE CHART BORDER in
+//   bin/quilt-edges.mjs for the trade that buys -- a real change falling
+//   exactly on the border goes unmarked in this cell and is marked in the
+//   neighbour wherever it holds both sides.
+//
+// Each output feature carries:
+//
+//   CLASS      the S-57 class the boundary belongs to, which is what the
+//              style's retargeted per-class boundary copies filter on
+//   <attrs>    the owning side's full content attribute set (everything the
+//              identity was hashed over), so the vendored per-class boundary
+//              filters -- RESTRN, CATREA, ORIENT, CATACH and the rest -- read
+//              the edge exactly as they read the polygon it outlines
+//
+// plus the copy ladder's _QZMIN/_QZMAX/_QFALL, converted to per-feature
+// tippecanoe zoom bounds later by bin/stamp-quilt-zooms. Deliberately NOT
+// carried: SCAMIN/SCAMAX (the partition owns scale gating, and the facade's
+// retargeted layers rely on the gates being inert -- the same contract as
+// _BUAARE_EDGE and _RESTR_ANCHORS) and the identity exclusions themselves.
+
+import { writeFileSync } from "fs";
+
+import { chartBorderTest, deriveDifferEdges } from "./quilt-edges.mjs";
+import { readFeatures } from "./quilt-geojson.mjs";
+
+/**
+ * The participating classes: every AREA class for which the generated style
+ * emits a boundary LINE presentation -- a plain dashed line layer, an LC()
+ * symbolized pen, or a line-placed LM_ mark layer -- enumerated from
+ * @enc-tiles/styles under both boundary modes. test/generate-area-edges.test.js
+ * re-derives this list from the style generator and fails on drift, so an
+ * upstream class gaining or losing a stroked boundary cannot silently miss the
+ * merge rule.
+ *
+ * Excluded from participation, with the layer that already owns each:
+ *
+ *   BUAARE            _BUAARE_EDGE (bin/generate-buaare-edges; OBJNAM identity)
+ *   DEPARE, DRGARE    _DEPARE_EDGE (bin/generate-depare-edges; the safety
+ *                     contour needs its seams FLAGGED, not dropped). DRGARE's
+ *                     only stroked presentation in the bundle is its depth
+ *                     boundary, so it has no separate area-outline role here.
+ *   M_QUAL            _MQUAL_EDGE (bin/generate-mqual-edges; CATZOC pairs)
+ *   M_NPUB, M_NSYS    cell metadata -- the plotroom facade drops the classes'
+ *                     whole generated presentation, so there is no boundary
+ *                     left to retarget
+ *
+ * and the style generator's non-S-57 pseudo classes ("######", the
+ * unknown-object fallback, and the lowercase mariner/manufacturer overlay
+ * classes), which never name a tile source-layer.
+ */
+export const AREA_EDGE_CLASSES = [
+  "ACHARE",
+  "ACHBRT",
+  "ADMARE",
+  "AIRARE",
+  "ARCSLN",
+  "BRIDGE",
+  "BUISGL",
+  "CANALS",
+  "CAUSWY",
+  "CBLARE",
+  "CONVYR",
+  "CONZNE",
+  "COSARE",
+  "CRANES",
+  "CTNARE",
+  "CTSARE",
+  "CUSZNE",
+  "DAMCON",
+  "DMPGRD",
+  "DOCARE",
+  "DRYDOC",
+  "DWRTPT",
+  "DYKCON",
+  "EXEZNE",
+  "FAIRWY",
+  "FERYRT",
+  "FLODOC",
+  "FORSTC",
+  "FRPARE",
+  "FSHFAC",
+  "FSHGRD",
+  "FSHZNE",
+  "GATCON",
+  "GRIDRN",
+  "HRBARE",
+  "HULKES",
+  "ICEARE",
+  "ICNARE",
+  "ISTZNE",
+  "LAKARE",
+  "LNDMRK",
+  "LOCMAG",
+  "LOGPON",
+  "LOKBSN",
+  "MARCUL",
+  "MIPARE",
+  "MORFAC",
+  "NEWOBJ",
+  "OBSTRN",
+  "OFSPLF",
+  "OSPARE",
+  "PILBOP",
+  "PIPARE",
+  "PONTON",
+  "PRCARE",
+  "PRDARE",
+  "PYLONS",
+  "RADRNG",
+  "RECTRC",
+  "RESARE",
+  "RIVERS",
+  "ROADWY",
+  "RUNWAY",
+  "SBDARE",
+  "SILTNK",
+  "SLCONS",
+  "SLOGRD",
+  "SMCFAC",
+  "SNDWAV",
+  "SPLARE",
+  "SUBTLN",
+  "SWPARE",
+  "TESARE",
+  "TIDEWY",
+  "TS_FEB",
+  "TS_PAD",
+  "TS_PNH",
+  "TS_PRH",
+  "TS_TIS",
+  "TUNNEL",
+  "TWRTPT",
+  "T_HMON",
+  "T_NHMN",
+  "T_TIMS",
+  "UNSARE",
+  "UWTROC",
+  "VEGATN",
+  "WATTUR",
+  "WEDKLP",
+  "WRECKS",
+];
+
+/**
+ * The attributes that identify the RECORD, not the content -- excluded from
+ * the identity hash AND from the emitted edge's attributes.
+ *
+ * The first group is per-feature bookkeeping: LNAM is the feature identifier
+ * (every fragment pair across a boundary differs in it by construction), the
+ * source/record dates and indicators describe the survey record, and
+ * SCAMIN/SCAMAX/INTU/CSCALE are scale gating the partition owns. The second
+ * group is the tile-side exclusion list bin/s57-to-tiles already passes to
+ * tippecanoe (--exclude): attributes that never reach a tile cannot be
+ * content, and FIDN alone would otherwise keep any two distinct features from
+ * ever merging. Every _-prefixed stamp (the copy ladder's and any other of
+ * ours) is excluded by prefix.
+ */
+const IDENTITY_EXCLUSIONS = new Set([
+  "LNAM",
+  "SORIND",
+  "SORDAT",
+  "RECIND",
+  "RECDAT",
+  "SCAMIN",
+  "SCAMAX",
+  "INTU",
+  "CSCALE",
+  // The tippecanoe --exclude list from bin/s57-to-tiles, step 4.
+  "LNAM_REFS",
+  "FFPT_RIND",
+  "PRIM",
+  "GRUP",
+  "OBJL",
+  "RVER",
+  "AGEN",
+  "FIDN",
+  "FIDS",
+  "RCID",
+]);
+
+/**
+ * The content attributes of a feature: everything that survives the
+ * exclusions, nulls dropped (GeoJSON exports spell "no value" both ways, and
+ * an attribute a producer left null is the same content as one it left out).
+ */
+function contentOf(properties) {
+  const content = {};
+  for (const key of Object.keys(properties ?? {}).sort()) {
+    if (key.startsWith("_") || IDENTITY_EXCLUSIONS.has(key)) continue;
+    const value = properties[key];
+    if (value === null || value === undefined) continue;
+    content[key] = value;
+  }
+  return content;
+}
+
+const args = process.argv.slice(2);
+
+if (args.includes("--list-classes")) {
+  process.stdout.write(AREA_EDGE_CLASSES.join("\n") + "\n");
+  process.exit(0);
+}
+
+const classPaths = [];
+const coveragePaths = [];
+const cellCoveragePaths = [];
+const positional = [];
+
+for (let i = 0; i < args.length; i++) {
+  if (args[i] === "--area" && args[i + 1]) {
+    const spec = args[++i];
+    const at = spec.indexOf(":");
+    if (at <= 0 || at === spec.length - 1) {
+      console.error(`generate-area-edges: malformed --area '${spec}'`);
+      process.exit(1);
+    }
+    classPaths.push({ name: spec.slice(0, at), path: spec.slice(at + 1) });
+  } else if (args[i] === "--coverage" && args[i + 1])
+    coveragePaths.push(args[++i]);
+  else if (args[i] === "--cell-coverage" && args[i + 1])
+    cellCoveragePaths.push(args[++i]);
+  else positional.push(args[i]);
+}
+
+const outputPath = positional[0];
+if (!outputPath || classPaths.length === 0) {
+  console.error(
+    "Usage: generate-area-edges <output.geojson> --area <CLASS:file> [--area <CLASS:file> ...] [--coverage <file>] [--cell-coverage <file>]\n" +
+      "       generate-area-edges --list-classes",
+  );
+  process.exit(1);
+}
+
+/**
+ * "There is no feature of this class on that side."
+ *
+ * A unique object rather than a null-ish identity: an attribute-less feature
+ * is a side in its own right (its identity is the empty content set, and two
+ * of them beside each other legitimately MERGE -- same class, same content),
+ * while the absence of any feature never merges with anything.
+ */
+const NO_AREA = Symbol("no area feature");
+
+// One seam test for every class: the ring indexes are built once, because the
+// chart border is a property of the CELL, not of any class.
+const onSeam = chartBorderTest(coveragePaths, cellCoveragePaths);
+
+const out = [];
+let segmentTotal = 0;
+let seamTotal = 0;
+let classTotal = 0;
+
+for (const { name, path } of classPaths) {
+  const features = readFeatures(path);
+  if (features.length === 0) continue;
+  classTotal++;
+
+  const derived = deriveDifferEdges({
+    features,
+    // One object per feature, shared by every segment it owns: `key` is the
+    // identity, `properties` what its edges carry.
+    sideOf: (feature) => {
+      const content = contentOf(feature.properties);
+      return {
+        key: JSON.stringify(content),
+        properties: { CLASS: name, ...content },
+      };
+    },
+    absent: NO_AREA,
+    classify: (sides) => {
+      const real = sides.filter((side) => side !== NO_AREA);
+      // Every side present and every identity equal: one area, no line.
+      if (
+        real.length === sides.length &&
+        real.every((side) => side.key === real[0].key)
+      ) {
+        return null;
+      }
+      // Otherwise one edge PER DISTINCT SIDE, each keeping its own owner's
+      // attributes and ring orientation. The signature is the side's identity,
+      // so chaining never runs a line through segments whose content differs.
+      const edges = [];
+      const seen = new Set();
+      for (let i = 0; i < sides.length; i++) {
+        const side = sides[i];
+        if (side === NO_AREA || seen.has(side.key)) continue;
+        seen.add(side.key);
+        edges.push({
+          signature: side.key,
+          properties: side.properties,
+          side: i,
+        });
+      }
+      return edges;
+    },
+    onSeam,
+  });
+
+  out.push(...derived.features);
+  segmentTotal += derived.segmentTotal;
+  seamTotal += derived.seamTotal;
+}
+
+writeFileSync(
+  outputPath,
+  JSON.stringify({ type: "FeatureCollection", features: out }),
+);
+console.error(
+  `Generated ${out.length} area edges from ${segmentTotal} segments across ${classTotal} classes` +
+    (seamTotal ? ` (${seamTotal} dropped at chart boundaries)` : ""),
+);

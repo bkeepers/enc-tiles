@@ -11,34 +11,37 @@
 # See docs/architecture/QUILT_ZOOM_PARTITION.md ("the rung function"):
 #
 #   nativeZ(S, lat) = log2(559_082_264 * cos(lat_mid) / S)   WebMercator, 96 dpi
-#   rungFloor       = clamp(round(nativeZ) - 4, 0, 11)
+#   rungFloor       = clamp(round(nativeZ) - 3, 0, 12)
 
 # WebMercator scale denominator at zoom 0, 96 dpi.
 QUILT_SCALE_DENOMINATOR_Z0=559082264
 
-# Maps the ECDIS-native ladder onto Plotroom's compressed web ladder. At Puget
-# latitude it lands exactly on the historical band floors and adds the
-# intra-band handovers: 350k->6, 180k->7, 90k->8, 45k->9, 22k->10, 12k->11.
-QUILT_RUNG_OFFSET=4
+# Maps the ECDIS-native ladder onto Plotroom's web ladder. 3, not the historical
+# 4: one zoom later across the board, which is where ECDIS and Coastal Explorer
+# time the same charts (a coastal chart fills the viewport before handing over).
+# At Puget latitude the S-101 standard scales land at 10M->2, 3.5M->4, 1.5M->5,
+# 700k->6, 350k->7, 180k->8, 90k->9, 45k->10, 22k->11, 12k->12; 1:4k and 1:2k
+# land above 12 and clamp to the cap.
+QUILT_RUNG_OFFSET=3
 
 # The web ladder the rung is clamped into.
 #
 # The top is the PUBLISHED ARCHIVE's maxzoom, not the deepest zoom any band
 # tiles to. The archive a browser mounts is the national join, and that join is
-# capped at the MINIMUM band maxzoom across its member regions -- 11 today,
-# because only a berthing-band region reaches z12 (see publication_maxzoom in
-# bin/s57-to-tiles). Every tile above the cap is deleted from the published
-# archive.
+# capped at the MINIMUM band maxzoom across its member regions -- 12 under this
+# ladder, because the harbour band (INTU 5, floors 11 and 12) now tiles z12
+# natively in every region (see publication_maxzoom in bin/s57-to-tiles).
+# Every tile above the cap is deleted from the published archive.
 #
-# A floor of 12 therefore names a zoom the archive does not hold: band-6-ish
-# content (cscale <= ~5800 at Puget latitude, and the band-6 fallback cscale
-# 4000 exactly) would be stamped minzoom 12, its z12 tiles would die in the
+# A floor of 13 therefore names a zoom the archive does not hold: berthing-scale
+# content (cscale <= ~8100 at Puget latitude, and the band-6 fallback cscale
+# 4000 among it, raw rung 14) would be stamped past the cap, its tiles die in the
 # join, and the style -- which gates on the stamped floor -- would draw it at
 # NO zoom at all. Clamping at the cap makes the deepest rung one the reader can
-# actually ask for. When every band-6 region reaches z12 and the join's minimum
-# moves, this moves with publication_maxzoom.
+# actually ask for. If the join's minimum ever moves again, this moves with
+# publication_maxzoom.
 QUILT_FLOOR_MIN=0
-QUILT_FLOOR_MAX=11
+QUILT_FLOOR_MAX=12
 
 # The compilation scale a chart falls back to when its DSID carries no
 # DSPM_CSCL: the COARSER rung of its INTU band's standard pair. A legacy chart

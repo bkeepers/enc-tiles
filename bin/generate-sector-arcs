@@ -54,24 +54,26 @@
 //   that selection all four would draw at once.
 // * --top-zoom, THE PUBLICATION CEILING, over the top of it. The tileset a
 //   browser actually mounts is the national join, and that join is capped at
-//   the MINIMUM band maxzoom across its inputs (z11 today: only a berthing-band
-//   region reaches z12, and synthesizing z12 for the six regions that do not was
-//   what OOM-killed the join). Every tile above the cap is deleted, and with it
-//   every copy stamped into one. A band-6 cell's z12..z15 copies all live in its
-//   z12 tile, so on the published archive they do not exist -- and because the
-//   style matches `_z` EXACTLY against `min(floor(zoom), _zmax)`, a `_zmax` of
-//   15 asked at z12 for a copy nothing could serve and the sectors of every
-//   band-6 cell went blank from z12 up. So the caller passes the ceiling, no
-//   copy is authored above it, and `_zmax` is the deepest copy that survives
-//   publication rather than the deepest one the band could in principle carry.
-//   The cost is paid at the top of the ladder, deliberately and uniformly: past
-//   the ceiling EVERY band's figure rides the browser's scaling, because past
-//   the ceiling every cell is being served from the same overzoomed z11 tile.
-//   Keeping the band-5 overzoom copies while the band-6 ones died would have
-//   drawn a correctly sized arc on one cell and an 8x one on the cell next to it
-//   at the same zoom, which is worse than both being scaled together. Raising
-//   the ceiling (when every band-6 region reaches z12) restores per-zoom sizing
-//   up to the new one; it is a single named variable in bin/s57-to-tiles.
+//   the MINIMUM band maxzoom across its inputs (z12 under the offset-3 ladder:
+//   every band's own maxzoom now sits at or under it, so today no copy is cut
+//   by this bound -- the guard stays because the ceiling is the join's fact,
+//   not this generator's). Every tile above the cap is deleted, and with it
+//   every copy stamped into one. The defect this bound removed: with the cap at
+//   11, a band-6 cell's z12..z15 copies all lived in its z12 tile, so on the
+//   published archive they did not exist -- and because the style matches `_z`
+//   EXACTLY against `min(floor(zoom), _zmax)`, a `_zmax` of 15 asked at z12 for
+//   a copy nothing could serve and the sectors of every band-6 cell went blank
+//   from z12 up. So the caller passes the ceiling, no copy is authored above
+//   it, and `_zmax` is the deepest copy that survives publication rather than
+//   the deepest one the band could in principle carry. The cost, when the
+//   ceiling binds a band at all, is paid at the top of the ladder deliberately
+//   and uniformly: past the ceiling EVERY band's figure rides the browser's
+//   scaling, because past the ceiling every cell is being served from the same
+//   overzoomed ceiling tile. Keeping one band's overzoom copies while
+//   another's died would draw a correctly sized arc on one cell and an 8x one
+//   on the cell next to it at the same zoom, which is worse than both being
+//   scaled together. The ceiling is a single named variable in
+//   bin/s57-to-tiles (publication_maxzoom) and this moves with it.
 // * MAX_FIGURE_METRES at the bottom. Small zooms are the same arithmetic run
 //   the other way: a 20 mm arc is ~5900 km at z0. SCAMIN would usually withhold
 //   it, but `scaleFilter` passes any feature that carries no SCAMIN at all, so
@@ -145,7 +147,7 @@ const TILE_SIZE = 512;
 const EARTH_CIRCUMFERENCE = 2 * Math.PI * 6378137; // meters
 
 // Zoom levels past the cell's band maxzoom that get their own copy. Clients
-// overzoom 3-5 levels past a band-5 cell's z11 (see bin/s57-to-tiles step 4);
+// overzoom 3-5 levels past a band-5 cell's z12 (see bin/s57-to-tiles step 4);
 // three is where the copies stop earning their weight, and past it the style's
 // clamp holds the last one rather than dropping the layer.
 const OVERZOOM_LEVELS = 3;

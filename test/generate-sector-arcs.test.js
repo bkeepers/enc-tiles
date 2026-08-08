@@ -176,10 +176,11 @@ describe("tippecanoe confinement", () => {
 describe("the publication ceiling", () => {
   // What bin/s57-to-tiles passes as --top-zoom. The national join is capped at
   // the MINIMUM band maxzoom across its member regions and deletes every tile
-  // above it, so this is the deepest zoom a published archive holds.
-  const PUBLICATION_MAXZOOM = 11;
+  // above it, so this is the deepest zoom a published archive holds. 12 under
+  // the offset-3 ladder: band 5 now tiles z12 natively, so no band exceeds it.
+  const PUBLICATION_MAXZOOM = 12;
   // The band ladder in bin/s57-to-tiles, INTU 1 through 6.
-  const BAND_MAXZOOMS = [4, 6, 8, 10, 11, 12];
+  const BAND_MAXZOOMS = [4, 6, 8, 10, 12, 12];
   // Past here the browser is overzooming whatever any ladder says; the style
   // still asks its question at every one of these zooms.
   const DEEPEST_DISPLAY_ZOOM = 17;
@@ -203,10 +204,10 @@ describe("the publication ceiling", () => {
       );
       expect(copies.length).toBeGreaterThan(0);
 
-      // Simulate `tile-join --maximum-zoom=11`: every tile above the ceiling is
-      // deleted, and with it every copy stamped into one. A band-6 cell's
-      // z12..z15 copies all lived in its z12 tile, which is how its sectors
-      // went blank from z12 up on us.pmtiles.
+      // Simulate `tile-join --maximum-zoom=12`: every tile above the ceiling is
+      // deleted, and with it every copy stamped into one. (Under the old z11
+      // cap a band-6 cell's z12..z15 copies all lived in its z12 tile, which
+      // is how its sectors went blank from z12 up on us.pmtiles.)
       const survivors = copies.filter(
         (f) => f.tippecanoe.maxzoom <= PUBLICATION_MAXZOOM,
       );
@@ -236,6 +237,24 @@ describe("the publication ceiling", () => {
       }
     },
   );
+
+  test("a band ABOVE the ceiling is still capped, and `_zmax` does not promise past it", () => {
+    // No band exceeds the ceiling on the offset-3 ladder (every maxzoom <= 12),
+    // so this pins the generic cap logic itself -- the branch that saved the
+    // band-6 sectors when the cap was 11, and the one that binds again if the
+    // ladders ever diverge.
+    const output = run([light(SECTOR, 0, CHART_LAT)], {
+      maxzoom: 12,
+      topZoom: 11,
+    });
+    const copies = output.features.filter((f) => f.properties._z !== undefined);
+    expect(copies.length).toBeGreaterThan(0);
+    for (const feature of copies) {
+      expect(feature.properties._zmax).toBe(11);
+      expect(feature.tippecanoe.maxzoom).toBeLessThanOrEqual(11);
+    }
+    expect(Math.max(...copies.map((f) => f.properties._z))).toBe(11);
+  });
 
   test("a coarse band's copies all sit above its own maxzoom", () => {
     // The MAX_FIGURE_METRES floor does not move with the band, so a band-1 cell

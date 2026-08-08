@@ -216,6 +216,34 @@ describe("chart boundaries are dropped, not drawn", () => {
     expect(zoc(features[0])).toEqual([1, 5]);
   });
 
+  test("a border segment THIS cell holds both sides of keeps its line", () => {
+    // The other half of the trade. Suppression is for the segments this cell
+    // has no evidence about -- one owner, the far side on another chart. Here
+    // the coverage ring runs along an INTERIOR boundary, both zones are in this
+    // export, and the change in confidence is a fact the cell can state.
+    const quality = writeCollection("M_QUAL.geojson", [
+      polygon({ CATZOC: 1 }, WEST_HALF),
+      polygon({ CATZOC: 4 }, EAST_HALF),
+    ]);
+    // Coverage over the west half alone: its exterior ring INCLUDES the
+    // meridian, so the meridian is "on the cell ring" by the same test that
+    // drops a truncated zone's edge.
+    const cover = writeCollection("M_COVR.geojson", [
+      polygon({ CATCOV: 1 }, WEST_HALF),
+    ]);
+
+    const features = run("--quality", quality, "--cell-coverage", cover);
+
+    const meridian = features.find((feature) =>
+      feature.geometry.coordinates.every(([x]) => x === 0.5),
+    );
+    expect(
+      meridian,
+      "the two-owner segment on the ring survives",
+    ).toBeDefined();
+    expect(zoc(meridian)).toEqual([1, 4]);
+  });
+
   test("a CATCOV = 2 gap is not a cell edge", () => {
     // The no-coverage ring is a real boundary of the survey, so a zone that
     // ends at it keeps its line. Only CATCOV = 1 exteriors are indexed.

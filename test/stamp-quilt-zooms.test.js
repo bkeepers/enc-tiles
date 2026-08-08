@@ -22,7 +22,9 @@ const SCRIPT = fileURLToPath(
 );
 
 // The band-5 tiling ladder, which is what bin/s57-to-tiles passes down.
-const BAND = ["--minzoom", "0", "--maxzoom", "11"];
+// Maxzoom 12: the offset-3 ladder floors a 1:12k cell at 12, so band 5 tiles
+// z12 natively.
+const BAND = ["--minzoom", "0", "--maxzoom", "12"];
 
 let work;
 
@@ -88,7 +90,7 @@ describe("the properties become a tippecanoe member", () => {
   test("an unbounded top copy runs to the band maxzoom", () => {
     const [feature] = run("DEPARE", [point({ _QZMIN: 10 })]);
 
-    expect(feature.tippecanoe).toEqual({ minzoom: 10, maxzoom: 11 });
+    expect(feature.tippecanoe).toEqual({ minzoom: 10, maxzoom: 12 });
   });
 
   test("a feature the partition never touched is left alone", () => {
@@ -156,29 +158,29 @@ describe("the hazard classes are composed like everything else", () => {
     (layer) => {
       // bin/generate-hazard-minzooms competes a copy only inside its own
       // interval, so a stamp below the floor is a legacy one. Taking it would
-      // put a 1:12k cell's rock (rung 11) on the overview tiles and leave it
+      // put a 1:12k cell's rock (rung 12) on the overview tiles and leave it
       // there beside the top copy of the same rock.
       const [feature] = run(layer, [
-        point({ VALSOU: 1.2, _QZMIN: 11 }, { minzoom: 6 }),
+        point({ VALSOU: 1.2, _QZMIN: 12 }, { minzoom: 6 }),
       ]);
 
-      expect(feature.tippecanoe.minzoom).toBe(11);
+      expect(feature.tippecanoe.minzoom).toBe(12);
     },
   );
 
   test("the copies of one promoted hazard stay disjoint", () => {
-    // Whole [8..9] and top [10..] of the same rock. If the promotion pulled
-    // either copy below its interval both would be in the z8 tile, one uncut
+    // Whole [9..10] and top [11..] of the same rock. If the promotion pulled
+    // either copy below its interval both would be in the z9 tile, one uncut
     // and one clipped -- the exactly-one-owner violation the partition exists
     // to prevent, on the class that is drawn at every scale.
     const kept = run("UWTROC", [
-      point({ VALSOU: 1.2, _QZMIN: 8, _QZMAX: 9 }, { minzoom: 8 }),
-      point({ VALSOU: 1.2, _QZMIN: 10 }, { minzoom: 6 }),
+      point({ VALSOU: 1.2, _QZMIN: 9, _QZMAX: 10 }, { minzoom: 9 }),
+      point({ VALSOU: 1.2, _QZMIN: 11 }, { minzoom: 6 }),
     ]);
 
     expect(kept.map((feature) => feature.tippecanoe)).toEqual([
-      { minzoom: 8, maxzoom: 9 },
-      { minzoom: 10, maxzoom: 11 },
+      { minzoom: 9, maxzoom: 10 },
+      { minzoom: 11, maxzoom: 12 },
     ]);
   });
 
@@ -253,7 +255,7 @@ describe("the census key", () => {
   test("every feature carries the cell's compilation scale", () => {
     // The only per-feature key the census can group built tiles by: INTU names
     // the band, and no band tells 1:12k from 1:22k inside band 5.
-    const [feature] = run("DEPARE", [point({ _QZMIN: 11 })], SCALED);
+    const [feature] = run("DEPARE", [point({ _QZMIN: 12 })], SCALED);
 
     expect(feature.properties).toEqual({ CSCALE: 12000 });
   });
