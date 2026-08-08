@@ -441,13 +441,13 @@ describe("rungs deeper than the cell's own band", () => {
     ]);
   });
 
-  test("the cell is tiled down to its deepest rung", () => {
+  test("the cell is tiled to the publication cap, covering its deepest rung", () => {
     const result = run(CELL_UNDER_DEEPER_RUNGS);
 
     // A ladder interval needs a tile to live in: tippecanoe writes nothing
     // above --maximum-zoom, and bin/stamp-quilt-zooms drops any copy whose
     // interval falls entirely outside the tiling range. Band 4 alone stops at
-    // z10, so the [12..] top copy is why the range moves.
+    // z10; the cap raise is what gives the [12..] top copy its tiles.
     expect(tilingRange(result.tippecanoe)).toEqual({ min: 0, max: 12 });
 
     // --full-detail stays pinned: one extent, every tile, every band.
@@ -456,13 +456,19 @@ describe("rungs deeper than the cell's own band", () => {
     expect(result.tippecanoe).toContain("--minimum-detail=14");
   });
 
-  test("a cell whose rungs all fit inside its band is not raised", () => {
-    // The raise is a consequence of the ladder, not a new default: THREE_RUNG
-    // is a band-5 cell (maxzoom 12) under rungs 9 and 11.
-    expect(tilingRange(run(THREE_RUNG_CELL).tippecanoe)).toEqual({
-      min: 0,
-      max: 12,
+  test("a cell with NO deeper rungs is raised to the cap all the same", () => {
+    // The raise is the region join's uniformity invariant, not a consequence
+    // of the ladder: every join input must share one native maxzoom, or
+    // tile-join synthesizes the missing zooms for the shallow inputs across
+    // their whole footprint -- the alaska_western_arctic 32 GiB OOM, where 255
+    // band-raised cells stopped at z11 beside six z12 harbour cells.
+    const { tippecanoe } = run({
+      ...CELL_UNDER_DEEPER_RUNGS,
+      STUB_FINER_FLOORS: "",
+      STUB_HAS_MASK: "0",
     });
+
+    expect(tilingRange(tippecanoe)).toEqual({ min: 0, max: 12 });
   });
 
   test("the top copy is cut against ALL finer coverage", () => {
@@ -627,6 +633,23 @@ describe("a cell the partition cannot place", () => {
     // The ladder placed every zoom with an owner; only the copy BELOW the
     // cell's own rung is a stand-in, and step 2b stamps that one itself.
     expect(sql).not.toContain('UPDATE "DEPARE" SET _QFALL = 1');
+  });
+
+  test("it is tiled to the publication cap all the same", () => {
+    // The uniformity invariant is the REGION JOIN's, and an unpartitioned cell
+    // is an input of that join like any other: a band-4 cell that skipped the
+    // ladder must not hand it a z10 archive beside the z12 ones, or tile-join
+    // synthesizes z11 and z12 across its whole footprint -- the merge that
+    // OOM'd alaska_western_arctic. Both unpartitioned paths, since the raise
+    // used to sit inside the guards that these two skip.
+    const band4 = { STUB_INTU: "4", STUB_PRE_TOTAL: "9", STUB_TOTAL: "9" };
+
+    const noCoverage = run(band4, { coverage: false });
+    expect(tilingRange(noCoverage.tippecanoe)).toEqual({ min: 0, max: 12 });
+
+    const offLadder = run({ ...band4, STUB_EXTENT: "", STUB_HAS_MASK: "1" });
+    expect(offLadder.stderr).toContain("publishing unpartitioned");
+    expect(tilingRange(offLadder.tippecanoe)).toEqual({ min: 0, max: 12 });
   });
 });
 
@@ -944,6 +967,25 @@ describe("the restriction anchor generator", () => {
     expect(node).toMatch(
       /generate-restriction-anchors .*--land \S+LNDARE\.geojson/,
     );
+  });
+
+  test("the RESTRN01-cascade routeing classes are handed to it too", () => {
+    // The class set is every LUT class whose instruction invokes the
+    // CS(RESTRN01) cascade, not just the five the layer began with: the
+    // routeing/precautionary polygons drew the cascade's symbols per polygon
+    // per tile at the centroid, on land, exactly as RESARE did before it.
+    const { node } = run({
+      ...RESTRICTED_CELL,
+      STUB_TABLES: "DEPARE M_COVR LNDARE FAIRWY TSSLPT TESARE PRCARE",
+    });
+
+    for (const table of ["FAIRWY", "TSSLPT", "TESARE", "PRCARE"]) {
+      expect(node).toMatch(
+        new RegExp(
+          `generate-restriction-anchors .*--class ${table}:\\S+${table}\\.geojson`,
+        ),
+      );
+    }
   });
 
   test("ACHARE is NOT handed to it", () => {

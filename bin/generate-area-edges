@@ -38,7 +38,9 @@
 // PER-SIDE EMISSION
 //
 //   An edge where content differs is emitted ONCE PER SIDE, each copy carrying
-//   ITS side's attributes and ITS side's ring orientation. Each area's own
+//   ITS side's attributes and the CANONICAL orientation of ITS side's ring --
+//   filled side on the right of travel, whatever way the source happened to
+//   wind it (see orientedRings in bin/quilt-geojson.mjs). Each area's own
 //   boundary presentation then draws its own style facing its own interior --
 //   the S-52 line-mark orientation invariant (marks point INTO the filled
 //   side) is what makes per-side emission the correct model rather than a
@@ -332,8 +334,9 @@ for (const { name, path } of classPaths) {
         return null;
       }
       // Otherwise one edge PER DISTINCT SIDE, each keeping its own owner's
-      // attributes and ring orientation. The signature is the side's identity,
-      // so chaining never runs a line through segments whose content differs.
+      // attributes and canonical ring orientation. The signature is the side's
+      // identity, so chaining never runs a line through segments whose content
+      // differs.
       const edges = [];
       const seen = new Set();
       for (let i = 0; i < sides.length; i++) {

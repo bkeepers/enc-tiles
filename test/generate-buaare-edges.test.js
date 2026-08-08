@@ -115,9 +115,11 @@ describe("what counts as the same place", () => {
     const features = run("--built-up", areas, "--cell-coverage", cover);
 
     expect(features).toHaveLength(1);
+    // The FIRST owner's canonical (filled-side-right) walk: down the meridian
+    // for the west half, deterministic whatever the source winding.
     expect(features[0].geometry.coordinates).toEqual([
-      [0.5, 0],
       [0.5, 1],
+      [0.5, 0],
     ]);
   });
 

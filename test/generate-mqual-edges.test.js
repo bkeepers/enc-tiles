@@ -110,10 +110,13 @@ describe("only a change in confidence is an edge", () => {
     const features = run("--quality", quality, "--cell-coverage", cover);
 
     expect(features).toHaveLength(1);
-    // Chained back into the whole meridian, not left as loose segments.
+    // Chained back into the whole meridian, not left as loose segments. The
+    // direction is the FIRST owner's canonical (filled-side-right) walk --
+    // deterministic whatever the source winding -- which for the west half is
+    // down the meridian.
     expect(features[0].geometry.coordinates).toEqual([
-      [0.5, 0],
       [0.5, 1],
+      [0.5, 0],
     ]);
     // LO is the better-surveyed side, which is the LOWER S-57 number.
     expect(zoc(features[0])).toEqual([1, 4]);

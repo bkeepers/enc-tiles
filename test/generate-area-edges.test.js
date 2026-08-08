@@ -97,6 +97,14 @@ function hasMeridian(features) {
   return features.some((feature) => meridianRuns(feature).length > 0);
 }
 
+/** Shoelace of a closed line in lon/lat: > 0 counter-clockwise. */
+function shoelace(line) {
+  let sum = 0;
+  for (let i = 1; i < line.length; i++)
+    sum += line[i - 1][0] * line[i][1] - line[i][0] * line[i - 1][1];
+  return sum / 2;
+}
+
 describe("the merge rule", () => {
   test("two fragments of IDENTICAL content share no edge at all", () => {
     // The general statement of the town/survey merge: same class, same
@@ -137,11 +145,12 @@ describe("the merge rule", () => {
     expect(meridianRuns(east).length).toBeGreaterThan(0);
   });
 
-  test("each side's copy keeps ITS OWN ring orientation", () => {
-    // The S-52 line marks point INTO the filled side, and MapLibre reads that
-    // off the line's direction -- so the west copy must walk the meridian the
-    // way the west ring does (up), and the east copy the way the east ring
-    // does (down). Same segment, opposite directions.
+  test("each side's copy faces its own interior", () => {
+    // The S-52 line marks point INTO the filled side, and MapLibre puts a line
+    // symbol's image-down on the RIGHT of travel -- so each copy walks the
+    // meridian with ITS interior on the right: the west copy down, the east
+    // copy up. Same segment, opposite directions, and neither is the fixture's
+    // own (CCW) winding.
     const areas = writeCollection("RESARE.geojson", [
       polygon({ RESTRN: "7" }, WEST_HALF),
       polygon({ RESTRN: "1" }, EAST_HALF),
@@ -153,8 +162,63 @@ describe("the merge rule", () => {
     const east = features.find((f) => f.properties.RESTRN === "1");
     const [westRun] = meridianRuns(west);
     const [eastRun] = meridianRuns(east);
-    expect(westRun[1][1]).toBeGreaterThan(westRun[0][1]); // up
-    expect(eastRun[1][1]).toBeLessThan(eastRun[0][1]); // down
+    expect(westRun[1][1]).toBeLessThan(westRun[0][1]); // down: west on the right
+    expect(eastRun[1][1]).toBeGreaterThan(eastRun[0][1]); // up: east on the right
+  });
+
+  test("emitted directions are independent of the SOURCE winding", () => {
+    // GDAL leaves S-57 ring winding arbitrary (~50/50 measured on Puget
+    // Sound), so the same halves must come out identically however each ring
+    // arrived -- the regression behind the round-10 outward-marks defect.
+    const reversed = (ring) => ring.slice().reverse();
+    for (const [west, east] of [
+      [reversed(WEST_HALF), EAST_HALF],
+      [WEST_HALF, reversed(EAST_HALF)],
+      [reversed(WEST_HALF), reversed(EAST_HALF)],
+    ]) {
+      const areas = writeCollection("RESARE.geojson", [
+        polygon({ RESTRN: "7" }, west),
+        polygon({ RESTRN: "1" }, east),
+      ]);
+
+      const features = run("--area", `RESARE:${areas}`);
+
+      const [westRun] = meridianRuns(
+        features.find((f) => f.properties.RESTRN === "7"),
+      );
+      const [eastRun] = meridianRuns(
+        features.find((f) => f.properties.RESTRN === "1"),
+      );
+      expect(westRun[1][1]).toBeLessThan(westRun[0][1]); // down, unchanged
+      expect(eastRun[1][1]).toBeGreaterThan(eastRun[0][1]); // up, unchanged
+    }
+  });
+
+  test("a hole supplied SAME-handed as its exterior still faces the fill", () => {
+    // Real cells do not honour the OGC hole rule (measured 66 same-handed vs
+    // 29 opposite), so orientation is decided per ring ROLE: filled side on
+    // the right of travel is exterior clockwise, hole counter-clockwise.
+    const HOLE = [
+      [0.2, 0.2],
+      [0.3, 0.2],
+      [0.3, 0.3],
+      [0.2, 0.3],
+      [0.2, 0.2],
+    ]; // CCW, same-handed as the CCW WEST_HALF fixture
+    const areas = writeCollection("RESARE.geojson", [
+      polygon({ RESTRN: "7" }, WEST_HALF, HOLE),
+    ]);
+
+    const features = run("--area", `RESARE:${areas}`);
+
+    // Outline and hole chain into separate closed loops of one signature.
+    expect(features).toHaveLength(2);
+    const isHole = (f) =>
+      f.geometry.coordinates.every(([x]) => x >= 0.2 && x <= 0.3);
+    const hole = features.find(isHole);
+    const outline = features.find((f) => !isHole(f));
+    expect(shoelace(hole.geometry.coordinates)).toBeGreaterThan(0); // CCW
+    expect(shoelace(outline.geometry.coordinates)).toBeLessThan(0); // CW
   });
 
   test("an INTERIOR differ edge is kept: coverage rings never silence a two-owner segment", () => {

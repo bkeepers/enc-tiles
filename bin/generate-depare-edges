@@ -93,6 +93,8 @@
 
 import { readFileSync, writeFileSync } from "fs";
 
+import { orientedRings } from "./quilt-geojson.mjs";
+
 const args = process.argv.slice(2);
 const depthAreaPaths = [];
 const contourPaths = [];
@@ -230,7 +232,10 @@ for (const path of depthAreaPaths) {
     const drval1 = Number(feature.properties?.DRVAL1);
     const depth = Number.isFinite(drval1) ? drval1 : NO_DEPTH;
     const { segments } = intervalOf(feature.properties);
-    for (const ring of rings(feature.geometry)) {
+    // Canonically wound (filled side on the right of travel), so an emitted
+    // edge's direction is deterministic whatever the source winding -- the
+    // same invariant every deriveDifferEdges layer holds.
+    for (const ring of orientedRings(feature.geometry)) {
       for (let i = 1; i < ring.length; i++) {
         const a = ring[i - 1];
         const b = ring[i];

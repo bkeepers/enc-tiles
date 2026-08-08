@@ -46,6 +46,7 @@
 import {
   exteriorRings,
   intervalIndex,
+  orientedRings,
   readFeatures,
   rings,
   round,
@@ -245,12 +246,15 @@ export function chain(entries) {
  *             segments for chaining, so two segments that chain together must
  *             share one; `properties` goes on the emitted feature. `side`, when
  *             present, is an index into the array classify was handed, and the
- *             emitted segment keeps THAT owner's ring orientation -- which is
- *             what lets a per-side edge carry its own boundary presentation
- *             facing its own interior (S-52 line marks point INTO the filled
- *             side, and MapLibre reads that off the line's direction). Without
- *             it the segment keeps its first owner's orientation, which is all
- *             a single-edge classifier ever needed.
+ *             emitted segment walks the CANONICAL orientation of THAT owner's
+ *             ring -- filled side on the right of travel (see `orientedRings`;
+ *             the SOURCE winding is arbitrary and must never be trusted) --
+ *             which is what lets a per-side edge carry its own boundary
+ *             presentation facing its own interior (S-52 line marks point INTO
+ *             the filled side, and MapLibre reads that off the line's
+ *             direction). Without it the segment walks its first owner's
+ *             canonical orientation, which is all a single-edge classifier
+ *             ever needed.
  *   onSeam    (a, b) -> the segment is a chart border; see THE CHART BORDER
  *
  * Returns `{ features, segmentTotal, seamTotal }`, the two totals being what
@@ -274,15 +278,16 @@ export function deriveDifferEdges({
   for (const feature of features) {
     const { segments } = index.of(feature.properties);
     const side = sideOf(feature);
-    for (const ring of rings(feature.geometry)) {
+    for (const ring of orientedRings(feature.geometry)) {
       for (let i = 1; i < ring.length; i++) {
         const a = ring[i - 1];
         const b = ring[i];
         const id = segmentKey(a, b);
         const existing = segments.get(id);
-        // `dirs[i]` is the direction owner i's ring walked this segment --
-        // adjacent rings walk a shared edge in OPPOSITE directions, which is
-        // exactly what per-side emission needs to preserve.
+        // `dirs[i]` is the direction owner i's CANONICALLY wound ring walks
+        // this segment -- two interiors on opposite sides walk a shared edge
+        // in OPPOSITE directions, which is exactly what per-side emission
+        // needs.
         if (existing) {
           existing.sides.push(side);
           existing.dirs.push([a, b]);

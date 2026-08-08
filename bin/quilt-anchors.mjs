@@ -96,7 +96,9 @@ export function featureArea(geometry) {
   for (const polygon of polygons(geometry)) {
     const latitude = (ringCentroid(polygon[0])[1] * Math.PI) / 180;
     const scale = Math.max(Math.cos(latitude), 0.01);
-    // Holes come out with the opposite winding, so the signed sum subtracts them.
+    // Holes are subtracted by ring INDEX, never by winding: the source leaves
+    // ring orientation arbitrary (measured 66 same-handed vs 29 opposite on
+    // Puget Sound), so |area| with an explicit sign is what makes this hold.
     for (const ring of polygon)
       total +=
         Math.abs(ringArea(ring)) * scale * (ring === polygon[0] ? 1 : -1);

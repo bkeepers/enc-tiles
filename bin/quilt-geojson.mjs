@@ -116,3 +116,32 @@ export function* rings(geometry) {
 export function* exteriorRings(geometry) {
   for (const polygon of polygons(geometry)) if (polygon[0]) yield polygon[0];
 }
+
+/** Shoelace on lon/lat coordinates: > 0 counter-clockwise, < 0 clockwise. */
+export function signedRingArea(ring) {
+  let sum = 0;
+  for (let i = 1; i < ring.length; i++)
+    sum += ring[i - 1][0] * ring[i][1] - ring[i][0] * ring[i - 1][1];
+  return sum / 2;
+}
+
+/**
+ * Every ring, walked so the FILLED side lies on the RIGHT of travel: exterior
+ * rings CLOCKWISE in lon/lat (signed area < 0), holes counter-clockwise. That
+ * is the MVT ring convention once the lon/lat -> tile y-flip is applied, and it
+ * is the one the S-52 line marks read (MapLibre puts a line symbol's image-DOWN
+ * on the right of travel). GDAL leaves S-57 ring winding arbitrary -- measured
+ * ~50/50 on Puget Sound, holes included -- and tippecanoe rewinds POLYGONS but
+ * not LINESTRINGS, so a derived edge that trusts the source points its marks
+ * out of its own area half the time.
+ */
+export function* orientedRings(geometry) {
+  for (const polygon of polygons(geometry)) {
+    for (let i = 0; i < polygon.length; i++) {
+      const ring = polygon[i];
+      const area = signedRingArea(ring);
+      const backwards = i === 0 ? area > 0 : area < 0; // exterior CW, holes CCW
+      yield backwards ? ring.slice().reverse() : ring;
+    }
+  }
+}

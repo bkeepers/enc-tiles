@@ -32,11 +32,11 @@
 #       partition holds at least as many after it. The one exception -- a cell
 #       whose deepest TILE was at or below its own rung, leaving no uncut
 #       interval -- was an artefact of folding deep rungs onto the band
-#       maxzoom, and step 2b no longer folds: it raises the tiling range to the
-#       deepest rung instead, so every interval including the whole copy has a
-#       tile. Kept as insurance -- the counters below are what make it safe, and
-#       a partition that stopped emitting the whole copy would otherwise empty a
-#       cell silently.
+#       maxzoom, and step 2b no longer folds: step 2d raises the tiling range
+#       to the publication cap instead, so every interval including the whole
+#       copy has a tile. Kept as insurance -- the counters below are what make
+#       it safe, and a partition that stopped emitting the whole copy would
+#       otherwise empty a cell silently.
 #
 #       65 is a PERMANENT verdict -- the caller records the cell as covered and
 #       never looks at it again -- so all THREE of these must hold before it is
@@ -106,6 +106,11 @@ quilt_applied=0
 # style stands its own scale floors down for exactly those tiles; see the
 # fallback marking after step 2b.
 quilt_partitioned=0
+
+# The distinct floors of the finer coverage over this cell, ascending. Filled by
+# step 2b and read by step 2d, which runs on every path -- including the ones
+# that never enter step 2b and leave this empty.
+ladder_floors=()
 
 # Exit code for "the quilt clip left nothing"; see the header.
 EXIT_FULLY_COVERED=65
@@ -191,9 +196,11 @@ fi
 # by scaling parent tiles where no finer chart exists, so features don't
 # disappear when zooming in.
 #
-# `maxzoom` is raised in step 2b when the copy ladder puts a rung deeper than
-# this band -- every interval of the ladder needs a tile to live in. Nothing
-# between here and there reads it.
+# `maxzoom` is raised in step 2d to the publication cap -- every input of one
+# region join must share one native maxzoom, or tile-join synthesizes the
+# missing zooms unboundedly. Nothing between here and there reads it, and step
+# 2d is outside the partition's guards so that the unpartitioned cells are
+# raised too.
 case "$intu" in
   1) minzoom=0; maxzoom=4  ;;
   2) minzoom=0; maxzoom=6  ;;
@@ -232,9 +239,9 @@ fi
 # The deepest zoom a PUBLISHED tileset holds, which is not the same number as
 # the ladder above.
 #
-# A cell is tiled to its band maxzoom or to its deepest ladder rung, whichever
-# is deeper, but the archive a browser mounts is the national join, and that
-# join is capped at the MINIMUM band maxzoom across its member regions -- 12
+# A cell is tiled to the deepest of its band maxzoom, this cap and its deepest
+# ladder rung (step 2d), but the archive a browser mounts is the national join,
+# and that join is capped at the MINIMUM band maxzoom across its regions -- 12
 # under the offset-3 ladder, because the harbour band (INTU 5) now tiles z12
 # natively in every region. Every tile above the cap is deleted from the
 # published archive. (Historical note: the cap was 11, and the old z12 join
@@ -243,7 +250,7 @@ fi
 # gone.)
 #
 # It is also the ceiling QUILT_FLOOR_MAX clamps every rung into, which is what
-# keeps step 2b's raise from ever tiling a cell past the cap.
+# keeps step 2d's raise from ever tiling a cell past the cap.
 #
 # It matters here because a derived layer can carry a PROMISE about zooms in its
 # attributes, and a promise about a deleted tile is a zoom at which nothing
@@ -557,9 +564,11 @@ quilt_copy() {
 # a no-op. The top copy is today's fully-clipped output, and the whole copy is
 # what finally renders a coarse chart complete and seam-free in its own range.
 #
-# Every one of those K+2 intervals gets a real tile: this block raises the
-# cell's tiling maxzoom to fK when fK is deeper than its INTU band, rather than
-# folding the deep rungs down onto the band and emptying the zooms between.
+# Every one of those K+2 intervals gets a real tile: step 2d raises the cell's
+# tiling maxzoom to the publication cap rather than folding the deep rungs down
+# onto the band and emptying the zooms between -- and the cap, not the deepest
+# rung, so every region-join input shares one native maxzoom. The rungs this
+# block collects are what step 2d's third arm reads.
 #
 # Rows at this cell's OWN floor -- its own M_COVR among them -- are peers of it
 # and clip nothing, which is also what keeps the cell from clipping itself.
@@ -646,26 +655,7 @@ if [ -n "$coverage" ] && [ -f "$coverage" ] && [ -n "$quilt_floor" ]; then
       [ "$rung_rows" -gt 0 ] && ladder_floors+=("$floor")
     done
 
-    # A ladder interval needs a TILE to live in. tippecanoe writes nothing above
-    # --maximum-zoom and bin/stamp-quilt-zooms drops any copy whose interval
-    # falls entirely outside it, so a cell whose finer neighbours floor deeper
-    # than its own band maxzoom is tiled to the deepest of those rungs instead.
-    #
-    # That is the whole cost of not folding, and it is the right way round: the
-    # extra zooms carry the coarse chart's RESIDUE -- the original minus the
-    # coverage that has actually started serving at that zoom -- which is
-    # exactly the content the fold deleted. The top copy then sits at the
-    # deepest rung, which is also where `tile-join --overzoom` starts lifting
-    # this cell over the finer charts, so the tile it lifts is the one cut
-    # against all of them.
-    #
-    # The publication ceiling is untouched: QUILT_FLOOR_MAX clamps every rung
-    # into the published archive's maxzoom, so this can never raise a cell past
-    # a zoom the national join keeps.
-    if [ ${#ladder_floors[@]} -gt 0 ] &&
-      [ "${ladder_floors[-1]}" -gt "$maxzoom" ]; then
-      maxzoom="${ladder_floors[-1]}"
-    fi
+    # The tiling range these rungs need is set at step 2d, on every path.
 
     if [ "$has_mask" -gt 0 ]; then
       # Recorded so an empty export below can be reported as "fully covered"
@@ -792,6 +782,44 @@ if [ "$quilt_partitioned" = "0" ]; then
     ogrinfo --quiet "$gpkg" -dialect sqlite \
       -sql "UPDATE \"${table}\" SET _QFALL = 1"
   done
+fi
+
+# Step 2d: The cell's tiling maxzoom -- max(band, publication cap, deepest
+# ladder rung). EVERY published cell passes through here, partitioned or not,
+# and nothing above this line reads `maxzoom`.
+#
+# Two invariants, and this is the only place that holds both.
+#
+# 1. Every input of ONE region join shares ONE native maxzoom. The moment they
+#    disagree tile-join SYNTHESIZES the missing zooms for every shallow input --
+#    all four children of every tile across its whole footprint, through a
+#    1000-entry decoded-tile cache per reader, with no bound. That is what
+#    SIGKILLed the alaska_western_arctic join at 32 GiB: 255 of 261 cells
+#    stopped at z11 while six harbour cells tiled z12, and the final join
+#    fabricated z12 for the whole region. The unpartitioned paths -- no
+#    --coverage, an unreadable M_COVR extent, a cscale off the rung ladder --
+#    are region-join inputs like any other, so the cap cannot sit inside step
+#    2b's guards: a band-4 cell that skipped the ladder would hand the join a
+#    z10 archive beside z12 ones and re-create exactly that merge.
+#
+# 2. Every ladder interval keeps a real tile to live in. tippecanoe writes
+#    nothing above --maximum-zoom and bin/stamp-quilt-zooms drops any copy whose
+#    interval falls entirely outside the tiling range, so a rung deeper than
+#    this range is a copy that never reaches a tile. QUILT_FLOOR_MAX clamps
+#    every rung into the cap today, which makes the rung arm below a no-op --
+#    it is kept because a QUILT_FLOOR_MAX raised past the cap would otherwise
+#    silently start folding the deep rungs again, which is the defect that
+#    emptied whole zoom bands (see step 2b).
+#
+# The zooms this adds are not padding: they carry the coarse chart's RESIDUE --
+# the original minus the coverage that has actually started serving there --
+# which is exactly what tile-join's overzoom would have fabricated, and what
+# the fold used to delete.
+if [ "$publication_maxzoom" -gt "$maxzoom" ]; then
+  maxzoom="$publication_maxzoom"
+fi
+if [ ${#ladder_floors[@]} -gt 0 ] && [ "${ladder_floors[-1]}" -gt "$maxzoom" ]; then
+  maxzoom="${ladder_floors[-1]}"
 fi
 
 # Step 3: Export each layer to GeoJSON for import into tippecanoe.
@@ -1054,12 +1082,16 @@ fi
 # polygons genuinely span land — so the symbols repeat along every quilt seam
 # and 28% of them landed ashore at z7. One point per (CLASS, LNAM, interval),
 # placed on the water side of the feature: --land is what the placement
-# differences against. ACHARE is deliberately absent — anchorages are fine as
-# drawn (user ruling). Run after the quilt clip, like the other anchor
-# generators, so the anchors sit on the geometry that actually reaches the
-# tiles. See bin/generate-restriction-anchors.
+# differences against. The class set is every LUT class whose instruction
+# invokes the CS(RESTRN01) cascade — the same ENTRES/ACHRES/FSHRES/CTYARE/
+# INFARE symbols RESARE04 places — except ACHARE, which is deliberately absent:
+# anchorages are fine as drawn (user ruling). Run after the quilt clip, like
+# the other anchor generators, so the anchors sit on the geometry that actually
+# reaches the tiles. See bin/generate-restriction-anchors.
 restr_args=()
-for restr_table in RESARE CBLARE PIPARE MIPARE DMPGRD; do
+for restr_table in RESARE CBLARE PIPARE MIPARE DMPGRD \
+  DWRTPT FAIRWY ICNARE ISTZNE MARCUL OSPARE PRCARE SPLARE SUBTLN TESARE \
+  TSSCRS TSSLPT TSSRON; do
   if [ -f "$tmpdir/${restr_table}.geojson" ]; then
     restr_args+=(--class "${restr_table}:$tmpdir/${restr_table}.geojson")
   fi
