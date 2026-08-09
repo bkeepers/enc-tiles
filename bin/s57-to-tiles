@@ -1125,6 +1125,31 @@ if [ ${#hazard_files[@]} -gt 0 ]; then
     --minzoom "$minzoom" --maxzoom "$maxzoom" "${hazard_files[@]}"
 fi
 
+# Step 3g (cont.): Thin the terrain points and derive _TERRAIN — one label
+# anchor per surviving named summit. SLOGRD/LNDELV summits arrive as
+# exactly-coincident pairs digitised off the same peak, both point layers draw
+# with icon-allow-overlap, and the partition strips SCAMIN, so nothing between
+# here and the screen thins them. One pass owns both decisions — collapse the
+# pair, thin the rest named-and-highest first — because the coincidence rule
+# must also stamp the losing icon out of the tiles, not just out of a label.
+# SLOTOP is carried for safety: zero point features measured, lines only.
+# Rewrites in place like the hazards; the files are already in geojson_files.
+# See bin/generate-terrain-minzooms.
+terrain_args=()
+for terrain_table in SLOGRD LNDELV SLOTOP; do
+  if [ -f "$tmpdir/${terrain_table}.geojson" ]; then
+    terrain_args+=(--class "${terrain_table}:$tmpdir/${terrain_table}.geojson")
+  fi
+done
+if [ ${#terrain_args[@]} -gt 0 ]; then
+  terrain_geojson="$tmpdir/_TERRAIN.geojson"
+  node "$SCRIPT_DIR/generate-terrain-minzooms" "$terrain_geojson" \
+    --minzoom "$minzoom" --maxzoom "$maxzoom" "${terrain_args[@]}"
+  if [ -s "$terrain_geojson" ]; then
+    geojson_files+=("$terrain_geojson")
+  fi
+fi
+
 # Step 3h: Mark the precautionary areas that belong to a traffic separation
 # scheme. The evidence is free text -- INFORM, or the companion .TXT file
 # TXTDSC names -- and those files sit beside the chart in ENC_ROOT, which is
