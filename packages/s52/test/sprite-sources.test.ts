@@ -17,8 +17,10 @@ import { JSDOM } from "jsdom";
 // @ts-expect-error -- the build plugin is untyped plain JS
 import {
   PX_PER_MM,
+  SPLIT_LINEMARK_STYLES,
   dashSchedule,
   lineMarkGeometry,
+  lineMarkKinds,
   lineStyleGeometry,
   lineStyleSpec,
   patternLattice,
@@ -37,6 +39,10 @@ const sources = spriteSources(data) as {
   key: string;
   description: string;
   kind: string;
+  /** Split linemark sources only — see SPLIT_LINEMARK_STYLES. */
+  kindIndex?: number;
+  suffix?: string;
+  reference?: string;
 }[];
 
 const symbols = symbolsJson as Record<
@@ -84,8 +90,10 @@ describe("sprite sources", () => {
       linestyle: data.linestyles.length,
       // One per line style that actually places a mark: 55 line styles, less
       // LOWACC11 (no definition and no drawing) and the three that are pure
-      // dash schedules (INDHLT02, SCLBDY51, ERBLNA01).
-      linemark: 51,
+      // dash schedules (INDHLT02, SCLBDY51, ERBLNA01) — 51 — plus one more
+      // for the second glyph kind of each of the 10 SPLIT styles, which file
+      // one sprite per kind instead of one packed sprite.
+      linemark: 61,
     });
     expect(kinds["pattern"]).toBe(25);
   });
@@ -109,10 +117,20 @@ describe("sprite sources", () => {
     // A fourth key space, and not an S-52 one: the MARKS of a line style drawn
     // on their own, for the symbol half of the LC() split. It cannot reuse the
     // embedded symbol's key even where a style places exactly one -- the same
-    // drawing has to be re-boxed about the line axis.
-    expect(byKind("linemark").every((s) => s.key === `LM_${s.name}`)).toBe(
-      true,
-    );
+    // drawing has to be re-boxed about the line axis. A SPLIT style files one
+    // sprite per glyph kind: the majority kind keeps the bare LM_<name> key
+    // and the rest take the _2, _3... suffix (see SPRITE_PREFIX).
+    expect(
+      byKind("linemark").every(
+        (s) => s.key === `LM_${s.name}${s.suffix ?? ""}`,
+      ),
+    ).toBe(true);
+    expect(
+      byKind("linemark")
+        .filter((s) => (s.kindIndex ?? 0) === 0)
+        .every((s) => s.key === `LM_${s.name}`),
+      "the majority kind keeps the bare key",
+    ).toBe(true);
 
     // The names that used to shadow one another, listed so a catalogue update
     // that adds or removes one is visible in the diff.
@@ -508,8 +526,9 @@ describe("line style mark sprites", () => {
   };
 
   test("the sheet carries one LM_ sprite per line style that places a mark", () => {
+    // ...and one per GLYPH KIND for the 10 split styles: 51 + 10.
     const marks = sources.filter((source) => source.kind === "linemark");
-    expect(marks).toHaveLength(51);
+    expect(marks).toHaveLength(61);
     for (const source of marks) {
       expect(
         symbols[source.key],
@@ -581,15 +600,27 @@ describe("line style mark sprites", () => {
       );
 
       // Recomputed from the catalogue rather than from lineMarkGeometry, so
-      // this is an independent statement of where the ink is.
+      // this is an independent statement of where the ink is. A split source
+      // holds ONE glyph of its kind with the position dropped; a packed
+      // source holds every placement of the interval at its position.
       const spec = lineStyleSpec(source.name) as {
         marks: { reference: string; position: number; offset: number }[];
       };
+      const inked = source.reference
+        ? [
+            {
+              ...spec.marks.find(
+                (mark) => mark.reference === source.reference,
+              )!,
+              position: 0,
+            },
+          ]
+        : spec.marks;
       let inkLeft = Infinity;
       let inkRight = -Infinity;
       let inkTop = 0;
       let inkBottom = 0;
-      for (const mark of spec.marks) {
+      for (const mark of inked) {
         const [boxX, boxY, boxW, boxH] = viewBoxNumbers(
           readSymbolSvg(mark.reference) as string,
         );
@@ -645,12 +676,20 @@ describe("line style mark sprites", () => {
     // the triangle in the atlas is the catalogue's triangle, not a squashed
     // one. Pin the numbers rather than an aspect ratio: a ratio survives both
     // sides being scaled, which is the failure a `line-pattern` tile has.
+    //
+    // PRCARE51 is a SPLIT style, so the triangle -- its once-per-interval
+    // glyph -- now rides the LM_PRCARE51_2 sprite of its own, and the bare
+    // LM_PRCARE51 key stays on the majority tooth.
     const [, , triangleW, triangleH] = viewBoxNumbers(
       readSymbolSvg("EMPRCAR1") as string,
     );
     expect([triangleW, triangleH]).toEqual([3.98, 5.35]);
 
-    const marks = sourceSvg({ kind: "linemark", name: "PRCARE51" }) as string;
+    const marks = sourceSvg({
+      kind: "linemark",
+      name: "PRCARE51",
+      kindIndex: 1,
+    }) as string;
     const stroke = /<path d="([^"]+)"/.exec(
       readSymbolSvg("EMPRCAR1") as string,
     )!;
@@ -659,14 +698,14 @@ describe("line style mark sprites", () => {
     // change the drawn aspect.
     expect(marks).not.toContain("scale(");
 
-    // 27.91 mm of ink in a 28.046 mm box: 106 px, so the fourth dentate tooth
-    // keeps its right leg. 5.6 mm of ink in 5.822: 22 px, so the triangle
-    // keeps its base row.
-    const sprite = symbols["LM_PRCARE51"]!;
-    expect([sprite.width, sprite.height]).toEqual([106, 22]);
+    // 3.98 mm of ink in a 4.234 mm box: 16 px. 5.6 mm of ink (the triangle
+    // hung 2.55 mm above the axis and 2.8 below, boxed symmetrically) in
+    // 5.822: 22 px, so the triangle keeps its base row.
+    const sprite = symbols["LM_PRCARE51_2"]!;
+    expect([sprite.width, sprite.height]).toEqual([16, 22]);
     // The grown box is padding, not room the drawing spread into: the whole
     // triangle still fits between the axis and the bottom edge.
-    const { bottom, half } = lineMarkGeometry("PRCARE51") as {
+    const { bottom, half } = lineMarkGeometry("PRCARE51", 1) as {
       bottom: number;
       half: number;
     };
@@ -675,6 +714,11 @@ describe("line style mark sprites", () => {
     expect(half - bottom, "padding stays sub-pixel").toBeLessThan(
       1 / PX_PER_MM,
     );
+
+    // The majority sprite is the dentate tooth alone: the 106 px packed quad
+    // -- four glyphs and their gaps -- is what laid a rigid bar across every
+    // meander, and the split is what cut it to single-glyph width.
+    expect(symbols["LM_PRCARE51"]!.width).toBeLessThan(20);
   });
 
   test("the ticks point image-DOWN, which is into the area", () => {
@@ -733,6 +777,169 @@ describe("line style mark sprites", () => {
     expect(marsys).not.toContain(" M 2,0 L 5,0");
   });
 
+  /**
+   * The round-13 SPLIT: one sprite per glyph kind for the 10 uniform-pitch
+   * multi-mark styles, so a line-placed icon is a single glyph's quad rather
+   * than a whole interval's rigid bar. See SPLIT_LINEMARK_STYLES.
+   */
+  describe("split mark sprites", () => {
+    test("a split style files one sprite per glyph kind, majority on the bare key", () => {
+      // CTNARE51: tooth (EMAREMG1) at slots 0, 2, 3; caution (EMCTNAR1) at
+      // slot 1. The tooth is the majority glyph, so it KEEPS LM_CTNARE51 --
+      // an already-shipped frontend asking for the bare key resolves to the
+      // visually dominant repeated glyph -- and the caution takes _2.
+      const ctnare = sources.filter(
+        (source) => source.kind === "linemark" && source.name === "CTNARE51",
+      );
+      expect(ctnare.map((source) => source.key)).toEqual([
+        "LM_CTNARE51",
+        "LM_CTNARE51_2",
+      ]);
+      expect(ctnare.map((source) => source.reference)).toEqual([
+        "EMAREMG1",
+        "EMCTNAR1",
+      ]);
+
+      // The bare key really is the tooth: the EMAREMG1 chevron stroke is in
+      // it and the EMCTNAR1 caution circle is not, and vice versa for _2.
+      const chevron = /<path d="([^"]+)"/.exec(
+        readSymbolSvg("EMAREMG1") as string,
+      )![1]!;
+      const tooth = sourceSvg(ctnare[0]!) as string;
+      const caution = sourceSvg(ctnare[1]!) as string;
+      // The caution ring is the one drawn circle in the family (the hidden
+      // pivotPoint marker is r="1", so the radius is the unambiguous pin).
+      expect(tooth).toContain(chevron);
+      expect(tooth).not.toContain('r="2.59"');
+      expect(caution).toContain('r="2.59"');
+      expect(caution).not.toContain(chevron);
+
+      // Single-glyph quads: the packed sprite was 106 px wide and its rigid
+      // bar sat a measured median 25.7 px off a meandering 45k boundary; the
+      // split cuts each sprite to its own glyph's ink.
+      expect(symbols["LM_CTNARE51"]!.width).toBeLessThanOrEqual(14);
+      expect(symbols["LM_CTNARE51_2"]!.width).toBeLessThanOrEqual(21);
+
+      // Every split style, the same shape: majority first on the bare key,
+      // every kind's sprite in the sheet.
+      for (const name of SPLIT_LINEMARK_STYLES as Set<string>) {
+        const kinds = lineMarkKinds(name) as {
+          reference: string;
+          count: number;
+          suffix: string;
+          spacing: number;
+        }[];
+        expect(kinds.length, `${name} splits into its kinds`).toBeGreaterThan(
+          1,
+        );
+        expect(kinds[0]!.suffix).toBe("");
+        for (let i = 1; i < kinds.length; i++) {
+          expect(kinds[i]!.suffix).toBe(`_${i + 1}`);
+          expect(
+            kinds[i]!.count,
+            `${name} majority kind comes first`,
+          ).toBeLessThanOrEqual(kinds[0]!.count);
+        }
+        for (const kind of kinds) {
+          const key = `LM_${name}${kind.suffix}`;
+          expect(symbols[key], `${key} is in symbols.json`).toBeDefined();
+        }
+      }
+    });
+
+    test("each kind's spacing is the phase-free lattice arithmetic", () => {
+      // Uniform pitch interval/n is what makes the split work with no phase
+      // control: the repeated kind takes the full lattice pitch (a tooth at
+      // EVERY slot, one of them under the caution glyph -- the accepted
+      // overdraw) and a once-per-interval kind takes the interval itself.
+      const spec = lineStyleSpec("CTNARE51") as {
+        interval: number;
+        marks: unknown[];
+      };
+      const kinds = lineMarkKinds("CTNARE51") as {
+        reference: string;
+        count: number;
+        spacing: number;
+      }[];
+      expect(kinds.map((kind) => kind.count)).toEqual([3, 1]);
+      expect(kinds[0]!.spacing).toBeCloseTo(spec.interval / 4, 9);
+      expect(kinds[1]!.spacing).toBeCloseTo(spec.interval, 9);
+
+      // And that arithmetic is sound ONLY for the count shape [n-1, 1]: one
+      // kind repeated within the interval, one kind once per interval. Every
+      // member has it. Two repeated kinds would share the interval/n lattice
+      // (both glyphs on every anchor); two once-per-interval kinds would both
+      // take the whole interval from anchor 0 (both glyphs stacked on one
+      // anchor) -- which is exactly why DWRTCL07 is no longer in the set.
+      for (const name of SPLIT_LINEMARK_STYLES as Set<string>) {
+        const style = lineStyleSpec(name) as {
+          interval: number;
+          marks: unknown[];
+        };
+        const shape = lineMarkKinds(name) as { count: number }[];
+        expect(
+          shape.map((kind) => kind.count),
+          `${name} count shape`,
+        ).toEqual([style.marks.length - 1, 1]);
+      }
+    });
+
+    test("a Category-C style keeps its packed sprite, byte-identical shape", () => {
+      // TIDINF51's marks sit on an UNEVEN pitch, so the phase-free trick
+      // cannot split it: it stays one sprite holding all four placements at
+      // their positions, one source, no _2 key, and no `marks` list in the
+      // metrics (see `line style metrics` below).
+      expect(SPLIT_LINEMARK_STYLES.has("TIDINF51")).toBe(false);
+      expect(lineMarkKinds("TIDINF51")).toBeUndefined();
+      const tidinf = sources.filter(
+        (source) => source.kind === "linemark" && source.name === "TIDINF51",
+      );
+      expect(tidinf).toHaveLength(1);
+      expect(tidinf[0]!.key).toBe("LM_TIDINF51");
+      expect(symbols["LM_TIDINF51_2"]).toBeUndefined();
+      expect([
+        symbols["LM_TIDINF51"]!.width,
+        symbols["LM_TIDINF51"]!.height,
+      ]).toEqual([108, 14]);
+      const svgText = sourceSvg(tidinf[0]!) as string;
+      const placements = [...svgText.matchAll(/translate\(/g)];
+      expect(placements, "all four placements stay packed").toHaveLength(4);
+    });
+
+    test("DWRTCL07 is Category C too: its two glyphs ALTERNATE", () => {
+      // It looks split-able -- a uniform two-slot interval -- but its glyphs
+      // sit 11.7 mm apart in a 23.4 mm interval: they alternate at HALF the
+      // interval. Both kinds have count 1, so the split gave both
+      // symbol-spacing = the full interval from anchor 0, stacking them on one
+      // anchor and destroying the alternation. Removed in round 13; it keeps
+      // the packed 62 px sprite and one source, byte-identical to before.
+      expect(SPLIT_LINEMARK_STYLES.has("DWRTCL07")).toBe(false);
+      expect(lineMarkKinds("DWRTCL07")).toBeUndefined();
+      const dwrtcl = sources.filter(
+        (source) => source.kind === "linemark" && source.name === "DWRTCL07",
+      );
+      expect(dwrtcl).toHaveLength(1);
+      expect(dwrtcl[0]!.key).toBe("LM_DWRTCL07");
+      expect(symbols["LM_DWRTCL07_2"]).toBeUndefined();
+      expect([
+        symbols["LM_DWRTCL07"]!.width,
+        symbols["LM_DWRTCL07"]!.height,
+      ]).toEqual([62, 24]);
+
+      // The alternation itself, from the metrics: two marks, half an interval
+      // apart. This is the pin that must fail if anyone re-adds the name.
+      const spec = lineStyleSpec("DWRTCL07") as {
+        interval: number;
+        marks: { position: number }[];
+      };
+      expect(spec.marks).toHaveLength(2);
+      expect(spec.marks[1]!.position - spec.marks[0]!.position).toBeCloseTo(
+        spec.interval / 2,
+        1,
+      );
+    });
+  });
+
   test("a drawn line style becomes one mark on its own pivot", () => {
     // NEWOBJ01 has no S-101 definition; its same-named SVG really is the line
     // style (a magenta disc chained along the line), so DRAWN_LINESTYLES lets
@@ -765,6 +972,7 @@ describe("line style metrics", () => {
     {
       interval: number;
       mark?: string;
+      marks?: { mark: string; spacing: number }[];
       parts: {
         offset: number;
         width: number;
@@ -822,6 +1030,38 @@ describe("line style metrics", () => {
     // a zero-length gap (which MapLibre renders as nothing at all).
     expect(metrics["CHRVDEL2"]!.parts[0]!.dash).toBeUndefined();
     expect(metrics["CHRVDEL2"]!.mark).toBe("LM_CHRVDEL2");
+  });
+
+  test("the mark half is exactly one of two shapes, never both", () => {
+    // `mark` is an unsplit style's packed sprite, spaced at the interval;
+    // `marks` is a split style's per-kind list. A style carrying both -- or a
+    // split list on a style outside SPLIT_LINEMARK_STYLES -- would be the
+    // silent polymorphism the schema is built to exclude.
+    for (const [name, style] of Object.entries(metrics)) {
+      expect(
+        style.mark !== undefined && style.marks !== undefined,
+        `${name} carries mark AND marks`,
+      ).toBe(false);
+      expect(
+        style.marks !== undefined,
+        `${name} split shape matches the set`,
+      ).toBe((SPLIT_LINEMARK_STYLES as Set<string>).has(name));
+    }
+
+    // CTNARE51's list, verbatim: tooth on the bare key at the lattice pitch
+    // interval/4, caution on _2 at the interval. Both lattices start at
+    // anchor 0, so no phase control is needed -- see `lineMarkKinds`.
+    const ctnare = metrics["CTNARE51"]!;
+    expect(ctnare.marks).toEqual([
+      { mark: "LM_CTNARE51", spacing: 30.52 },
+      { mark: "LM_CTNARE51_2", spacing: 122.079 },
+    ]);
+    expect(ctnare.marks![0]!.spacing).toBeCloseTo(ctnare.interval / 4, 2);
+    expect(ctnare.marks![1]!.spacing).toBe(ctnare.interval);
+
+    // ...and the packed shape, unchanged: Category C keeps `mark`.
+    expect(metrics["TIDINF51"]!.mark).toBe("LM_TIDINF51");
+    expect(metrics["TIDINF51"]!.marks).toBeUndefined();
   });
 
   /**

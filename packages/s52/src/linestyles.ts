@@ -28,14 +28,39 @@ export interface LineStylePart {
   dash?: number[];
 }
 
+/** One glyph kind of a SPLIT line style — one symbol layer's worth of marks. */
+export interface LineStyleMark {
+  /** Sprite key of this kind's single-glyph sprite (`LM_<NAME>`, `LM_<NAME>_2`, …). */
+  mark: string;
+  /**
+   * `symbol-spacing` for this kind's layer, px. The repeated kind carries the
+   * style's uniform lattice pitch (interval/n); a once-per-interval kind
+   * carries the interval itself. Both lattices start at anchor 0, which is
+   * what makes the split phase-free — see `lineMarkKinds` in the sprite build.
+   */
+  spacing: number;
+}
+
 export interface LineStyle {
   description: string;
   /** Repeat length of the style, px. */
   interval: number;
   /** The pens drawn along the line, in draw order. */
   parts: LineStylePart[];
-  /** Sprite key of the style's repeated marks. Absent for a pure dash schedule. */
+  /**
+   * The mark half comes in exactly one of two shapes, told apart by which key
+   * is present — never both:
+   *
+   * `mark` — an UNSPLIT style's single packed sprite, holding every glyph of
+   * the repeat interval, spaced at `interval`.
+   */
   mark?: string;
+  /**
+   * `marks` — a SPLIT style's per-glyph-kind sprites (`SPLIT_LINEMARK_STYLES`
+   * in the sprite build), one line-placed symbol layer each, majority kind
+   * first. Absent, like `mark`, for a pure dash schedule.
+   */
+  marks?: LineStyleMark[];
 }
 
 export const linestyles = data as unknown as Record<

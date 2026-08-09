@@ -113,10 +113,15 @@ export const LINESTYLE_METADATA_KEY = "s52:linestyle";
  *  - the PEN becomes ordinary `line` layers with `line-dasharray`, one per
  *    `ls:lineStyle` part (a composite style is parallel pens — INDHLT02 is a
  *    yellow line over a black one, SCLBDY51 three at different offsets), and
- *  - the MARKS become one `symbol` layer with `symbol-placement: "line"` over
- *    the SAME features, `icon-image` the style's mark sprite and
- *    `symbol-spacing` its repeat interval. A symbol is not scaled with zoom at
- *    all, so the marks hold their design size and their screen spacing.
+ *  - the MARKS become `symbol` layers with `symbol-placement: "line"` over
+ *    the SAME features. An unsplit style is one layer: `icon-image` its
+ *    packed mark sprite, `symbol-spacing` its repeat interval. A SPLIT style
+ *    (round 13 — the wide uniform-pitch multi-mark styles, see
+ *    `SPLIT_LINEMARK_STYLES` in the sprite build) is one layer per glyph
+ *    kind, each on that kind's single-glyph sprite at that kind's spacing,
+ *    which is what keeps a rigid 106 px bar from being laid tangent to a
+ *    meandering boundary. A symbol is not scaled with zoom at all, so the
+ *    marks hold their design size and their screen spacing either way.
  *
  * ORIENTATION. The marks have to point INTO the area. The mark sprite is drawn
  * with them pointing image-space DOWN (S-101's own +y, unmirrored — see
@@ -218,31 +223,60 @@ export function LC(config: LayerConfig, linnam: Reference): CSPLayer[] {
       },
     }));
 
-  if (!style.mark) return pens;
+  // The mark half of the style comes in exactly one of two shapes (see
+  // `LineStyle` in @enc-tiles/s52): `marks` is a SPLIT style's per-glyph-kind
+  // list, one layer per kind at its own spacing; `mark` is an unsplit style's
+  // single packed sprite, spaced at the repeat interval. Normalized here, in
+  // the one place that reads either.
+  const markEntries =
+    style.marks ??
+    (style.mark ? [{ mark: style.mark, spacing: style.interval }] : []);
 
-  const marks: Pick<SymbolLayerSpecification, "type" | "layout" | "metadata"> =
-    {
-      type: "symbol",
-      metadata,
-      layout: {
-        "symbol-placement": "line",
-        "symbol-spacing": style.interval,
-        "icon-image": style.mark,
-        // See the orientation note above: every one of these is load-bearing.
-        "icon-rotate": 0,
-        "icon-rotation-alignment": "map",
-        "icon-pitch-alignment": "map",
-        "icon-keep-upright": false,
-        "icon-allow-overlap": true,
-        "icon-ignore-placement": true,
-        // Zeroes the anchor box scale so the teeth run to both ends of every
-        // clipped line and every ring closes. See END-OF-LINE SUPPRESSION.
-        "text-size": 0,
-      },
-    };
+  if (markEntries.length === 0) return pens;
 
-  // The marks draw over the pen they belong to.
-  return [...pens, marks];
+  // SPLIT STYLES, AND THE TWO PORTRAYAL DEVIATIONS THEY ACCEPT (ruled in
+  // round 13). A split style's layers are phase-free: every layer's anchors
+  // land at 0, s, 2s, … so the repeated kind's lattice (pitch interval/n)
+  // and the once-per-interval kind's lattice (pitch interval) line up by
+  // arithmetic. Two consequences are accepted portrayal deviations rather
+  // than bugs: (i) on an unclipped line the once-per-interval glyph's anchor
+  // COINCIDES with a repeated-glyph anchor, so the glyph draws over a tooth
+  // where S-52 would draw only the glyph — the larger glyph dominates
+  // visually; (ii) on a tile-clipped line MapLibre starts an `isLineContinued`
+  // segment at spacing/2 PER LAYER, so the two lattices drift by half a slot
+  // and the glyph lands between teeth instead of on one. Both accepted.
+  const marks: Pick<
+    SymbolLayerSpecification,
+    "type" | "layout" | "metadata"
+  >[] = markEntries.map((entry) => ({
+    type: "symbol",
+    metadata,
+    layout: {
+      "symbol-placement": "line",
+      "symbol-spacing": entry.spacing,
+      "icon-image": entry.mark,
+      // See the orientation note above: every one of these is load-bearing,
+      // and every one is stated on EVERY mark layer — a split style's
+      // layers must agree on orientation or the kinds part company.
+      "icon-rotate": 0,
+      "icon-rotation-alignment": "map",
+      "icon-pitch-alignment": "map",
+      "icon-keep-upright": false,
+      "icon-allow-overlap": true,
+      "icon-ignore-placement": true,
+      // Zeroes the anchor box scale so the teeth run to both ends of every
+      // clipped line and every ring closes (see END-OF-LINE SUPPRESSION) —
+      // and it is ALSO what makes the anchor lattice width-independent:
+      // with a non-zero text-size, `get_anchors.ts` folds the sprite's own
+      // width back into the spacing (`spacing - labelLength < spacing / 4`),
+      // and a split style's phase-free lattice REQUIRES anchors at exactly
+      // 0, s, 2s, … regardless of each kind's sprite width.
+      "text-size": 0,
+    },
+  }));
+
+  // The marks draw over the pen they belong to, majority kind first.
+  return [...pens, ...marks];
 }
 
 /** Three decimals: enough for a dash ratio, short enough to read in a diff. */

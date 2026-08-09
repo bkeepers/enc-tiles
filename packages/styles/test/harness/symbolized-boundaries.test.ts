@@ -85,14 +85,18 @@ describe("RESARE restriction boundaries", () => {
   });
 
   test.each([
-    ["entry restricted", "7", "ENTRES"],
-    ["entry prohibited", "8", "ENTRES"],
-    ["anchoring prohibited", "1", "ACHRES"],
-    ["fishing prohibited", "3", "FSHRES"],
-    ["own-ship restriction", "13", "CTYARE"],
+    // The restriction families are SPLIT line styles (round 13): the repeated
+    // tick rides the bare LM_ key at the lattice pitch and the family's
+    // once-per-interval glyph rides the _2 key at the interval — two mark
+    // layers. CTYARE51 places a single glyph kind and stays one layer.
+    ["entry restricted", "7", "ENTRES", 2],
+    ["entry prohibited", "8", "ENTRES", 2],
+    ["anchoring prohibited", "1", "ACHRES", 2],
+    ["fishing prohibited", "3", "FSHRES", 2],
+    ["own-ship restriction", "13", "CTYARE", 1],
   ])(
     "symbolized boundaries draw the %s line style",
-    (_label, restrn, family) => {
+    (_label, restrn, family, markLayers) => {
       const paint = boundaryPaint(symbolized, { RESTRN: restrn });
       expect(paint).toHaveLength(1);
 
@@ -103,19 +107,32 @@ describe("RESARE restriction boundaries", () => {
       expect(paint[0]!["line-dasharray"]).toBeDefined();
       expect(paint[0]!["line-width"]).toBeGreaterThan(0);
 
-      // THE MARKS. One line-placed symbol layer, on the family's mark sprite,
-      // repeating at the style's own interval in constant screen pixels.
+      // THE MARKS. Line-placed symbol layers on the family's mark sprites,
+      // repeating in constant screen pixels — the majority kind first, on the
+      // bare key.
       const layout = boundaryMarks(symbolized, { RESTRN: restrn });
-      expect(layout).toHaveLength(1);
+      expect(layout).toHaveLength(markLayers);
       expect(layout[0]!["symbol-placement"]).toBe("line");
       expect(layout[0]!["icon-image"]).toBe(`LM_${family}51`);
       expect(symbols[`LM_${family}51`]).toBeDefined();
       expect(layout[0]!["symbol-spacing"]).toBeGreaterThan(1);
+      if (markLayers > 1) {
+        expect(layout[1]!["icon-image"]).toBe(`LM_${family}51_2`);
+        expect(symbols[`LM_${family}51_2`]).toBeDefined();
+        // The once-per-interval glyph repeats at the full interval; the tick
+        // at the lattice pitch beneath it.
+        expect(layout[1]!["symbol-spacing"] as number).toBeGreaterThan(
+          layout[0]!["symbol-spacing"] as number,
+        );
+      }
       // The teeth point into the area, and stay pointing into it on a
-      // right-to-left edge — see `LC` for the derivation.
-      expect(layout[0]!["icon-rotation-alignment"]).toBe("map");
-      expect(layout[0]!["icon-keep-upright"]).toBe(false);
-      expect(layout[0]!["icon-allow-overlap"]).toBe(true);
+      // right-to-left edge — see `LC` for the derivation. Every mark layer
+      // carries the full orientation set.
+      for (const marks of layout) {
+        expect(marks["icon-rotation-alignment"]).toBe("map");
+        expect(marks["icon-keep-upright"]).toBe(false);
+        expect(marks["icon-allow-overlap"]).toBe(true);
+      }
     },
   );
 
@@ -144,13 +161,21 @@ describe("RESARE restriction boundaries", () => {
     // The plain ring and the symbolized pen are the same one line layer in the
     // same position, so anything keyed on a layer id (the display-category
     // filters, the inspector) sees the same list either way. The symbolized
-    // setting ADDS the mark layer after it, which is the one difference.
-    for (const restrn of ["7", "1", "3", "13"]) {
+    // setting ADDS the mark layers after it, which is the one difference —
+    // two for a split family, one for CTYARE.
+    for (const [restrn, markLayers] of [
+      ["7", 2],
+      ["1", 2],
+      ["3", 2],
+      ["13", 1],
+    ] as const) {
       expect(boundaryPaint(plain, { RESTRN: restrn })).toHaveLength(
         boundaryPaint(symbolized, { RESTRN: restrn }).length,
       );
       expect(boundaryMarks(plain, { RESTRN: restrn })).toHaveLength(0);
-      expect(boundaryMarks(symbolized, { RESTRN: restrn })).toHaveLength(1);
+      expect(boundaryMarks(symbolized, { RESTRN: restrn })).toHaveLength(
+        markLayers,
+      );
     }
   });
 
@@ -162,7 +187,13 @@ describe("RESARE restriction boundaries", () => {
       ...boundaryLayers(symbolized, { RESTRN: "7" }, "line"),
       ...boundaryLayers(symbolized, { RESTRN: "7" }, "symbol"),
     ].filter((layer) => linestyleOf(layer) !== undefined);
-    expect(tagged.map((layer) => layer.type)).toEqual(["line", "symbol"]);
+    // The pen plus BOTH mark layers of the split family — each kind's layer
+    // carries the name.
+    expect(tagged.map((layer) => layer.type)).toEqual([
+      "line",
+      "symbol",
+      "symbol",
+    ]);
     for (const layer of tagged) {
       expect(linestyleOf(layer)).toBe("ENTRES51");
     }

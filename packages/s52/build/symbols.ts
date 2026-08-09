@@ -698,6 +698,112 @@ function readLineStyleSpec(name) {
 }
 
 /**
+ * The line styles whose mark sprite is SPLIT into one sprite per glyph kind —
+ * a round-13 decision, and a closed list on purpose.
+ *
+ * A multi-mark style used to pack its whole repeat interval into ONE sprite:
+ * N glyphs plus the transparent gaps between them, 94–106 px wide for these
+ * ten. A line-placed icon is a single rigid quad laid on the local segment
+ * direction at its anchor (one quad per icon, so MapLibre's per-glyph
+ * re-projection never runs), so on a meandering boundary the bar's tips sat a
+ * measured median 25.7 px off the line at z11 — read as marks jutting across
+ * land. Splitting per glyph kind cuts the quad to the single glyph's ink
+ * (median tip offset 1.8 px) without touching the anchor lattice.
+ *
+ * These are exactly the CATEGORY B styles: every one places its marks on a
+ * UNIFORM pitch of interval/n (n = marks per interval), which is what lets the
+ * split work with no phase control at all — each kind's layer keeps anchors at
+ * 0, s, 2s, … and the lattices line up by arithmetic (`lineMarkKinds`).
+ * Uneven-pitch multi-mark styles (Category C: TIDINF51, MARSYS51, RCRDEF11,
+ * DWLDEF01 and friends) are NOT here and must not be added without real
+ * along-line phase control, which MapLibre 4.7.1 does not safely offer
+ * (`icon-offset[0]` is applied to both the quad box and the anchor walk).
+ * They keep their packed single sprite and single layer, byte-identical.
+ *
+ * NARROWER THAN "uniform pitch" — READ THIS BEFORE ADDING A NAME. The
+ * interval/n arithmetic in `lineMarkKinds` is sound ONLY for the glyph-count
+ * shape [n-1, 1]: exactly two kinds, one repeated within the interval and one
+ * appearing once per interval. All ten members have it. The derivation gives
+ * a kind spacing of interval/n when count > 1 and the interval itself when
+ * count === 1, and it collapses in two ways outside that shape:
+ *
+ *  - BOTH KINDS REPEAT. Two kinds with count > 1 both take pitch interval/n,
+ *    so they land on the SAME lattice and every anchor carries both glyphs.
+ *  - SINGLE-COUNT KINDS THAT ALTERNATE AT SUB-INTERVAL PITCH. DWRTCL07 is the
+ *    worked example and the reason this paragraph exists: its two glyphs
+ *    (EMDWRTC2 at 6.5 mm, EMDWRUT2 at 18.2 mm in a 23.4 mm interval) are 11.7
+ *    mm apart — they genuinely ALTERNATE at HALF the interval. Both have
+ *    count 1, so the split gave both kinds symbol-spacing = the FULL interval
+ *    starting at anchor 0: the two glyphs stack on one anchor and the
+ *    alternation is destroyed. It was removed in round 13 and reverts to
+ *    Category C — packed sprite, single layer, byte-identical to before the
+ *    split.
+ *
+ * A style whose kinds both repeat, or whose single-count kinds alternate at
+ * sub-interval pitch, must stay out of this set.
+ */
+export const SPLIT_LINEMARK_STYLES = new Set([
+  "ACHARE51",
+  "ACHRES51",
+  "CBLARE51",
+  "CTNARE51",
+  "DWRUTE51",
+  "ENTRES51",
+  "FSHRES51",
+  "PIPARE51",
+  "PIPARE61",
+  "PRCARE51",
+]);
+
+/**
+ * The glyph kinds of a SPLIT line style, majority first, or undefined for a
+ * style that keeps its packed sprite.
+ *
+ * Order is the sprite-key convention (see SPRITE_PREFIX): the most frequent
+ * glyph is filed first and keeps the bare `LM_<NAME>` key; ties keep
+ * declaration order — `Array.prototype.sort` is stable — so the list is the
+ * same on every build.
+ *
+ * `spacing` (mm) is each kind's `symbol-spacing`, and it is where the
+ * phase-free trick lives. Every split style's marks sit on the uniform lattice
+ * `interval/n`; a kind that repeats within the interval takes that full
+ * lattice pitch — CTNARE51's tooth occupies slots 0, 2 and 3 of 4, and
+ * spacing interval/4 puts a tooth at EVERY slot, including slot 1 under the
+ * caution glyph — and a once-per-interval kind repeats at the interval
+ * itself. Both lattices start at anchor 0, so they coincide by arithmetic
+ * rather than by phase control. The overdraw where they coincide is an
+ * accepted portrayal deviation, ruled in round 13 and stated where the layers
+ * are emitted (`LC()` in @enc-tiles/styles).
+ */
+export function lineMarkKinds(name) {
+  if (!SPLIT_LINEMARK_STYLES.has(name)) return undefined;
+  const spec = lineStyleSpec(name);
+  if (!spec || spec.marks.length === 0) return undefined;
+
+  const kinds = [];
+  const byReference = new Map();
+  for (const mark of spec.marks) {
+    let kind = byReference.get(mark.reference);
+    if (!kind) {
+      kind = { reference: mark.reference, mark, count: 0 };
+      byReference.set(mark.reference, kind);
+      kinds.push(kind);
+    }
+    kind.count += 1;
+  }
+  kinds.sort((a, b) => b.count - a.count);
+
+  const slots = spec.marks.length;
+  return kinds.map((kind, index) => ({
+    reference: kind.reference,
+    mark: kind.mark,
+    count: kind.count,
+    suffix: index === 0 ? "" : `_${index + 1}`,
+    spacing: kind.count > 1 ? spec.interval / slots : spec.interval,
+  }));
+}
+
+/**
  * viewBox and drawing of a line style's MARK sprite — every symbol the style
  * places along its repeat interval, at its position within that interval.
  *
@@ -739,10 +845,22 @@ function readLineStyleSpec(name) {
  *
  * Split out of `buildLineMarkSvg` so the sprite tests can assert the tick side
  * against the figures rather than against a rendered image.
+ *
+ * A SPLIT style (`SPLIT_LINEMARK_STYLES`) gets one sprite per glyph kind
+ * instead: `kindIndex` selects the kind, in `lineMarkKinds` order, and the
+ * geometry is the SINGLE glyph's ink with its position in the interval
+ * dropped — the anchor lattice supplies placement, so the sprite carries no
+ * layout of its own. Each kind's box is snapped to whole pixels
+ * independently. For an unsplit style `kindIndex` other than 0 names no
+ * sprite and returns undefined, same as a style with no marks.
  */
-export function lineMarkGeometry(name) {
+export function lineMarkGeometry(name, kindIndex = 0) {
   const spec = lineStyleSpec(name);
   if (!spec || spec.marks.length === 0) return undefined;
+
+  const kinds = lineMarkKinds(name);
+  const kind = kinds?.[kindIndex];
+  if (kinds ? !kind : kindIndex !== 0) return undefined;
 
   let top = 0;
   let bottom = 0;
@@ -750,7 +868,8 @@ export function lineMarkGeometry(name) {
   let right = -Infinity;
   const body = [];
 
-  const boxes = spec.marks.map((mark) => ({
+  const marks = kind ? [{ ...kind.mark, position: 0 }] : spec.marks;
+  const boxes = marks.map((mark) => ({
     mark,
     box: symbolBox(mark.reference),
   }));
@@ -810,6 +929,8 @@ export function lineMarkGeometry(name) {
     bottom,
     half,
     body,
+    // Which glyph a split sprite draws; absent from a packed sprite.
+    ...(kind ? { reference: kind.reference } : {}),
   };
 }
 
@@ -817,18 +938,24 @@ export function lineMarkGeometry(name) {
  * Build the MARK sprite of one complex line style: the glyphs it repeats,
  * without its pen. See `lineMarkGeometry` for the geometry and the
  * orientation proof.
+ *
+ * A split style builds one SVG per glyph kind — the source carries
+ * `kindIndex` (see `spriteSources`); without one this is the majority kind,
+ * which is also the packed sprite for an unsplit style.
  */
 export function buildLineMarkSvg(linestyle) {
-  const geometry = lineMarkGeometry(linestyle.name);
+  const geometry = lineMarkGeometry(linestyle.name, linestyle.kindIndex ?? 0);
   if (!geometry) return undefined;
-  const { minX, width, half, body } = geometry;
+  const { minX, width, half, body, reference } = geometry;
 
   return svgDocument({
     minX,
     minY: -half,
     width,
     height: 2 * half,
-    title: `${linestyle.name} marks`,
+    title: reference
+      ? `${linestyle.name} marks (${reference})`
+      : `${linestyle.name} marks`,
     desc: linestyle.description,
     body: body.join("\n"),
   });
@@ -849,12 +976,22 @@ export function buildLineMarkSvg(linestyle) {
  * `LC()` divides by the pen width for MapLibre: `line-dasharray` is in units
  * of the line width, so the JSON would otherwise carry a ratio whose relation
  * to the interval is invisible.
+ *
+ * The mark half comes in exactly one of TWO SHAPES, told apart by which key
+ * is present — never both, so a reader cannot mistake one for the other:
+ *
+ *  - `mark` — an unsplit style's single packed sprite, spaced at `interval`.
+ *    Unchanged for Category C and every single-mark style.
+ *  - `marks` — a split style's per-glyph-kind list of `{ mark, spacing }`,
+ *    one symbol layer each (see `lineMarkKinds` for the spacing arithmetic
+ *    and SPRITE_PREFIX for the key convention).
  */
 export function lineStyleMetrics(name, description) {
   const spec = lineStyleSpec(name);
   if (!spec) return undefined;
 
   const px = (mm) => roundToDecimal(mm * PX_PER_MM, 3);
+  const kinds = lineMarkKinds(name);
 
   return {
     description,
@@ -866,7 +1003,14 @@ export function lineStyleMetrics(name, description) {
       ...(part.dash ? { dash: part.dash.map(px) } : {}),
     })),
     ...(spec.marks.length > 0
-      ? { mark: `${SPRITE_PREFIX.linemark}${name}` }
+      ? kinds
+        ? {
+            marks: kinds.map((kind) => ({
+              mark: `${SPRITE_PREFIX.linemark}${name}${kind.suffix}`,
+              spacing: px(kind.spacing),
+            })),
+          }
+        : { mark: `${SPRITE_PREFIX.linemark}${name}` }
       : {}),
   };
 }
@@ -896,6 +1040,15 @@ export function lineStyleMetrics(name, description) {
  * drawing is shared (`symbolBox` hands out the same content); only the box is
  * ours. `LC_` sprites are still published: an already-shipped frontend still
  * references them.
+ *
+ * SPLIT LINEMARK SUFFIXES. A split style (`SPLIT_LINEMARK_STYLES`) files one
+ * `linemark` sprite per glyph kind. The MOST FREQUENT glyph keeps the bare
+ * `LM_<NAME>` key — an already-shipped frontend that asks the sheet for it
+ * keeps resolving to the visually dominant repeated glyph rather than to
+ * nothing — and every further kind takes a stable numeric suffix
+ * (`LM_<NAME>_2`, `LM_<NAME>_3`, …) in `lineMarkKinds` order: count
+ * descending, declaration order breaking ties. The suffix is part of the key
+ * and the SVG file name alike.
  */
 export const SPRITE_PREFIX = {
   symbol: "",
@@ -904,9 +1057,12 @@ export const SPRITE_PREFIX = {
   linemark: "LM_",
 };
 
-/** The sprite-sheet key (and SVG file name) for one sprite source. */
+/**
+ * The sprite-sheet key (and SVG file name) for one sprite source. A split
+ * linemark source carries the kind's `suffix` — see SPRITE_PREFIX.
+ */
 export function spriteKey(source) {
-  return `${SPRITE_PREFIX[source.kind]}${source.name}`;
+  return `${SPRITE_PREFIX[source.kind]}${source.name}${source.suffix ?? ""}`;
 }
 
 /**
@@ -942,17 +1098,31 @@ export function spriteSources(data) {
     // a mark get one: a pure dash schedule (INDHLT02, SCLBDY51, ERBLNA01) is
     // drawn entirely by its `line-dasharray`, and emitting an empty source for
     // it would put a blank sprite in the atlas and a dangling `icon-image` in
-    // the style.
+    // the style. A SPLIT style (`SPLIT_LINEMARK_STYLES`) fans out to one
+    // source per glyph kind, keyed per the suffix convention at SPRITE_PREFIX.
     ...data.linestyles
       .filter((linestyle) => {
         const spec = lineStyleSpec(linestyle.lind.linm);
         return spec !== undefined && spec.marks.length > 0;
       })
-      .map((linestyle) => ({
-        name: linestyle.lind.linm,
-        description: `${linestyle.lxpo?.[0] ?? linestyle.lind.linm} (marks)`,
-        kind: "linemark",
-      })),
+      .flatMap((linestyle) => {
+        const name = linestyle.lind.linm;
+        const exposition = linestyle.lxpo?.[0] ?? name;
+        const kinds = lineMarkKinds(name);
+        if (!kinds) {
+          return [
+            { name, description: `${exposition} (marks)`, kind: "linemark" },
+          ];
+        }
+        return kinds.map((kind, kindIndex) => ({
+          name,
+          description: `${exposition} (marks: ${kind.reference})`,
+          kind: "linemark",
+          kindIndex,
+          suffix: kind.suffix,
+          reference: kind.reference,
+        }));
+      }),
   ].map((source) => ({ ...source, key: spriteKey(source) }));
 }
 

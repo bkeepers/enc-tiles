@@ -5499,17 +5499,35 @@
     ]
   },
   "LM_ACHARE51": {
-    "description": "boundary of an anchorage area (marks)",
-    "width": 106,
-    "height": 21,
+    "description": "boundary of an anchorage area (marks: EMAREMG1)",
+    "width": 14,
+    "height": 14,
     "offset": [
       0,
+      0
+    ]
+  },
+  "LM_ACHARE51_2": {
+    "description": "boundary of an anchorage area (marks: EMACHAR1)",
+    "width": 17,
+    "height": 21,
+    "offset": [
+      -0.5,
       -0.5
     ]
   },
   "LM_ACHRES51": {
-    "description": "boundary of an area where anchoring is prohibited or restricted (marks)",
-    "width": 94,
+    "description": "boundary of an area where anchoring is prohibited or restricted (marks: EMACHRE2)",
+    "width": 2,
+    "height": 14,
+    "offset": [
+      0,
+      0
+    ]
+  },
+  "LM_ACHRES51_2": {
+    "description": "boundary of an area where anchoring is prohibited or restricted (marks: EMACHRE1)",
+    "width": 18,
     "height": 23,
     "offset": [
       0,
@@ -5535,11 +5553,20 @@
     ]
   },
   "LM_CBLARE51": {
-    "description": "boundary of a submarine cable area (marks)",
-    "width": 106,
-    "height": 24,
+    "description": "boundary of a submarine cable area (marks: EMAREMG1)",
+    "width": 14,
+    "height": 14,
     "offset": [
       0,
+      0
+    ]
+  },
+  "LM_CBLARE51_2": {
+    "description": "boundary of a submarine cable area (marks: EMCBLAR1)",
+    "width": 9,
+    "height": 24,
+    "offset": [
+      -0.5,
       0
     ]
   },
@@ -5571,11 +5598,20 @@
     ]
   },
   "LM_CTNARE51": {
-    "description": "boundary of area with a specific caution (marks)",
-    "width": 106,
-    "height": 27,
+    "description": "boundary of area with a specific caution (marks: EMAREMG1)",
+    "width": 14,
+    "height": 14,
     "offset": [
       0,
+      0
+    ]
+  },
+  "LM_CTNARE51_2": {
+    "description": "boundary of area with a specific caution (marks: EMCTNAR1)",
+    "width": 21,
+    "height": 27,
+    "offset": [
+      -0.5,
       -0.5
     ]
   },
@@ -5643,17 +5679,35 @@
     ]
   },
   "LM_DWRUTE51": {
-    "description": "boundary of a deep water route (marks)",
-    "width": 106,
-    "height": 18,
+    "description": "boundary of a deep water route (marks: EMAREMG1)",
+    "width": 14,
+    "height": 14,
     "offset": [
       0,
       0
     ]
   },
+  "LM_DWRUTE51_2": {
+    "description": "boundary of a deep water route (marks: EMDWRUT1)",
+    "width": 25,
+    "height": 18,
+    "offset": [
+      -0.5,
+      0
+    ]
+  },
   "LM_ENTRES51": {
-    "description": "boundary of an area where entry is prohibited or restricted (marks)",
-    "width": 94,
+    "description": "boundary of an area where entry is prohibited or restricted (marks: EMACHRE2)",
+    "width": 2,
+    "height": 14,
+    "offset": [
+      0,
+      0
+    ]
+  },
+  "LM_ENTRES51_2": {
+    "description": "boundary of an area where entry is prohibited or restricted (marks: EMENTRE1)",
+    "width": 24,
     "height": 24,
     "offset": [
       0,
@@ -5697,11 +5751,20 @@
     ]
   },
   "LM_FSHRES51": {
-    "description": "boundary of an area where trawling or fishing is prohibited or restricted (marks)",
-    "width": 94,
-    "height": 22,
+    "description": "boundary of an area where trawling or fishing is prohibited or restricted (marks: EMACHRE2)",
+    "width": 2,
+    "height": 14,
     "offset": [
       0,
+      0
+    ]
+  },
+  "LM_FSHRES51_2": {
+    "description": "boundary of an area where trawling or fishing is prohibited or restricted (marks: EMFSHRE1)",
+    "width": 27,
+    "height": 22,
+    "offset": [
+      -0.5,
       0
     ]
   },
@@ -5778,8 +5841,17 @@
     ]
   },
   "LM_PIPARE51": {
-    "description": "boundary of a submarine pipeline area with potentially dangerous contents (marks)",
-    "width": 106,
+    "description": "boundary of a submarine pipeline area with potentially dangerous contents (marks: EMAREMG1)",
+    "width": 14,
+    "height": 14,
+    "offset": [
+      0,
+      0
+    ]
+  },
+  "LM_PIPARE51_2": {
+    "description": "boundary of a submarine pipeline area with potentially dangerous contents (marks: EMPIPAR1)",
+    "width": 24,
     "height": 14,
     "offset": [
       0,
@@ -5787,12 +5859,21 @@
     ]
   },
   "LM_PIPARE61": {
-    "description": "boundary of a submarine pipeline area with generally non-dangerous contents (marks)",
-    "width": 106,
+    "description": "boundary of a submarine pipeline area with generally non-dangerous contents (marks: EMAREGR1)",
+    "width": 14,
     "height": 14,
     "offset": [
       0,
       0
+    ]
+  },
+  "LM_PIPARE61_2": {
+    "description": "boundary of a submarine pipeline area with generally non-dangerous contents (marks: EMPIPAR2)",
+    "width": 24,
+    "height": 13,
+    "offset": [
+      0,
+      -0.5
     ]
   },
   "LM_PIPSOL05": {
@@ -5814,8 +5895,17 @@
     ]
   },
   "LM_PRCARE51": {
-    "description": "boundary of a precautionary area (marks)",
-    "width": 106,
+    "description": "boundary of a precautionary area (marks: EMAREMG1)",
+    "width": 14,
+    "height": 14,
+    "offset": [
+      0,
+      0
+    ]
+  },
+  "LM_PRCARE51_2": {
+    "description": "boundary of a precautionary area (marks: EMPRCAR1)",
+    "width": 16,
     "height": 22,
     "offset": [
       0,
