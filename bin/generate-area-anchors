@@ -1,0 +1,211 @@
+#!/usr/bin/env node
+
+// Derives the _AREA_ANCHORS layer: one point per area feature of the
+// ship-narrow class set, at which the style draws the feature's centred area
+// symbol (the PILBOP02 diamond, the CTNARE51 caution mark and their siblings)
+// instead of drawing it once per polygon per tile.
+//
+// Usage:
+//   bin/generate-area-anchors <output.geojson> \
+//     --class CTNARE:CTNARE.geojson [--class PILBOP:PILBOP.geojson ...]
+//
+// Why this layer exists:
+//
+//   tippecanoe writes each polygon CLIPPED into every tile it touches, and
+//   MapLibre places one centred symbol per fragment whose pole of
+//   inaccessibility lands inside its own tile -- so an area straddling a tile
+//   edge draws its symbol twice, a corner up to four times, and a multi-part
+//   area once more per part. Measured over central Puget at z12: 22% of these
+//   layers' polygon features duplicate (RESARE 77/223, TSSLPT 71/120, CBLARE
+//   55/156, CTNARE 47/120), and the Port Angeles pilot boarding area draws
+//   two diamonds ~63 screen px apart. One POINT per feature lands in exactly
+//   one tile at any zoom, which is what makes the symbol appear once.
+//
+//   This is bin/generate-restriction-anchors MINUS the water-side LNDARE
+//   scanline pass -- deliberately a plain-centroid sibling rather than a
+//   parameterisation: restriction polygons are drawn to their legal boundary
+//   and genuinely span land, where these classes are ship-routing and caution
+//   areas drawn to the water they regulate, so the natural label point --
+//   bin/generate-labels' placement, the other close precedent -- is already
+//   the right one.
+//
+// GROUPING is by (CLASS, LNAM, interval), for bin/generate-restriction-
+// anchors' reasons: LNAM is S-57's feature identifier, so the group is the
+// FEATURE rather than a contiguity guess and two abutting but distinct areas
+// keep their own symbols; a feature with no LNAM is its own group; and the
+// interval keeps the copy ladder's overlapping copies of one feature from
+// merging into a single anchor stamped for no interval at all.
+//
+// Each output feature carries EVERY non-underscore property of the group's
+// LARGEST fragment: the retargeted layers' filters branch on CATPIL, CATBRG,
+// WATLEV, CONRAD, CONVIS and the rest of each class's own attributes, and an
+// anchor missing one falls into the wrong branch -- so the whole bag rides
+// along rather than a curated list. Underscore properties are the pipeline's
+// own; of those, the copy ladder's _QZMIN/_QZMAX/_QFALL are re-added
+// deliberately, converted to per-feature tippecanoe zoom bounds later by
+// bin/stamp-quilt-zooms. On top of the bag:
+//
+//   CLASS    the S-57 class the feature came from, stamped over any source
+//            property of that name
+//   AREA     the group's summed area in square degrees, longitude scaled by
+//            cos(latitude) (bin/quilt-anchors.mjs featureArea), computed here
+//            so the style can reuse the restriction anchors' screen-size
+//            density floor
+
+import { writeFileSync } from "fs";
+
+import {
+  ANCHOR_TIPPECANOE,
+  featureArea,
+  pointOnSurface,
+  ringArea,
+} from "./quilt-anchors.mjs";
+import {
+  polygons,
+  quiltKey,
+  quiltRange,
+  readFeatures,
+} from "./quilt-geojson.mjs";
+
+// The ship-narrow class set, shipped first because it is where the measured,
+// visible duplication is and it keeps the property-bag question small. CTNARE
+// and PILBOP draw an unconditional centred symbol and were never anchored at
+// all; the other eight are in the restriction-anchor class set, but only
+// their CS(RESTRN01) cascade symbols are retargeted there and their OWN
+// symbol (ESSARE01, CBLARE51, TSLDEF51, ITZARE51, PRCARE51, TSSCRS51,
+// CTNARE51, TSSRON51) still drew per fragment.
+//
+// DEFERRED to a later widening round, the remaining 24 area classes whose
+// unconditional centred symbol duplicates the same way: ###### (the QUESMRK1
+// unknown-object carrier), ACHARE (excluded by user ruling -- anchorages are
+// fine as drawn, so widening past it needs a new ruling), ACHBRT, BERTHS,
+// BRIDGE, CHKPNT, CONVYR, CTSARE, FERYRT, FSHFAC, FSHGRD, HRBFAC, LOCMAG,
+// LOGPON, MAGVAR, NEWOBJ, OBSTRN, PRDARE, RCTLPT, RECTRC, SMCFAC, SWPARE,
+// WATTUR, WEDKLP. (The TS_*/T_* tidal and timing carriers also duplicate but
+// stay with their layers.) Widening is deliberate: add the class HERE and to
+// the bin/s57-to-tiles step together.
+const AREA_ANCHOR_CLASSES = [
+  "CTNARE",
+  "PILBOP",
+  "CBLARE",
+  "RESARE",
+  "DWRTPT",
+  "ISTZNE",
+  "PRCARE",
+  "TSSCRS",
+  "TSSLPT",
+  "TSSRON",
+];
+
+const args = process.argv.slice(2);
+const inputs = [];
+const positional = [];
+
+for (let i = 0; i < args.length; i++) {
+  if (args[i] === "--class" && args[i + 1]) {
+    const value = args[++i];
+    const separator = value.indexOf(":");
+    inputs.push({
+      className: value.slice(0, separator),
+      path: value.slice(separator + 1),
+    });
+  } else positional.push(args[i]);
+}
+
+const outputPath = positional[0];
+if (!outputPath || inputs.length === 0) {
+  console.error(
+    "Usage: generate-area-anchors <output.geojson> " +
+      "--class <CLASS>:<file.geojson> [--class ...]",
+  );
+  process.exit(1);
+}
+
+for (const { className } of inputs) {
+  if (!AREA_ANCHOR_CLASSES.includes(className)) {
+    console.error(
+      `generate-area-anchors: ${className} is not in AREA_ANCHOR_CLASSES -- ` +
+        "widen the set there (and in bin/s57-to-tiles) deliberately, not by " +
+        "invocation",
+    );
+    process.exit(1);
+  }
+}
+
+// ---- 1. group every feature by (CLASS, LNAM, interval) ---------------------
+
+const groups = new Map();
+let anonymous = 0;
+
+for (const { className, path } of inputs) {
+  for (const feature of readFeatures(path)) {
+    const parts = polygons(feature.geometry).filter(
+      (polygon) => polygon[0] && polygon[0].length >= 4,
+    );
+    if (parts.length === 0) continue;
+
+    const properties = feature.properties ?? {};
+    const range = quiltRange(properties);
+    // A feature with no LNAM has no identity to group on and is its own group
+    // -- `#n` cannot collide with a real LNAM, which is hex.
+    const lnam = properties.LNAM ?? `#${anonymous++}`;
+    const id = `${className} ${lnam} ${quiltKey(range)}`;
+
+    let group = groups.get(id);
+    if (!group) {
+      group = { className, range, area: 0, largest: null };
+      groups.set(id, group);
+    }
+    group.area += featureArea(feature.geometry);
+    // The largest FRAGMENT of the group -- outer-ring area, the same measure
+    // bin/generate-labels ranks a multipolygon's parts by -- supplies both
+    // the anchor point and the property bag.
+    for (const polygon of parts) {
+      const size = Math.abs(ringArea(polygon[0]));
+      if (!group.largest || size > group.largest.size) {
+        group.largest = { size, polygon, properties };
+      }
+    }
+  }
+}
+
+// ---- 2. one anchor per group, inside its largest fragment ------------------
+
+const features = [];
+
+for (const group of groups.values()) {
+  // The whole bag of the largest fragment, so the retargeted filters branch
+  // exactly as they did on the polygon. Nulls are GDAL's unset columns and
+  // carry nothing; underscore properties are the pipeline's own.
+  const bag = {};
+  for (const [name, value] of Object.entries(group.largest.properties)) {
+    if (name.startsWith("_")) continue;
+    if (value === null || value === undefined) continue;
+    bag[name] = value;
+  }
+  features.push({
+    type: "Feature",
+    // See ANCHOR_TIPPECANOE: one anchor per feature, exempt from dot-dropping.
+    tippecanoe: ANCHOR_TIPPECANOE,
+    geometry: {
+      type: "Point",
+      coordinates: pointOnSurface(group.largest.polygon),
+    },
+    properties: {
+      ...bag,
+      // Stamped AFTER the bag: the computed values win over any source
+      // property of the same name.
+      CLASS: group.className,
+      AREA: group.area,
+      // The interval the group's members serve, converted to tippecanoe
+      // bounds later by bin/stamp-quilt-zooms.
+      ...group.range,
+    },
+  });
+}
+
+writeFileSync(
+  outputPath,
+  JSON.stringify({ type: "FeatureCollection", features }),
+);
+console.error(`Generated ${features.length} area anchors`);

@@ -183,10 +183,11 @@ describe("a cluster thins to the named and the highest", () => {
 });
 
 describe("the coincident pair", () => {
-  test("collapses to the LNDELV member; the twin is stamped at the top", () => {
+  test("competes as one unit; both members take the representative's minzoom", () => {
     // The measured Dinglishna Hill pair: one summit digitised twice at
-    // bit-identical coordinates. The SLOGRD twin publishes nothing below the
-    // band maxzoom -- a contest loser decided before the contest.
+    // bit-identical coordinates. The group contests as one unit and the
+    // SLOGRD twin shares the outcome -- the two symbols nest (the POSGEN04
+    // dot inside HILTOP01's empty centre), so they arrive and leave together.
     const { LNDELV, SLOGRD, _TERRAIN } = run(
       {
         LNDELV: [
@@ -208,7 +209,7 @@ describe("the coincident pair", () => {
       { maxzoom: 12 },
     );
     expect(minzooms(LNDELV)["spot"]).toBe(0);
-    expect(minzooms(SLOGRD)["ground"]).toBe(12);
+    expect(minzooms(SLOGRD)["ground"]).toBe(0);
     // One summit, one anchor.
     expect(_TERRAIN.features).toHaveLength(1);
     expect(_TERRAIN.features[0].properties).toMatchObject({
@@ -217,6 +218,63 @@ describe("the coincident pair", () => {
       ELEVAT: 146,
       LNAM: "spot",
     });
+  });
+
+  test("a group that loses the contest has BOTH members at the maxzoom", () => {
+    // Two coincident pairs a ten-thousandth of a degree apart -- one 64 px
+    // cell at every zoom this run contests (the z11 cell is ~0.022 degrees).
+    // The lower pair never wins, so BOTH its members are stamped with the
+    // band maxzoom: the unit loses together exactly as it wins together.
+    const { LNDELV, SLOGRD } = run(
+      {
+        LNDELV: [
+          peak("high-spot", { name: "High Hill", elevation: 500 }),
+          peak("low-spot", { name: "Low Hill", elevation: 100, lon: 0.0001 }),
+        ],
+        SLOGRD: [
+          peak("high-ground", { name: "High Hill" }),
+          peak("low-ground", { name: "Low Hill", lon: 0.0001 }),
+        ],
+      },
+      { maxzoom: 12 },
+    );
+    expect(minzooms(LNDELV)["high-spot"]).toBe(0);
+    expect(minzooms(SLOGRD)["high-ground"]).toBe(0);
+    expect(minzooms(LNDELV)["low-spot"]).toBe(12);
+    expect(minzooms(SLOGRD)["low-ground"]).toBe(12);
+  });
+
+  test("a three-member group propagates the result to every member", () => {
+    // LNDELV + SLOGRD + SLOGRD off one point: the grouping is not pairwise,
+    // and every member -- named or not -- takes the representative's stamp.
+    const { LNDELV, SLOGRD, _TERRAIN } = run(
+      {
+        LNDELV: [peak("spot", { name: "Round Top", elevation: 211 })],
+        SLOGRD: [peak("ground-a", { name: "Round Top" }), peak("ground-b")],
+      },
+      { maxzoom: 12 },
+    );
+    expect(minzooms(LNDELV)["spot"]).toBe(0);
+    expect(minzooms(SLOGRD)["ground-a"]).toBe(0);
+    expect(minzooms(SLOGRD)["ground-b"]).toBe(0);
+    // Three members, one summit, one anchor.
+    expect(_TERRAIN.features).toHaveLength(1);
+    expect(_TERRAIN.features[0].properties.OBJNAM).toBe("Round Top");
+  });
+
+  test("the anchor still carries ELEVAT off the representative", () => {
+    // The style's combined name-plus-height label reads ELEVAT from the
+    // anchor -- at zooms where no LNDELV feature reaches the tile it is the
+    // ONLY carrier of the height -- so the pair must never cost it.
+    const { _TERRAIN } = run(
+      {
+        LNDELV: [peak("spot", { name: "Dinglishna Hill", elevation: 146 })],
+        SLOGRD: [peak("ground", { name: "Dinglishna Hill" })],
+      },
+      { maxzoom: 12 },
+    );
+    expect(_TERRAIN.features).toHaveLength(1);
+    expect(_TERRAIN.features[0].properties.ELEVAT).toBe(146);
   });
 
   test("the name rides the representative when only the loser carries it", () => {
@@ -235,7 +293,7 @@ describe("the coincident pair", () => {
     );
     expect(minzooms(LNDELV)["spot"]).toBe(0);
     expect(minzooms(LNDELV)["taller"]).toBeGreaterThan(0);
-    expect(minzooms(SLOGRD)["ground"]).toBe(12);
+    expect(minzooms(SLOGRD)["ground"]).toBe(0);
     // The union is written back onto the rewritten class file too.
     expect(LNDELV.features[0].properties.OBJNAM).toBe("Coach Butte");
     expect(_TERRAIN.features).toHaveLength(1);

@@ -1041,6 +1041,65 @@ describe("the restriction anchor generator", () => {
   });
 });
 
+describe("the area anchor generator", () => {
+  const NARROW_CELL = {
+    ...THREE_RUNG_CELL,
+    STUB_TABLES: "DEPARE M_COVR LNDARE CTNARE PILBOP RESARE",
+  };
+
+  test("it is handed every ship-narrow class the cell carries", () => {
+    const { node } = run(NARROW_CELL);
+
+    expect(node).toMatch(
+      /generate-area-anchors \S+_AREA_ANCHORS\.geojson .*--class CTNARE:\S+CTNARE\.geojson/,
+    );
+    expect(node).toMatch(
+      /generate-area-anchors .*--class PILBOP:\S+PILBOP\.geojson/,
+    );
+    expect(node).toMatch(
+      /generate-area-anchors .*--class RESARE:\S+RESARE\.geojson/,
+    );
+  });
+
+  test("classes outside the ship-narrow set are NOT handed to it", () => {
+    // MIPARE is in the restriction-anchor set but not here: its own symbol is
+    // already a cascade family member the _RESTR_ANCHORS retarget covers.
+    // The class set is AREA_ANCHOR_CLASSES in bin/generate-area-anchors.
+    const { node } = run({
+      ...NARROW_CELL,
+      STUB_TABLES: "DEPARE M_COVR MIPARE ACHARE CTNARE",
+    });
+
+    const line = node
+      .trim()
+      .split("\n")
+      .find((entry) => entry.includes("generate-area-anchors"));
+    expect(line).toBeDefined();
+    expect(line).not.toContain("MIPARE");
+    expect(line).not.toContain("ACHARE");
+  });
+
+  test("it runs BEFORE the zoom stamping, so its ranges are converted", () => {
+    // It propagates _QZMIN/_QZMAX onto its anchors as properties, and composes
+    // with the {minzoom: 0} dot-drop exemption it stamps itself.
+    const { node } = run(NARROW_CELL);
+
+    const lines = node.trim().split("\n");
+    const anchorLine = lines.findIndex((l) =>
+      l.includes("generate-area-anchors"),
+    );
+    const stamp = lines.findIndex((l) => l.includes("stamp-quilt-zooms"));
+    expect(anchorLine).toBeGreaterThanOrEqual(0);
+    expect(stamp).toBeGreaterThan(anchorLine);
+  });
+
+  test("a cell with none of the classes does not run it", () => {
+    const { node } = run(THREE_RUNG_CELL);
+
+    expect(node).not.toContain("generate-area-anchors");
+  });
+});
+
 describe("the BUAARE edge generator", () => {
   const TOWN_CELL = {
     ...THREE_RUNG_CELL,

@@ -1109,6 +1109,33 @@ if [ ${#restr_args[@]} -gt 0 ]; then
   fi
 fi
 
+# Step 3f (cont.): Derive _AREA_ANCHORS — one centred-symbol anchor per area
+# feature of the ship-narrow class set. tippecanoe writes each polygon clipped
+# into every tile it touches and MapLibre draws the centred symbol once per
+# fragment whose pole of inaccessibility is in-tile, so a pilot boarding area
+# straddling a tile corner arrives as up to four identical diamonds. One point
+# per (CLASS, LNAM, interval), at the plain largest-fragment interior point —
+# the water-side pass is the restriction generator's own; these classes are
+# drawn to the water they regulate. The class set is AREA_ANCHOR_CLASSES in
+# bin/generate-area-anchors, where the ship-narrow rationale and the deferred
+# classes are documented; widen both lists together. Run after the quilt clip,
+# like the other anchor generators, so the anchors sit on the geometry that
+# actually reaches the tiles. See bin/generate-area-anchors.
+area_anchor_args=()
+for area_anchor_table in CTNARE PILBOP CBLARE RESARE DWRTPT ISTZNE PRCARE \
+  TSSCRS TSSLPT TSSRON; do
+  if [ -f "$tmpdir/${area_anchor_table}.geojson" ]; then
+    area_anchor_args+=(--class "${area_anchor_table}:$tmpdir/${area_anchor_table}.geojson")
+  fi
+done
+if [ ${#area_anchor_args[@]} -gt 0 ]; then
+  area_anchors_geojson="$tmpdir/_AREA_ANCHORS.geojson"
+  node "$SCRIPT_DIR/generate-area-anchors" "$area_anchors_geojson" "${area_anchor_args[@]}"
+  if [ -s "$area_anchors_geojson" ]; then
+    geojson_files+=("$area_anchors_geojson")
+  fi
+fi
+
 # Step 3g: Thin the point hazards by depth rather than by tippecanoe's
 # position hash. Rewrites the exported UWTROC/WRECKS/OBSTRN files in place with
 # a per-feature minzoom, so the shoalest hazard of a cluster is the one that
@@ -1129,9 +1156,10 @@ fi
 # anchor per surviving named summit. SLOGRD/LNDELV summits arrive as
 # exactly-coincident pairs digitised off the same peak, both point layers draw
 # with icon-allow-overlap, and the partition strips SCAMIN, so nothing between
-# here and the screen thins them. One pass owns both decisions — collapse the
-# pair, thin the rest named-and-highest first — because the coincidence rule
-# must also stamp the losing icon out of the tiles, not just out of a label.
+# here and the screen thins them. One pass owns both decisions — group the
+# pair into one contest unit, thin the rest named-and-highest first — because
+# the coincidence rule must also stamp every member of the unit with its
+# shared minzoom, not just dedupe the label.
 # SLOTOP is carried for safety: zero point features measured, lines only.
 # Rewrites in place like the hazards; the files are already in geojson_files.
 # See bin/generate-terrain-minzooms.

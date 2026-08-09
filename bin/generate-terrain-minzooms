@@ -33,9 +33,12 @@
 //
 // A summit is routinely digitised twice off the same point: an LNDELV spot
 // elevation and the SLOGRD ground it stands on, with BIT-IDENTICAL coordinates
-// (measured 29-33% of all terrain points in Alaska). Two features, two icons,
-// one summit. So before the contest, exactly-coincident cross-class groups
-// collapse to ONE representative per copy-ladder interval:
+// (measured 29-33% of all terrain points in Alaska). Two features, one summit
+// -- and two symbols that NEST rather than clash: POSGEN04 is a 9 px dot on
+// its pivot, HILTOP01 an empty-centred starburst whose strokes begin ~7 px
+// out, so drawn together they read as "sloping ground around the elevation
+// point". So exactly-coincident cross-class groups compete as ONE unit per
+// copy-ladder interval, and every member shares the unit's outcome:
 //
 //   * LNDELV represents the group. That is the data talking, not taste: ELEVAT
 //     rides LNDELV on 100% of measured rows and SLOGRD on none, and where only
@@ -43,24 +46,15 @@
 //   * OBJNAM is unioned onto the representative, so a name on the losing side
 //     (the 15th case) is kept. When both sides are named and disagree, the
 //     LNDELV name wins and the clash is logged.
-//   * The loser is stamped with the band maxzoom exactly like a contest loser,
-//     so the duplicate icon leaves z0..(deepest-1) rather than merely losing
-//     the ranking there. It is NOT removed outright: how far it leaves depends
-//     on the interval the copy sits in.
-//       - A copy BELOW the top interval carries a _QZMAX under the band
-//         maxzoom, so bin/stamp-quilt-zooms composes floor > cap and drops the
-//         feature: gone from the tiles at every zoom.
-//       - A TOP-INTERVAL copy survives at the cell's DEEPEST zoom alone. With
-//         a _QZMAX equal to the band maxzoom it composes to floor = cap =
-//         maxzoom, a legal one-zoom range; with no partition properties at all
-//         stamp-quilt-zooms passes it through untouched on its minzoom stamp.
-//         Either way it coincides there with the winner, which is stamped from
-//         z0 through the same maxzoom. One zoom of the doubled icon at the very
-//         bottom of the ladder is the accepted cost of never silently deleting
-//         a charted feature. Pinned by test/generate-terrain-minzooms.test.js,
-//         "the coincident pair > collapses to the LNDELV member; the twin is
-//         stamped at the top": the no-_QZMAX fixture leaves the SLOGRD twin's
-//         minzoom at 12, the fixture's maxzoom.
+//   * Only the representative enters the contest, and after the contest every
+//     member of its group takes ITS stamped minzoom, so the ground and the
+//     spot elevation arrive and leave together. The NAME is still deduped:
+//     the _TERRAIN anchor is emitted once, for the representative.
+//
+// The stated cost: a cell slot won by a coincident group now spends itself on
+// two nested icons instead of one, so terrain icon density rises by the
+// coincidence rate (29-33% in Alaska, ~3% measured over Puget Sound).
+// CELL_PIXELS is the knob if summit clutter regresses.
 //
 // The group key is the interval, then POSITION -- rounded to 1e-5 degrees,
 // about a metre, enough to absorb GeoJSON round-tripping of an identical
@@ -273,7 +267,7 @@ for (const point of points) {
   else group.push(point);
 }
 
-let collapsed = 0;
+let grouped = 0;
 const contestants = [];
 for (const group of groups.values()) {
   let representative = group[0];
@@ -282,12 +276,10 @@ for (const group of groups.values()) {
       representative = point;
     }
   }
+  representative.group = group;
   for (const point of group) {
     if (point === representative) continue;
-    // The duplicate publishes nothing below the band maxzoom: exactly a
-    // contest loser, decided before the contest.
-    point.minzoom = maxzoom;
-    collapsed++;
+    grouped++;
     if (point.name === null) continue;
     if (representative.name === null) {
       // Union OBJNAM: the name rides the representative into the contest and
@@ -333,6 +325,16 @@ for (let zoom = minzoom; zoom < maxzoom; zoom++) {
     // Ascending zooms, so the first zoom a feature wins at is the shallowest,
     // and monotonicity means it wins every zoom after it too.
     if (winner.minzoom === maxzoom) winner.minzoom = zoom;
+  }
+}
+
+// A summit digitised twice is ONE summit: the group competed as one unit and
+// every member takes the unit's result, so the sloping ground and the
+// elevation point arrive and leave together. The NAME is still deduped -- the
+// anchor below is emitted once per representative.
+for (const representative of contestants) {
+  for (const member of representative.group) {
+    member.minzoom = representative.minzoom;
   }
 }
 
@@ -383,6 +385,6 @@ writeFileSync(
 const early = points.filter((point) => point.minzoom < maxzoom).length;
 console.error(
   `Thinned ${points.length} terrain point(s) across z${minzoom}-${maxzoom}: ` +
-    `${early} visible before z${maxzoom}, ${collapsed} coincident ` +
-    `duplicate(s) collapsed, ${anchors.length} named anchor(s)`,
+    `${early} visible before z${maxzoom}, ${grouped} coincident ` +
+    `duplicate(s) grouped, ${anchors.length} named anchor(s)`,
 );
