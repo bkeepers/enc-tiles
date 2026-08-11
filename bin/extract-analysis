@@ -27,16 +27,24 @@
 #   DEPARE LNDARE DEPCNT      the §3 dissolve products (depth areas by DRVAL1,
 #                             the land union, contours by VALDCO)
 #   TESARE CONZNE EXEZNE      the charted maritime-limit family for the limits
-#   FSHZNE CUSZNE STSLNE      product (display/cross-check only, never MARPOL
-#                             placement — ANALYSIS_DATA.md §4): territorial
-#                             sea, contiguous zone, EEZ, fishery zone, customs
-#                             zone, straight territorial-sea baseline. NOAA
-#                             charts the "3 NM line" family through these area
-#                             classes (often doubled, sometimes absent, which
-#                             is why placement uses computed buffers instead).
-#                             MIPARE is deliberately NOT here: military
-#                             practice areas are restriction display, not
-#                             maritime-limit lines.
+#   FSHZNE CUSZNE STSLNE      product (display/cross-check; the 12/24/200 NM
+#                             placement classes come from NOAA OCS's Maritime
+#                             Limits and Boundaries dataset — ANALYSIS_DATA.md
+#                             §4): territorial sea, contiguous zone, EEZ,
+#                             fishery zone, customs zone, straight
+#                             territorial-sea baseline. MIPARE is deliberately
+#                             NOT here: military practice areas are
+#                             restriction display, not maritime-limit lines.
+#   ADMARE                    administration areas, exported IN FULL with
+#                             their attributes because NOAA charts the
+#                             "Three Nautical Mile Line" as a named ADMARE
+#                             (a thin double-line area) — the charted-primary
+#                             source of the national 3 NM class. The name
+#                             filter that keeps state/border administration
+#                             areas out of the products lives PIPELINE-side
+#                             (plotroom encpipeline/analysis.py), where it is
+#                             tested; this script exports the class as
+#                             charted like every other.
 #   UWTROC OBSTRN WRECKS      the point/area hazards for the hazards product
 #                             (Live Route Check danger candidates): underwater
 #                             rocks, obstructions, wrecks. Exported per
@@ -116,7 +124,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 # shellcheck source=bin/quilt-rung.sh
 . "$SCRIPT_DIR/quilt-rung.sh"
 
-ANALYSIS_CLASSES="DEPARE LNDARE DEPCNT TESARE CONZNE EXEZNE FSHZNE CUSZNE STSLNE UWTROC OBSTRN WRECKS"
+ANALYSIS_CLASSES="DEPARE LNDARE DEPCNT TESARE CONZNE EXEZNE FSHZNE CUSZNE STSLNE ADMARE UWTROC OBSTRN WRECKS"
 
 export OGR_S57_OPTIONS="SPLIT_MULTIPOINT=ON,ADD_SOUNDG_DEPTH=ON,LIST_AS_STRING=ON"
 

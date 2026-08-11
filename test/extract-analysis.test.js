@@ -118,6 +118,19 @@ describe("which classes are exported", () => {
     expect(result.exports).toEqual(["DEPARE.geojson"]);
   });
 
+  test("ADMARE is an analysis class (the charted Three Nautical Mile Line)", () => {
+    // The 3 NM line is charted as a named ADMARE (thin double-line area).
+    // The class exports IN FULL — the nautical-mile name filter that keeps
+    // state/border administration areas out of the products is pipeline-side.
+    const result = run({ STUB_TABLES: "ADMARE LNDARE M_COVR" });
+
+    expect(result.status).toBe(0);
+    expect(result.exports).toEqual(["ADMARE.geojson", "LNDARE.geojson"]);
+    expect(result.sql).toContain(
+      'UPDATE "ADMARE" SET geom = ST_Difference("ADMARE".geom, (SELECT geom FROM quilt_mask))',
+    );
+  });
+
   test("a READABLE chart with no analysis class at all exits 0 with nothing", () => {
     const result = run({ STUB_TABLES: "M_COVR SOUNDG" });
 
