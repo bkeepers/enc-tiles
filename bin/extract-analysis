@@ -37,6 +37,15 @@
 #                             MIPARE is deliberately NOT here: military
 #                             practice areas are restriction display, not
 #                             maritime-limit lines.
+#   UWTROC OBSTRN WRECKS      the point/area hazards for the hazards product
+#                             (Live Route Check danger candidates): underwater
+#                             rocks, obstructions, wrecks. Exported per
+#                             feature as charted — no dissolve and no depth
+#                             filter here; the safety contour is a
+#                             request-time input, so the backend decides
+#                             dangerousness. Clipped exactly like every other
+#                             class: areas/lines by ST_Difference, points
+#                             deleted where ST_Within the finer mask.
 #
 # Clip semantics, mirroring the s57-to-tiles top copy: the mask is the
 # ST_Union of every coverage row with QFLOOR strictly greater than this
@@ -107,7 +116,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 # shellcheck source=bin/quilt-rung.sh
 . "$SCRIPT_DIR/quilt-rung.sh"
 
-ANALYSIS_CLASSES="DEPARE LNDARE DEPCNT TESARE CONZNE EXEZNE FSHZNE CUSZNE STSLNE"
+ANALYSIS_CLASSES="DEPARE LNDARE DEPCNT TESARE CONZNE EXEZNE FSHZNE CUSZNE STSLNE UWTROC OBSTRN WRECKS"
 
 export OGR_S57_OPTIONS="SPLIT_MULTIPOINT=ON,ADD_SOUNDG_DEPTH=ON,LIST_AS_STRING=ON"
 

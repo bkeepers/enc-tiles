@@ -79,7 +79,8 @@ function run(env = {}, { withCoverage = true } = {}) {
       PATH: `${stubDir}:${process.env.PATH}`,
       STUB_SQL_LOG: sqlLog,
       STUB_EXTENT: extentAt(48.5),
-      STUB_TABLES: "DEPARE LNDARE DEPCNT TESARE M_COVR SOUNDG",
+      STUB_TABLES:
+        "DEPARE LNDARE DEPCNT TESARE UWTROC OBSTRN WRECKS M_COVR SOUNDG",
       ...env,
     },
   });
@@ -103,7 +104,10 @@ describe("which classes are exported", () => {
       "DEPARE.geojson",
       "DEPCNT.geojson",
       "LNDARE.geojson",
+      "OBSTRN.geojson",
       "TESARE.geojson",
+      "UWTROC.geojson",
+      "WRECKS.geojson",
     ]);
   });
 
@@ -206,7 +210,15 @@ describe("the finest-here clip", () => {
     const { sql, status } = run();
 
     expect(status).toBe(0);
-    for (const cls of ["DEPARE", "LNDARE", "DEPCNT", "TESARE"]) {
+    for (const cls of [
+      "DEPARE",
+      "LNDARE",
+      "DEPCNT",
+      "TESARE",
+      "UWTROC",
+      "OBSTRN",
+      "WRECKS",
+    ]) {
       expect(sql).toContain(
         `UPDATE "${cls}" SET geom = ST_Difference("${cls}".geom, (SELECT geom FROM quilt_mask))`,
       );
@@ -226,6 +238,31 @@ describe("the finest-here clip", () => {
     expect(status).toBe(0);
     expect(sql).not.toContain("ST_Difference");
     expect(exports).toContain("DEPARE.geojson");
+  });
+});
+
+describe("the hazard classes ride the same finest-here clip", () => {
+  test("hazard points are deleted where ST_Within the finer mask", () => {
+    // UWTROC/OBSTRN/WRECKS are mostly POINT features: the areal
+    // ST_Difference leaves points untouched, so the same per-class
+    // point-delete every other class gets is what keeps a coarse chart's
+    // rock from surviving underneath the finer chart that re-surveys it.
+    const { sql, status } = run();
+
+    expect(status).toBe(0);
+    for (const cls of ["UWTROC", "OBSTRN", "WRECKS"]) {
+      expect(sql).toContain(
+        `ST_Within("${cls}".geom, (SELECT geom FROM quilt_mask))`,
+      );
+      expect(sql).toContain(`DELETE FROM "${cls}"`);
+    }
+  });
+
+  test("a chart carrying only hazards exports only those", () => {
+    const result = run({ STUB_TABLES: "UWTROC WRECKS M_COVR" });
+
+    expect(result.status).toBe(0);
+    expect(result.exports).toEqual(["UWTROC.geojson", "WRECKS.geojson"]);
   });
 });
 
