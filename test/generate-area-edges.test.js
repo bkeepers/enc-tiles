@@ -390,6 +390,253 @@ describe("chart boundaries are dropped, not drawn", () => {
   });
 });
 
+describe("overlapping areas truncated together (the one-sided multi-owner seam)", () => {
+  // The measured US1GLBDC/US1GLBEA defect: nested jurisdiction areas -- the
+  // state ADMARE under the national one -- are truncated by the SAME cell
+  // edge into bit-identical border segments. Two owners, differing content,
+  // but every interior on the SAME side: the segment is a truncation, not an
+  // interface, and on a chart border the cell has no evidence of a change.
+
+  test("their shared truncation at the cell edge draws nothing along it", () => {
+    // Two coincident WEST_HALF areas of differing content; the cell's own ring
+    // IS the west half, so the whole outline lies on the chart border.
+    const areas = writeCollection("ADMARE.geojson", [
+      polygon({ JRSDTN: 2, NATION: "US" }, WEST_HALF),
+      polygon({ JRSDTN: 3, INFORM: "Alaska" }, WEST_HALF),
+    ]);
+    const cover = writeCollection("M_COVR.geojson", [
+      polygon({ CATCOV: 1 }, WEST_HALF),
+    ]);
+
+    expect(run("--area", `ADMARE:${areas}`, "--cell-coverage", cover)).toEqual(
+      [],
+    );
+  });
+
+  test("inland, the same pair keeps its per-side edges (the negative)", () => {
+    // Not on any seam, the coincident boundary of two differing areas is a
+    // real statement -- outside them is neither -- and each side keeps its own
+    // presentation, exactly as before the seam rule learned about ownership
+    // sides.
+    const areas = writeCollection("ADMARE.geojson", [
+      polygon({ JRSDTN: 2, NATION: "US" }, WEST_HALF),
+      polygon({ JRSDTN: 3, INFORM: "Alaska" }, WEST_HALF),
+    ]);
+
+    const features = run("--area", `ADMARE:${areas}`);
+
+    expect(features).toHaveLength(2);
+    const national = features.find((f) => f.properties.NATION === "US");
+    const state = features.find((f) => f.properties.INFORM === "Alaska");
+    expect(national).toBeDefined();
+    expect(state).toBeDefined();
+    expect(meridianRuns(national).length).toBeGreaterThan(0);
+    expect(meridianRuns(state).length).toBeGreaterThan(0);
+  });
+
+  test("a genuine interface on the ring is still never suppressed", () => {
+    // The attribute-mismatch negative, restated under the one-sided rule: two
+    // owners FACING each other across the meridian are an interface however
+    // the coverage rings run, because the cell holds both sides' evidence.
+    const areas = writeCollection("ADMARE.geojson", [
+      polygon({ JRSDTN: 2, NATION: "US" }, WEST_HALF),
+      polygon({ JRSDTN: 2, NATION: "CA" }, EAST_HALF),
+    ]);
+    const cover = writeCollection("M_COVR.geojson", [
+      polygon({ CATCOV: 1 }, WEST_HALF),
+    ]);
+    const neighbors = writeCollection("quilting_neighbors.geojson", [
+      polygon({ QFLOOR: 4 }, EAST_HALF),
+    ]);
+
+    expect(
+      hasMeridian(
+        run(
+          "--area",
+          `ADMARE:${areas}`,
+          "--cell-coverage",
+          cover,
+          "--neighbor-coverage",
+          neighbors,
+        ),
+      ),
+    ).toBe(true);
+  });
+});
+
+describe("the edge of all charted data (--neighbor-coverage)", () => {
+  // The measured Bering Strait defect: US2ARCEC's data limit follows the
+  // US/Russia treaty line, its EXEZNE (EEZ) boundary is bit-identical with
+  // it, and the unconditional cell-ring drop erased the EEZ line from the map
+  // entirely -- there is no chart west of that line for the area to continue
+  // into. With the neighbour roster supplied, the drop keeps only the borders
+  // some chart actually continues across.
+
+  test("a truncated boundary STANDS where no chart lies beyond", () => {
+    // The cell's ring is the west half; a neighbour continues across the
+    // MERIDIAN only. The area's western edge (x = 0) faces void: it is the
+    // charted end of the area and keeps its line. The meridian edge is a
+    // real chart border and stays dropped.
+    const areas = writeCollection("EXEZNE.geojson", [
+      polygon({ NATION: "US" }, WEST_HALF),
+    ]);
+    const cover = writeCollection("M_COVR.geojson", [
+      polygon({ CATCOV: 1 }, WEST_HALF),
+    ]);
+    const neighbors = writeCollection("quilting_neighbors.geojson", [
+      polygon({ QFLOOR: 4 }, EAST_HALF),
+    ]);
+
+    const features = run(
+      "--area",
+      `EXEZNE:${areas}`,
+      "--cell-coverage",
+      cover,
+      "--neighbor-coverage",
+      neighbors,
+    );
+
+    expect(hasMeridian(features)).toBe(false);
+    const westRuns = features.flatMap((f) => {
+      const line = f.geometry.coordinates;
+      const runs = [];
+      for (let i = 1; i < line.length; i++) {
+        if (line[i - 1][0] === 0 && line[i][0] === 0) runs.push(1);
+      }
+      return runs;
+    });
+    expect(westRuns.length).toBeGreaterThan(0);
+    expect(features.every((f) => f.properties.CLASS === "EXEZNE")).toBe(true);
+  });
+
+  test("the cell's OWN rows in the roster change nothing", () => {
+    // s57-to-tiles exports the region roster unfiltered, own cell included.
+    // The probe steps OUTSIDE the ring it stands on, so the own polygon can
+    // never claim continuation across its own edge.
+    const areas = writeCollection("EXEZNE.geojson", [
+      polygon({ NATION: "US" }, WEST_HALF),
+    ]);
+    const cover = writeCollection("M_COVR.geojson", [
+      polygon({ CATCOV: 1 }, WEST_HALF),
+    ]);
+    const neighbors = writeCollection("quilting_neighbors.geojson", [
+      polygon({ QFLOOR: 5 }, WEST_HALF), // the cell itself
+      polygon({ QFLOOR: 4 }, EAST_HALF), // the real neighbour
+    ]);
+
+    const features = run(
+      "--area",
+      `EXEZNE:${areas}`,
+      "--cell-coverage",
+      cover,
+      "--neighbor-coverage",
+      neighbors,
+    );
+
+    expect(hasMeridian(features)).toBe(false);
+    expect(features.length).toBeGreaterThan(0);
+  });
+
+  test("one-sided multi-owner truncations obey the same refinement", () => {
+    // The two rules compose: overlapping owners truncated together drop at a
+    // border a chart continues across, and stand where nothing does.
+    const areas = writeCollection("ADMARE.geojson", [
+      polygon({ JRSDTN: 2, NATION: "US" }, WEST_HALF),
+      polygon({ JRSDTN: 3, INFORM: "Alaska" }, WEST_HALF),
+    ]);
+    const cover = writeCollection("M_COVR.geojson", [
+      polygon({ CATCOV: 1 }, WEST_HALF),
+    ]);
+    const neighbors = writeCollection("quilting_neighbors.geojson", [
+      polygon({ QFLOOR: 4 }, EAST_HALF),
+    ]);
+
+    const features = run(
+      "--area",
+      `ADMARE:${areas}`,
+      "--cell-coverage",
+      cover,
+      "--neighbor-coverage",
+      neighbors,
+    );
+
+    // The meridian is continued into by the neighbour: dropped. The west,
+    // north and south runs face void: kept, once per side.
+    expect(hasMeridian(features)).toBe(false);
+    expect(features).toHaveLength(2);
+    expect(features.map((f) => f.properties.JRSDTN).sort()).toEqual([2, 3]);
+  });
+
+  test("without the roster the drop stays unconditional (legacy)", () => {
+    const areas = writeCollection("EXEZNE.geojson", [
+      polygon({ NATION: "US" }, WEST_HALF),
+    ]);
+    const cover = writeCollection("M_COVR.geojson", [
+      polygon({ CATCOV: 1 }, WEST_HALF),
+    ]);
+
+    expect(run("--area", `EXEZNE:${areas}`, "--cell-coverage", cover)).toEqual(
+      [],
+    );
+  });
+
+  test("a genuine quilt cut still drops: the finer chart is in the roster", () => {
+    // The clip put the finer chart on the far side of the cut, so the probe
+    // finds it and the drop holds exactly as it did unconditionally.
+    const areas = writeCollection("RESARE.geojson", [
+      polygon({ RESTRN: "7" }, WEST_HALF),
+    ]);
+    const coverage = writeCollection("quilting_coverage.geojson", [
+      polygon({ INTU: 6, QFLOOR: 9 }, EAST_HALF),
+    ]);
+    const neighbors = writeCollection("quilting_neighbors.geojson", [
+      polygon({ QFLOOR: 9 }, EAST_HALF),
+    ]);
+
+    const features = run(
+      "--area",
+      `RESARE:${areas}`,
+      "--coverage",
+      coverage,
+      "--neighbor-coverage",
+      neighbors,
+    );
+
+    expect(features.length).toBeGreaterThan(0);
+    expect(hasMeridian(features)).toBe(false);
+  });
+
+  test("a finer ring along the SAME charted end keeps the line (US3AK89M)", () => {
+    // The finer chart's coverage stops at the same real limit this cell's
+    // area does -- the treaty-line coincidence between US3AK89M and
+    // US2ARCEC's EXEZNE. The segment lies along the finer ring, but void is
+    // beyond it: a charted end, not a cut.
+    const areas = writeCollection("EXEZNE.geojson", [
+      polygon({ NATION: "US" }, WEST_HALF),
+    ]);
+    const coverage = writeCollection("quilting_coverage.geojson", [
+      polygon({ INTU: 6, QFLOOR: 9 }, WEST_HALF),
+    ]);
+    const neighbors = writeCollection("quilting_neighbors.geojson", [
+      polygon({ QFLOOR: 9 }, WEST_HALF),
+    ]);
+
+    const features = run(
+      "--area",
+      `EXEZNE:${areas}`,
+      "--coverage",
+      coverage,
+      "--neighbor-coverage",
+      neighbors,
+    );
+
+    // Nothing lies beyond any edge of the shared footprint: the whole outline
+    // stands.
+    expect(features).toHaveLength(1);
+    expect(hasMeridian(features)).toBe(true);
+  });
+});
+
 describe("the zoom partition", () => {
   test("each interval is classified and chained on its OWN segments", () => {
     // Two copies of one differing pair, one per interval of the copy ladder. A
@@ -531,5 +778,58 @@ describe("the participating class list", () => {
       .split("\n");
 
     expect(listed).toEqual([...stroked].sort());
+  });
+
+  test("the maritime jurisdiction limits are styled AND participate", () => {
+    // The Bering Strait regression, pinned by name: the EEZ and its sibling
+    // zone limits are AREA classes whose whole presentation is the boundary
+    // line, so if one drops out of the style or out of the participating set
+    // the limit vanishes from the map entirely -- the facade latches the
+    // per-polygon originals dark wherever _AREA_EDGE exists. STSLNE is the
+    // family's LINE class (the baseline itself), drawn from its own layer and
+    // deliberately NOT a participant.
+    const MARITIME_LIMITS = [
+      "ADMARE",
+      "CONZNE",
+      "COSARE",
+      "CUSZNE",
+      "EXEZNE",
+      "FSHZNE",
+      "TESARE",
+    ];
+    const listed = execFileSync(process.execPath, [SCRIPT, "--list-classes"], {
+      encoding: "utf8",
+    })
+      .trim()
+      .split("\n");
+    for (const obcl of MARITIME_LIMITS) {
+      expect(listed).toContain(obcl);
+    }
+    expect(listed).not.toContain("STSLNE");
+
+    for (const boundaries of ["plain", "symbolized"]) {
+      const style = createStyle({
+        source: { type: "vector", url: "unused" },
+        boundaries,
+      });
+      for (const obcl of MARITIME_LIMITS) {
+        const lines = style.layers.filter(
+          (layer) =>
+            layer.metadata?.s52?.obcl === obcl && layer.type === "line",
+        );
+        expect([boundaries, obcl, lines.length > 0]).toEqual([
+          boundaries,
+          obcl,
+          true,
+        ]);
+      }
+      // The baseline draws too, from its own line layer.
+      expect(
+        style.layers.some(
+          (layer) =>
+            layer.metadata?.s52?.obcl === "STSLNE" && layer.type === "line",
+        ),
+      ).toBe(true);
+    }
   });
 });

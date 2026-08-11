@@ -320,6 +320,63 @@ describe("the class set", () => {
       /AREA_ANCHOR_CLASSES/,
     );
   });
+
+  test("--list-classes is the ship-narrow ten plus the widening round", () => {
+    // The roster, pinned verbatim: the ship-narrow ten of the first round and
+    // the deferred own-symbol classes the widening round admitted. A drift in
+    // the constant -- a class slipping in or out -- fails here with its name.
+    const listed = execFileSync(process.execPath, [SCRIPT, "--list-classes"], {
+      encoding: "utf8",
+    })
+      .trim()
+      .split("\n");
+
+    expect([...listed].sort()).toEqual(
+      [
+        // The ship-narrow ten.
+        "CTNARE",
+        "PILBOP",
+        "CBLARE",
+        "RESARE",
+        "DWRTPT",
+        "ISTZNE",
+        "PRCARE",
+        "TSSCRS",
+        "TSSLPT",
+        "TSSRON",
+        // The widening round.
+        "ACHBRT",
+        "BERTHS",
+        "BRIDGE",
+        "CHKPNT",
+        "CONVYR",
+        "CTSARE",
+        "FERYRT",
+        "FSHFAC",
+        "FSHGRD",
+        "HRBFAC",
+        "LOCMAG",
+        "LOGPON",
+        "MAGVAR",
+        "NEWOBJ",
+        "PRDARE",
+        "RCTLPT",
+        "RECTRC",
+        "SMCFAC",
+        "SWPARE",
+        "WATTUR",
+        "WEDKLP",
+      ].sort(),
+    );
+    // The deliberate exclusions, so they cannot creep back in unremarked:
+    // ACHARE by user ruling, OBSTRN with the hazard family (isolated-danger
+    // precedence and the stripped _DEPARE_* columns), ###### never names a
+    // tile source-layer, and MIPARE's own symbol is already a cascade member
+    // the _RESTR_ANCHORS retarget covers.
+    for (const excluded of ["ACHARE", "OBSTRN", "######", "MIPARE"]) {
+      expect(listed).not.toContain(excluded);
+    }
+  });
 });
 
 describe("nothing to say", () => {

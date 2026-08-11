@@ -1061,13 +1061,15 @@ describe("the area anchor generator", () => {
     );
   });
 
-  test("classes outside the ship-narrow set are NOT handed to it", () => {
+  test("classes outside the anchor set are NOT handed to it", () => {
     // MIPARE is in the restriction-anchor set but not here: its own symbol is
     // already a cascade family member the _RESTR_ANCHORS retarget covers.
+    // ACHARE is excluded by user ruling, and OBSTRN stays with the hazard
+    // family (isolated-danger precedence; the stripped _DEPARE_* columns).
     // The class set is AREA_ANCHOR_CLASSES in bin/generate-area-anchors.
     const { node } = run({
       ...NARROW_CELL,
-      STUB_TABLES: "DEPARE M_COVR MIPARE ACHARE CTNARE",
+      STUB_TABLES: "DEPARE M_COVR MIPARE ACHARE OBSTRN CTNARE",
     });
 
     const line = node
@@ -1077,6 +1079,46 @@ describe("the area anchor generator", () => {
     expect(line).toBeDefined();
     expect(line).not.toContain("MIPARE");
     expect(line).not.toContain("ACHARE");
+    expect(line).not.toContain("--class OBSTRN");
+  });
+
+  test("the widening round's classes are handed to it", () => {
+    // The deferred own-symbol classes joined the ship-narrow ten; the loop
+    // and AREA_ANCHOR_CLASSES widen together (--list-classes pins the
+    // constant, this pins the loop).
+    const { node } = run({
+      ...NARROW_CELL,
+      STUB_TABLES: "DEPARE M_COVR MAGVAR WEDKLP FERYRT BRIDGE",
+    });
+
+    expect(node).toMatch(
+      /generate-area-anchors \S+_AREA_ANCHORS\.geojson .*--class MAGVAR:\S+MAGVAR\.geojson/,
+    );
+    expect(node).toMatch(/generate-area-anchors .*--class WEDKLP:/);
+    expect(node).toMatch(/generate-area-anchors .*--class FERYRT:/);
+    expect(node).toMatch(/generate-area-anchors .*--class BRIDGE:/);
+  });
+
+  test("the loop and AREA_ANCHOR_CLASSES cannot drift: every listed class is looped", () => {
+    // Re-read the constant off the generator itself and the loop off the
+    // script text: a class listed but not looped would silently never anchor.
+    const listed = spawnSync(
+      process.execPath,
+      [
+        fileURLToPath(new URL("../bin/generate-area-anchors", import.meta.url)),
+        "--list-classes",
+      ],
+      { encoding: "utf8" },
+    )
+      .stdout.trim()
+      .split("\n");
+    const script = readFileSync(SCRIPT, "utf8");
+    const loop = /for area_anchor_table in ([^;]*); do/.exec(
+      script.replace(/\\\n/g, " "),
+    );
+    expect(loop).toBeTruthy();
+    const looped = loop[1].trim().split(/\s+/);
+    expect([...looped].sort()).toEqual([...listed].sort());
   });
 
   test("it runs BEFORE the zoom stamping, so its ranges are converted", () => {
@@ -1183,6 +1225,50 @@ describe("the area edge generator", () => {
     );
   });
 
+  test("a partitioned cell hands it the whole-region neighbour roster", () => {
+    // The roster is what tells an interior chart border (dropped) from the
+    // edge of ALL charted data (kept -- the US/Russia EEZ line defect), and it
+    // is exported UNFILTERED: the QFLOOR-filtered quilting exports never carry
+    // the same-floor peers, which are borders too.
+    const { node, sql } = run(RULED_CELL);
+
+    expect(node).toMatch(
+      /generate-area-edges .*--neighbor-coverage \S+quilting_neighbors\.geojson/,
+    );
+    const exportLine = statements(sql).find((entry) =>
+      entry.includes("quilting_neighbors.geojson"),
+    );
+    expect(exportLine).toBeDefined();
+    expect(exportLine).not.toContain("-where");
+  });
+
+  test("an unpartitioned cell passes no roster: the legacy drop stands", () => {
+    const { node } = run(RULED_CELL, { coverage: false });
+
+    const line = node
+      .trim()
+      .split("\n")
+      .find((entry) => entry.includes("_AREA_EDGE.geojson"));
+    expect(line).toBeDefined();
+    expect(line).not.toContain("--neighbor-coverage");
+  });
+
+  test("EXEZNE reaches the derivation AND the tiles", () => {
+    // The maritime-limit regression, pinned at the wiring level: the EEZ area
+    // is a real S-57 table like any other, so it must flow into _AREA_EDGE
+    // (where its boundary line is derived) and into tippecanoe (as its own
+    // source-layer) whenever the cell carries it.
+    const result = run({
+      ...THREE_RUNG_CELL,
+      STUB_TABLES: "DEPARE M_COVR EXEZNE",
+    });
+
+    expect(result.node).toMatch(
+      /generate-area-edges .*--area EXEZNE:\S+EXEZNE\.geojson/,
+    );
+    expect(result.tippecanoe).toMatch(/EXEZNE\.geojson/);
+  });
+
   test("classes with their own derived edge layer are NOT handed to it", () => {
     // DEPARE belongs to _DEPARE_EDGE (seams flagged, not dropped) and M_COVR
     // is the coverage input itself, not a participant.
@@ -1213,6 +1299,42 @@ describe("the area edge generator", () => {
     const { node } = run(THREE_RUNG_CELL);
 
     expect(node).not.toContain("_AREA_EDGE.geojson");
+  });
+});
+
+describe("the LNDARE point thinning", () => {
+  test("a cell with LNDARE gets the in-place minzoom pass, inside the band range", () => {
+    // The islet-carpet defect: the partition's per-feature minzooms exempt
+    // LNDARE points from tippecanoe's dot-dropping, so the thinning has to be
+    // deliberate -- bin/thin-lndare-points, the SOUNDG precedent over a
+    // different population.
+    const { node } = run({
+      ...THREE_RUNG_CELL,
+      STUB_TABLES: "DEPARE M_COVR LNDARE",
+    });
+
+    expect(node).toMatch(
+      /thin-lndare-points \S+LNDARE\.geojson --minzoom \d+ --maxzoom \d+/,
+    );
+  });
+
+  test("it runs BEFORE the zoom stamping, so the floors compose", () => {
+    const { node } = run({
+      ...THREE_RUNG_CELL,
+      STUB_TABLES: "DEPARE M_COVR LNDARE",
+    });
+
+    const lines = node.trim().split("\n");
+    const thinned = lines.findIndex((l) => l.includes("thin-lndare-points"));
+    const stamp = lines.findIndex((l) => l.includes("stamp-quilt-zooms"));
+    expect(thinned).toBeGreaterThanOrEqual(0);
+    expect(stamp).toBeGreaterThan(thinned);
+  });
+
+  test("a cell without LNDARE does not run it", () => {
+    const { node } = run(THREE_RUNG_CELL);
+
+    expect(node).not.toContain("thin-lndare-points");
   });
 });
 

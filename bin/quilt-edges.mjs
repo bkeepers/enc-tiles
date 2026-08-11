@@ -28,20 +28,59 @@
 //
 // THE CHART BORDER
 //
-//   A segment with only ONE owner that lies along a quilt cut or along this
-//   cell's own M_COVR ring is DROPPED. The area continues into the neighbouring
-//   chart and THIS cell cannot see what is there, so emitting the segment
-//   claims a change the data does not show -- and a chart ruled into boxes at
-//   its cell borders is the whole defect this machinery exists to remove.
+//   A segment whose owners ALL lie on ONE side -- a single owner, or several
+//   overlapping areas truncated together by the same edge -- that lies along a
+//   quilt cut or along this cell's own M_COVR ring is DROPPED. The area(s)
+//   continue into the neighbouring chart and THIS cell cannot see what is
+//   there, so emitting the segment claims a change the data does not show --
+//   and a chart ruled into boxes at its cell borders is the whole defect this
+//   machinery exists to remove. "All on one side" is read off the canonical
+//   ring directions: owners whose interiors share a side walk the segment the
+//   same way, where a genuine interface is walked in OPPOSITE directions
+//   (filled side on the right of travel, both ways). The one-sided multi-owner
+//   case is real and measured: nested jurisdiction areas (a state ADMARE under
+//   the national one) are truncated by the same cell edge into bit-identical
+//   border segments with two owners of differing content, which used to draw a
+//   line down the whole interior chart border -- the US1GLBDC/US1GLBEA
+//   mid-Alaska seam.
 //
 //   The cost is stated plainly: a real change that happens to fall exactly on a
 //   cell border goes unmarked in this cell. It is marked in the NEIGHBOUR
 //   wherever that cell holds both sides, and where neither does, the
 //   alternative is a line at every seam whether anything changed or not.
 //
-//   A segment with TWO owners is never suppressed, wherever it lies. If this
-//   cell holds both sides of a boundary then it has the evidence, and a
-//   coverage ring running along an interior boundary does not take it away.
+//   A segment whose owners face each other across it is never suppressed,
+//   wherever it lies. If this cell holds both sides of a boundary then it has
+//   the evidence, and a coverage ring running along an interior boundary does
+//   not take it away.
+//
+// THE EDGE OF ALL CHARTED DATA (the neighbour-continuation refinement)
+//
+//   "The area continues into the neighbouring chart" is a PRESUMPTION, and for
+//   the cell's own M_COVR ring it is sometimes false: NOAA runs a cell's data
+//   limit along real maritime limits, so the boundary of the thing IS the
+//   boundary of the chart. Measured: US2ARCEC's coverage ring follows the
+//   US/Russia treaty line through the Bering Strait, its EXEZNE (EEZ) western
+//   boundary is bit-identical with it, and the unconditional drop erased the
+//   EEZ line from the map entirely -- there is no neighbouring chart west of
+//   that line for the area to continue into.
+//
+//   So when the caller supplies the OTHER charts' coverage (`neighborPaths`),
+//   a one-sided segment on a chart-border ring is dropped ONLY where a
+//   neighbouring chart's coverage actually lies across it -- tested by
+//   stepping a small distance out of the owners' filled side and asking
+//   whether any neighbour polygon contains that point. Where nothing lies
+//   beyond, the truncated boundary is the true charted end of the area and its
+//   presentation stands (what ECDIS and paper both draw). The refinement
+//   covers BOTH ring indexes: a genuine quilt cut always has the finer chart
+//   on its far side (the clip put it there), so the probe finds it in the
+//   roster and the drop holds; but a finer chart's coverage can stop at the
+//   SAME real limit this cell's does -- US3AK89M's west limit is the same
+//   US/Russia line as US2ARCEC's for a degree of latitude -- and a segment
+//   along that shared ring with void beyond is a charted end, not a cut.
+//   Without `neighborPaths` the drop stays unconditional -- the legacy
+//   behaviour, and the only honest one when the caller cannot say what is out
+//   there.
 
 import {
   exteriorRings,
@@ -158,30 +197,154 @@ export function seamTest(indexes) {
   };
 }
 
+// ---- neighbour continuation ------------------------------------------------
+
 /**
- * The two coverage inputs every edge generator takes, as one seam test.
+ * How far out of the owners' filled side the continuation probe steps, in
+ * degrees. Far enough to clear the ring tolerances (1e-6) and coordinate
+ * rounding (1e-9) by orders of magnitude; near enough (~10 m of ground) that a
+ * neighbouring chart abutting OR overlapping the border is on the far side of
+ * it. A charted neighbour narrower than this along a shared border does not
+ * exist.
+ */
+export const NEIGHBOR_PROBE_EPSILON = 1e-4;
+
+/** The polygons of a coverage file, each ring kept, with a bbox for rejection. */
+export function coveragePolygons(paths) {
+  const entries = [];
+  for (const path of paths) {
+    for (const feature of readFeatures(path)) {
+      const geometry = feature.geometry;
+      if (!geometry) continue;
+      const polys =
+        geometry.type === "Polygon"
+          ? [geometry.coordinates]
+          : geometry.type === "MultiPolygon"
+            ? geometry.coordinates
+            : [];
+      for (const polygon of polys) {
+        if (!polygon[0] || polygon[0].length < 4) continue;
+        let minX = Infinity;
+        let minY = Infinity;
+        let maxX = -Infinity;
+        let maxY = -Infinity;
+        for (const [x, y] of polygon[0]) {
+          if (x < minX) minX = x;
+          if (x > maxX) maxX = x;
+          if (y < minY) minY = y;
+          if (y > maxY) maxY = y;
+        }
+        entries.push({ polygon, minX, minY, maxX, maxY });
+      }
+    }
+  }
+  return entries;
+}
+
+/** Even-odd ray cast over one ring. */
+function inRing(ring, [x, y]) {
+  let inside = false;
+  for (let i = 1; i < ring.length; i++) {
+    const [x1, y1] = ring[i - 1];
+    const [x2, y2] = ring[i];
+    if (y1 > y !== y2 > y && x < ((x2 - x1) * (y - y1)) / (y2 - y1) + x1)
+      inside = !inside;
+  }
+  return inside;
+}
+
+/** Whether any coverage polygon contains the point (holes even-odd). */
+export function coverageContains(entries, point) {
+  const [x, y] = point;
+  for (const entry of entries) {
+    if (x < entry.minX || x > entry.maxX || y < entry.minY || y > entry.maxY)
+      continue;
+    let inside = false;
+    for (const ring of entry.polygon) if (inRing(ring, point)) inside = !inside;
+    if (inside) return true;
+  }
+  return false;
+}
+
+/**
+ * A point `NEIGHBOR_PROBE_EPSILON` out of the filled side of a walked segment.
+ *
+ * The walk is the owners' canonical ring direction -- filled side on the RIGHT
+ * of travel -- so "out of the fill" is the LEFT of travel, taken at the
+ * segment's midpoint.
+ */
+export function outwardProbe([from, to]) {
+  const dx = to[0] - from[0];
+  const dy = to[1] - from[1];
+  const length = Math.hypot(dx, dy);
+  const mid = [(from[0] + to[0]) / 2, (from[1] + to[1]) / 2];
+  if (length === 0) return mid;
+  return [
+    mid[0] + (-dy / length) * NEIGHBOR_PROBE_EPSILON,
+    mid[1] + (dx / length) * NEIGHBOR_PROBE_EPSILON,
+  ];
+}
+
+/**
+ * The coverage inputs every edge generator takes, as one seam test.
  *
  * `--coverage` is the quilt cut against a FINER chart; `--cell-coverage` is this
  * cell's own M_COVR. Both are chart borders and neither is a change in
  * anything. Passing neither gives a test that is false everywhere, which is the
  * legacy behaviour: every truncated edge is emitted.
+ *
+ * `neighborPaths` -- the OTHER charts' coverage, this cell's own rows harmless
+ * among them -- refines the cell-ring half: a one-sided segment on the cell's
+ * own ring is a seam only where some chart actually continues across it (see
+ * THE EDGE OF ALL CHARTED DATA above). The quilt-cut half never consults it: a
+ * quilt cut exists because a finer chart covers the far side. The test takes
+ * the owners' canonical walk as its third argument so the probe knows which
+ * side is out; a caller that omits it gets the unconditional legacy drop.
  */
-export function chartBorderTest(coveragePaths, cellCoveragePaths) {
-  return seamTest([
-    {
-      index: coverageIndex(coveragePaths, SEAM_TOLERANCE),
-      tolerance: SEAM_TOLERANCE,
-    },
-    {
-      index: coverageIndex(
-        cellCoveragePaths,
-        CELL_BOUNDARY_TOLERANCE,
-        (feature) => Number(feature.properties?.CATCOV) === 1,
-        true,
-      ),
-      tolerance: CELL_BOUNDARY_TOLERANCE,
-    },
-  ]);
+export function chartBorderTest(
+  coveragePaths,
+  cellCoveragePaths,
+  neighborPaths,
+) {
+  const quilt = {
+    index: coverageIndex(coveragePaths, SEAM_TOLERANCE),
+    tolerance: SEAM_TOLERANCE,
+  };
+  const cell = {
+    index: coverageIndex(
+      cellCoveragePaths,
+      CELL_BOUNDARY_TOLERANCE,
+      (feature) => Number(feature.properties?.CATCOV) === 1,
+      true,
+    ),
+    tolerance: CELL_BOUNDARY_TOLERANCE,
+  };
+  const neighbors =
+    neighborPaths && neighborPaths.length
+      ? coveragePolygons(neighborPaths)
+      : null;
+
+  return (a, b, walk) => {
+    const mid = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+    if (
+      !alongRing(quilt.index, quilt.tolerance, a, mid, b) &&
+      !alongRing(cell.index, cell.tolerance, a, mid, b)
+    ) {
+      return false;
+    }
+    // On a chart-border ring. Without the neighbour roster (or without a walk
+    // to orient the probe by) the presumption of continuation stands -- the
+    // unconditional legacy drop. With it, the drop holds only where some
+    // chart actually lies across the segment. The refinement covers the quilt
+    // ring too, and deliberately: a finer chart's coverage can STOP at the
+    // same real limit this cell's does (US3AK89M's west limit is the same
+    // treaty line as US2ARCEC's between 65.5 and 66.3 N), and a segment along
+    // that shared ring with void beyond is the charted end of the area, not a
+    // cut -- where the ring IS a cut, the finer chart is on the far side by
+    // construction and the probe finds it in the roster.
+    if (!neighbors || !walk) return true;
+    return coverageContains(neighbors, outwardProbe(walk));
+  };
 }
 
 // ---- chaining --------------------------------------------------------------
@@ -255,7 +418,11 @@ export function chain(entries) {
  *             direction). Without it the segment walks its first owner's
  *             canonical orientation, which is all a single-edge classifier
  *             ever needed.
- *   onSeam    (a, b) -> the segment is a chart border; see THE CHART BORDER
+ *   onSeam    (a, b, walk) -> the segment is a chart border; see THE CHART
+ *             BORDER. Consulted only for ONE-SIDED segments -- a single owner,
+ *             or several owners all walking the same way -- and handed the
+ *             owners' shared canonical walk so a continuation probe knows
+ *             which side is out.
  *
  * Returns `{ features, segmentTotal, seamTotal }`, the two totals being what
  * the generators report on stderr.
@@ -309,14 +476,27 @@ export function deriveDifferEdges({
     for (const segment of interval.segments.values()) {
       let sides = segment.sides;
       let dirs = segment.dirs;
-      if (sides.length < 2) {
-        // One owner: the other side is whatever is not this class here. Unless
-        // that "whatever" is the next chart along, in which case this cell has
-        // no evidence of a change and says nothing.
-        if (onSeam(segment.a, segment.b)) {
+      // Owners whose interiors share a side walk the segment the SAME way
+      // (filled side on the right of travel); a genuine interface is walked in
+      // opposite directions. All-same-way means every owner was truncated by
+      // whatever this segment is -- one side of evidence, however many owners.
+      const oneSided = dirs.every(
+        (dir) =>
+          round(dir[0][0]) === round(dirs[0][0][0]) &&
+          round(dir[0][1]) === round(dirs[0][0][1]),
+      );
+      if (oneSided) {
+        // The far side is whatever is not this class here. Unless that
+        // "whatever" is the next chart along, in which case this cell has no
+        // evidence of a change and says nothing -- for a lone truncated area
+        // and equally for overlapping areas truncated together (see THE CHART
+        // BORDER: the nested-jurisdiction seam).
+        if (onSeam(segment.a, segment.b, dirs[0])) {
           seamTotal++;
           continue;
         }
+      }
+      if (sides.length < 2) {
         // The padding keeps `dirs` indexed exactly like `sides`, so an edge's
         // `side` picks the right orientation whether or not it was padded.
         sides = [absent, sides[0]];

@@ -587,6 +587,19 @@ if [ -n "$coverage" ] && [ -f "$coverage" ] && [ -n "$quilt_floor" ]; then
   ogr2ogr -f GeoJSON "$cov_geojson" "$coverage" coverage \
     -where "QFLOOR > ${quilt_floor}" -select "INTU,CSCALE,QFLOOR" 2>/dev/null
 
+  # EVERY chart's coverage, unfiltered -- same-floor peers included, which the
+  # two exports above never carry, and this cell's own rows too (harmless: the
+  # continuation probe steps OUTSIDE the ring it is standing on). This is the
+  # roster generate-area-edges' --neighbor-coverage reads to tell an interior
+  # chart border (some chart continues across it; the truncated boundary drops)
+  # from the edge of ALL charted data (nothing lies beyond; the boundary is the
+  # charted end of the area and stands -- the US/Russia EEZ line through the
+  # Bering Strait is the measured case). See THE EDGE OF ALL CHARTED DATA in
+  # bin/quilt-edges.mjs.
+  nbr_geojson="$tmpdir/quilting_neighbors.geojson"
+  ogr2ogr -f GeoJSON "$nbr_geojson" "$coverage" coverage \
+    -select "INTU,CSCALE,QFLOOR" 2>/dev/null
+
   if [ -s "$all_geojson" ]; then
     ogr2ogr -f GPKG "$gpkg" "$all_geojson" -append -nln quilting 2>/dev/null
 
@@ -1031,6 +1044,13 @@ if [ ${#area_edge_args[@]} -gt 0 ]; then
   if [ -f "$tmpdir/M_COVR.geojson" ]; then
     area_edge_args+=(--cell-coverage "$tmpdir/M_COVR.geojson")
   fi
+  # The whole-region coverage roster from step 2b, when the partition ran: the
+  # cell-ring drop then keeps a truncated boundary wherever NO chart continues
+  # across the cell's own edge (a data limit running along a real maritime
+  # limit). Absent -- an unpartitioned cell -- the drop stays unconditional.
+  if [ -f "$tmpdir/quilting_neighbors.geojson" ]; then
+    area_edge_args+=(--neighbor-coverage "$tmpdir/quilting_neighbors.geojson")
+  fi
   area_edges_geojson="$tmpdir/_AREA_EDGE.geojson"
   node "$SCRIPT_DIR/generate-area-edges" "$area_edges_geojson" "${area_edge_args[@]}"
   if [ -s "$area_edges_geojson" ]; then
@@ -1110,20 +1130,25 @@ if [ ${#restr_args[@]} -gt 0 ]; then
 fi
 
 # Step 3f (cont.): Derive _AREA_ANCHORS — one centred-symbol anchor per area
-# feature of the ship-narrow class set. tippecanoe writes each polygon clipped
+# feature of the own-symbol class set. tippecanoe writes each polygon clipped
 # into every tile it touches and MapLibre draws the centred symbol once per
 # fragment whose pole of inaccessibility is in-tile, so a pilot boarding area
 # straddling a tile corner arrives as up to four identical diamonds. One point
 # per (CLASS, LNAM, interval), at the plain largest-fragment interior point —
 # the water-side pass is the restriction generator's own; these classes are
-# drawn to the water they regulate. The class set is AREA_ANCHOR_CLASSES in
-# bin/generate-area-anchors, where the ship-narrow rationale and the deferred
-# classes are documented; widen both lists together. Run after the quilt clip,
-# like the other anchor generators, so the anchors sit on the geometry that
-# actually reaches the tiles. See bin/generate-area-anchors.
+# drawn to the water they regulate or mark. The class set is
+# AREA_ANCHOR_CLASSES in bin/generate-area-anchors — the ship-narrow ten plus
+# the widening round's own-symbol classes; the rationale and the deliberate
+# exclusions (######, ACHARE, OBSTRN) are documented there. Widen both lists
+# together. Run after the quilt clip, like the other anchor generators, so the
+# anchors sit on the geometry that actually reaches the tiles. See
+# bin/generate-area-anchors.
 area_anchor_args=()
 for area_anchor_table in CTNARE PILBOP CBLARE RESARE DWRTPT ISTZNE PRCARE \
-  TSSCRS TSSLPT TSSRON; do
+  TSSCRS TSSLPT TSSRON \
+  ACHBRT BERTHS BRIDGE CHKPNT CONVYR CTSARE FERYRT FSHFAC FSHGRD HRBFAC \
+  LOCMAG LOGPON MAGVAR NEWOBJ PRDARE RCTLPT RECTRC SMCFAC SWPARE WATTUR \
+  WEDKLP; do
   if [ -f "$tmpdir/${area_anchor_table}.geojson" ]; then
     area_anchor_args+=(--class "${area_anchor_table}:$tmpdir/${area_anchor_table}.geojson")
   fi
@@ -1197,6 +1222,22 @@ fi
 # a small-scale tile would carry every sounding of the survey.
 if [ -f "$tmpdir/SOUNDG.geojson" ]; then
   node "$SCRIPT_DIR/thin-soundings" "$tmpdir/SOUNDG.geojson" \
+    --minzoom "$minzoom" --maxzoom "$maxzoom"
+fi
+
+# Step 3i (cont.): Thin the LNDARE islet POINTS the same way, named first.
+#
+# The measured Aleutian defect: the islet points draw at full density from the
+# band's arrival zoom -- a carpet of land dots at z5 over islands that are
+# barely a pixel -- because the partition's per-feature minzooms exempt them
+# from tippecanoe's dot-dropping exactly as they exempt SOUNDG. Point features
+# only; the file's polygons and lines are the land itself and are left alone.
+# Runs AFTER the label and anchor generators consumed LNDARE (steps 3e/3f), so
+# the in-place stamps cannot leak into their groupings, and BEFORE
+# stamp-quilt-zooms, which composes the thinning floor with each copy's own
+# interval. See bin/thin-lndare-points.
+if [ -f "$tmpdir/LNDARE.geojson" ]; then
+  node "$SCRIPT_DIR/thin-lndare-points" "$tmpdir/LNDARE.geojson" \
     --minzoom "$minzoom" --maxzoom "$maxzoom"
 fi
 

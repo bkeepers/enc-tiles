@@ -24,7 +24,9 @@ case "$fmt" in
     case "$out" in
       # The quilt coverage exports are what the script tests with -s to decide
       # whether there is a mask to build at all; they are never the failing one.
-      *quilting_coverage.geojson | *quilting_all.geojson)
+      # The neighbour roster export rides with them: its presence is what wires
+      # --neighbor-coverage, and it is not a layer export either.
+      *quilting_coverage.geojson | *quilting_all.geojson | *quilting_neighbors.geojson)
         printf '{"type":"FeatureCollection","features":[]}' >"$out"
         ;;
       *)

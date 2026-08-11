@@ -9,6 +9,11 @@
 //   bin/generate-area-anchors <output.geojson> \
 //     --class CTNARE:CTNARE.geojson [--class PILBOP:PILBOP.geojson ...]
 //
+//   bin/generate-area-anchors --list-classes
+//     prints the participating classes, one per line -- the same one-source
+//     contract as bin/generate-area-edges, pinning bin/s57-to-tiles' loop and
+//     the tests to this file's list.
+//
 // Why this layer exists:
 //
 //   tippecanoe writes each polygon CLIPPED into every tile it touches, and
@@ -67,24 +72,42 @@ import {
   readFeatures,
 } from "./quilt-geojson.mjs";
 
-// The ship-narrow class set, shipped first because it is where the measured,
-// visible duplication is and it keeps the property-bag question small. CTNARE
-// and PILBOP draw an unconditional centred symbol and were never anchored at
-// all; the other eight are in the restriction-anchor class set, but only
-// their CS(RESTRN01) cascade symbols are retargeted there and their OWN
-// symbol (ESSARE01, CBLARE51, TSLDEF51, ITZARE51, PRCARE51, TSSCRS51,
-// CTNARE51, TSSRON51) still drew per fragment.
+// The class set, in two shipped rounds.
 //
-// DEFERRED to a later widening round, the remaining 24 area classes whose
-// unconditional centred symbol duplicates the same way: ###### (the QUESMRK1
-// unknown-object carrier), ACHARE (excluded by user ruling -- anchorages are
-// fine as drawn, so widening past it needs a new ruling), ACHBRT, BERTHS,
-// BRIDGE, CHKPNT, CONVYR, CTSARE, FERYRT, FSHFAC, FSHGRD, HRBFAC, LOCMAG,
-// LOGPON, MAGVAR, NEWOBJ, OBSTRN, PRDARE, RCTLPT, RECTRC, SMCFAC, SWPARE,
-// WATTUR, WEDKLP. (The TS_*/T_* tidal and timing carriers also duplicate but
-// stay with their layers.) Widening is deliberate: add the class HERE and to
-// the bin/s57-to-tiles step together.
+// The SHIP-NARROW TEN came first, because that is where the measured, visible
+// duplication was and it kept the property-bag question small: CTNARE and
+// PILBOP draw an unconditional centred symbol and were never anchored at all;
+// the other eight are in the restriction-anchor class set, but only their
+// CS(RESTRN01) cascade symbols are retargeted there and their OWN symbol
+// (ESSARE01, CBLARE51, TSLDEF51, ITZARE51, PRCARE51, TSSCRS51, CTNARE51,
+// TSSRON51) still drew per fragment.
+//
+// The WIDENING ROUND then took the deferred own-symbol list: the remaining
+// area classes whose unconditional centred symbol duplicates the same way,
+// each with the same one-anchor-per-(CLASS, LNAM, interval) contract. (The
+// TS_*/T_* tidal and timing carriers also duplicate but stay with their
+// layers.)
+//
+// STILL OUT, deliberately, each with its reason:
+//
+//   ######   the QUESMRK1 unknown-object carrier is a style-side pseudo class
+//            and never names a tile source-layer, so there is no per-class
+//            export to anchor.
+//   ACHARE   excluded by user ruling -- anchorages are fine as drawn, and
+//            widening past that needs a new ruling, not a wider loop.
+//   OBSTRN   a HAZARD whose centred symbols are conditional symbology, not a
+//            plain per-class mark: the isolated-danger core layers precede the
+//            anchor swap in the facade's settings chain (they are forced
+//            visible, so an anchor copy would DOUBLE them, never replace
+//            them), and its CS(OBSTRN07) branches read the pipeline's
+//            _DEPARE_DRVAL1_MAX/_MINPOS columns, which the anchor property
+//            bag strips as underscore-prefixed. Deduplicating it belongs with
+//            the hazard family's own design round.
+//
+// Widening is deliberate: add the class HERE and to the bin/s57-to-tiles step
+// together (--list-classes is how the tests pin the two against each other).
 const AREA_ANCHOR_CLASSES = [
+  // The ship-narrow ten.
   "CTNARE",
   "PILBOP",
   "CBLARE",
@@ -95,9 +118,37 @@ const AREA_ANCHOR_CLASSES = [
   "TSSCRS",
   "TSSLPT",
   "TSSRON",
+  // The widening round: the deferred own-symbol classes.
+  "ACHBRT",
+  "BERTHS",
+  "BRIDGE",
+  "CHKPNT",
+  "CONVYR",
+  "CTSARE",
+  "FERYRT",
+  "FSHFAC",
+  "FSHGRD",
+  "HRBFAC",
+  "LOCMAG",
+  "LOGPON",
+  "MAGVAR",
+  "NEWOBJ",
+  "PRDARE",
+  "RCTLPT",
+  "RECTRC",
+  "SMCFAC",
+  "SWPARE",
+  "WATTUR",
+  "WEDKLP",
 ];
 
 const args = process.argv.slice(2);
+
+if (args.includes("--list-classes")) {
+  process.stdout.write(AREA_ANCHOR_CLASSES.join("\n") + "\n");
+  process.exit(0);
+}
+
 const inputs = [];
 const positional = [];
 
@@ -116,7 +167,8 @@ const outputPath = positional[0];
 if (!outputPath || inputs.length === 0) {
   console.error(
     "Usage: generate-area-anchors <output.geojson> " +
-      "--class <CLASS>:<file.geojson> [--class ...]",
+      "--class <CLASS>:<file.geojson> [--class ...]\n" +
+      "       generate-area-anchors --list-classes",
   );
   process.exit(1);
 }

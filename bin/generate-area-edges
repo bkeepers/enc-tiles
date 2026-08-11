@@ -6,7 +6,8 @@
 // Usage:
 //   bin/generate-area-edges <output.geojson> \
 //     --area RESARE:RESARE.geojson [--area CTNARE:CTNARE.geojson ...] \
-//     [--coverage quilting_coverage.geojson] [--cell-coverage M_COVR.geojson]
+//     [--coverage quilting_coverage.geojson] [--cell-coverage M_COVR.geojson] \
+//     [--neighbor-coverage quilting_neighbors.geojson]
 //
 //   bin/generate-area-edges --list-classes
 //     prints the participating classes, one per line, which is how
@@ -51,14 +52,23 @@
 //
 // THE CHART BORDER
 //
-//   A single-owner segment lying along a quilt cut (--coverage) or along this
-//   cell's own M_COVR ring (--cell-coverage) is DROPPED, exactly as
+//   A ONE-SIDED segment -- one owner, or overlapping areas truncated together,
+//   every interior on the same side -- lying along a quilt cut (--coverage) or
+//   along this cell's own M_COVR ring (--cell-coverage) is DROPPED, exactly as
 //   _MQUAL_EDGE and _BUAARE_EDGE drop theirs: the area continues onto the next
 //   chart, this cell cannot see what is there, and a line at every cell border
 //   is the defect this layer exists to remove. See THE CHART BORDER in
 //   bin/quilt-edges.mjs for the trade that buys -- a real change falling
 //   exactly on the border goes unmarked in this cell and is marked in the
 //   neighbour wherever it holds both sides.
+//
+//   --neighbor-coverage (the OTHER charts' M_COVR roster, own rows harmless)
+//   refines the cell-ring half of that drop: where NO chart lies across the
+//   ring, the truncation is the true charted end of the area -- NOAA runs data
+//   limits along real maritime limits, the US/Russia EEZ line above all -- and
+//   the boundary presentation stands. See THE EDGE OF ALL CHARTED DATA in
+//   bin/quilt-edges.mjs; without the flag the drop is unconditional, as it
+//   always was.
 //
 // Each output feature carries:
 //
@@ -261,6 +271,7 @@ if (args.includes("--list-classes")) {
 const classPaths = [];
 const coveragePaths = [];
 const cellCoveragePaths = [];
+const neighborCoveragePaths = [];
 const positional = [];
 
 for (let i = 0; i < args.length; i++) {
@@ -276,13 +287,15 @@ for (let i = 0; i < args.length; i++) {
     coveragePaths.push(args[++i]);
   else if (args[i] === "--cell-coverage" && args[i + 1])
     cellCoveragePaths.push(args[++i]);
+  else if (args[i] === "--neighbor-coverage" && args[i + 1])
+    neighborCoveragePaths.push(args[++i]);
   else positional.push(args[i]);
 }
 
 const outputPath = positional[0];
 if (!outputPath || classPaths.length === 0) {
   console.error(
-    "Usage: generate-area-edges <output.geojson> --area <CLASS:file> [--area <CLASS:file> ...] [--coverage <file>] [--cell-coverage <file>]\n" +
+    "Usage: generate-area-edges <output.geojson> --area <CLASS:file> [--area <CLASS:file> ...] [--coverage <file>] [--cell-coverage <file>] [--neighbor-coverage <file>]\n" +
       "       generate-area-edges --list-classes",
   );
   process.exit(1);
@@ -300,7 +313,11 @@ const NO_AREA = Symbol("no area feature");
 
 // One seam test for every class: the ring indexes are built once, because the
 // chart border is a property of the CELL, not of any class.
-const onSeam = chartBorderTest(coveragePaths, cellCoveragePaths);
+const onSeam = chartBorderTest(
+  coveragePaths,
+  cellCoveragePaths,
+  neighborCoveragePaths,
+);
 
 const out = [];
 let segmentTotal = 0;
