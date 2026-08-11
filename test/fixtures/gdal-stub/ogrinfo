@@ -30,6 +30,8 @@
 #   STUB_SQL_LOG           file every -sql statement is appended to, so a test
 #                          can read back the copy ladder the script built. One
 #                          file per RUN: the entries accumulate.
+#   STUB_LIST_FAILS        the plain layer listing exits non-zero — the shape
+#                          an unreadable (corrupt/truncated) chart leaves
 set -u
 
 args="$*"
@@ -167,6 +169,10 @@ case "$args" in
 esac
 
 # Plain listing of the feature tables.
+if [ "${STUB_LIST_FAILS:-0}" = "1" ]; then
+  echo "ERROR 4: \`${*: -1}' not recognized as being in a supported file format." >&2
+  exit 1
+fi
 i=1
 for t in ${STUB_TABLES:-DEPARE M_COVR SOUNDG}; do
   echo "$i: $t (Polygon)"
