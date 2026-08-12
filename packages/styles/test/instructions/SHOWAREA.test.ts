@@ -25,5 +25,5 @@ test("AP(DQUALA21)", () => {
   expect(styles).toHaveLength(1);
   const style = styles[0] as FillLayerSpecification;
   expect(style.type).toBe("fill");
-  expect(style.paint!["fill-pattern"]).toBe("DQUALA21");
+  expect(style.paint!["fill-pattern"]).toBe("DQUALA21P");
 });

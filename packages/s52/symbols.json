@@ -1,4 +1,154 @@
 {
+  "AIRARE02P": {
+    "description": "pattern of symbols for an airport area",
+    "width": 70,
+    "height": 69,
+    "offset": [-35, -34.5]
+  },
+  "DIAMOND1P": {
+    "description": "area of depth less than the safety contour",
+    "width": 86,
+    "height": 164,
+    "offset": [0, 0]
+  },
+  "DQUALA11P": {
+    "description": "pattern of symbols for a chart of 5m accuracy with full seafloor coverage",
+    "width": 65,
+    "height": 46,
+    "offset": [-0.5, 1]
+  },
+  "DQUALA21P": {
+    "description": "pattern of symbols for a chart with 20m accuracy with full seafloor coverage",
+    "width": 65,
+    "height": 46,
+    "offset": [0.5, 8]
+  },
+  "DQUALB01P": {
+    "description": "pattern of symbols for a chart with 50m accuracy from standard survey based on lines of continuous soundings",
+    "width": 65,
+    "height": 46,
+    "offset": [0.5, 8]
+  },
+  "DQUALC01P": {
+    "description": "pattern of symbols for a low accuracy or incomplete chart",
+    "width": 62,
+    "height": 17,
+    "offset": [0, -0.5]
+  },
+  "DQUALD01P": {
+    "description": "pattern of symbols for an unreliable chart",
+    "width": 62,
+    "height": 17,
+    "offset": [0, -0.5]
+  },
+  "DQUALU01P": {
+    "description": "pattern of symbols for a chart with quality not assessed",
+    "width": 62,
+    "height": 17,
+    "offset": [0, -0.5]
+  },
+  "DRGARE01P": {
+    "description": "dredged area",
+    "width": 9,
+    "height": 9,
+    "offset": [3.5, -3.5]
+  },
+  "FOULAR01P": {
+    "description": "foul area, not safe for navigation",
+    "width": 30,
+    "height": 32,
+    "offset": [14, 15]
+  },
+  "FSHFAC03P": {
+    "description": "pattern of symbols for an area with fishing stakes",
+    "width": 58,
+    "height": 7,
+    "offset": [-29, 2.5]
+  },
+  "FSHFAC04P": {
+    "description": "pattern of symbols for an area with fish traps, fish weirs, tunny nets",
+    "width": 49,
+    "height": 26,
+    "offset": [-23.5, 12]
+  },
+  "FSHHAV02P": {
+    "description": "pattern of symbols for a fish haven",
+    "width": 58,
+    "height": 13,
+    "offset": [-28, 0.5]
+  },
+  "ICEARE04P": {
+    "description": "continuous pattern for an ice area (glacier, etc.)",
+    "width": 60,
+    "height": 55,
+    "offset": [29, -27.5]
+  },
+  "MARCUL02P": {
+    "description": "pattern of symbols for a marine farm",
+    "width": 77,
+    "height": 24,
+    "offset": [-37.5, 11]
+  },
+  "MARSHES1P": {
+    "description": "pattern of symbols for a marsh",
+    "width": 18,
+    "height": 22,
+    "offset": [0, -10]
+  },
+  "NODATA03P": {
+    "description": "area of no chart data",
+    "width": 25,
+    "height": 17,
+    "offset": [-11.5, -7.5]
+  },
+  "OVERSC01P": {
+    "description": "overscale part of a display containing data from more than one navigation purpose",
+    "width": 35,
+    "height": 16,
+    "offset": [-13.5, -8]
+  },
+  "PRTSUR01P": {
+    "description": "incompletely surveyed area",
+    "width": 14,
+    "height": 6,
+    "offset": [6, 2]
+  },
+  "QUESMRK1P": {
+    "description": "pattern of symbols for an area which is not sufficiently described to be symbolized, or for which no symbol exists in the symbol library",
+    "width": 10,
+    "height": 18,
+    "offset": [0, -2]
+  },
+  "RCKLDG01P": {
+    "description": "rock or coral drying ledges",
+    "width": 60,
+    "height": 52,
+    "offset": [29, -25]
+  },
+  "SNDWAV01P": {
+    "description": "pattern of symbols for sand waves",
+    "width": 46,
+    "height": 8,
+    "offset": [22, -4]
+  },
+  "TSSJCT02P": {
+    "description": "precautionary area or a traffic separation scheme crossing or roundabout",
+    "width": 20,
+    "height": 20,
+    "offset": [9, -10]
+  },
+  "VEGATN03P": {
+    "description": "pattern of symbols for wooded areas",
+    "width": 15,
+    "height": 16,
+    "offset": [0.5, -8]
+  },
+  "VEGATN04P": {
+    "description": "pattern of symbols for mangroves",
+    "width": 16,
+    "height": 13,
+    "offset": [0, -5.5]
+  },
   "ACHARE02": {
     "description": "anchorage area as a point at small scale, or anchor points of mooring trot at large scale",
     "width": 16,

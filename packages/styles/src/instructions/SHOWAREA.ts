@@ -23,7 +23,8 @@ export function AP(
   return {
     type: "fill",
     paint: {
-      "fill-pattern": pattern.name,
+      "fill-opacity": 0.5,
+      "fill-pattern": pattern.name + "P",
     },
   };
 }

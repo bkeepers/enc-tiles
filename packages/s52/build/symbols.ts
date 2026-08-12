@@ -38,11 +38,7 @@ export default {
     console.log("Building symbols...");
     const symbols = {};
 
-    const data = JSON.parse(readFileSync("data.json", "utf8"));
-
-    for (const symbol of data.symbols) {
-      const name = symbol.symd.synm;
-
+    function processSymbol(name: string) {
       let input;
 
       for (const source of SOURCES) {
@@ -57,7 +53,7 @@ export default {
       if (!input) throw new Error(`Missing symbol: ${name}`);
 
       for (const mode of Object.keys(styles)) {
-        const output = process(input, [
+        const output = processSvg(input, [
           styles[mode],
           (svg) => {
             // This only needs extracted once
@@ -74,8 +70,7 @@ export default {
             ];
 
             symbols[name] = {
-              description:
-                svg.querySelector("desc")?.textContent ?? symbol.symd.syds,
+              description: svg.querySelector("desc")?.textContent,
               width,
               height,
               offset,
@@ -87,11 +82,21 @@ export default {
       }
     }
 
+    const data = JSON.parse(readFileSync("data.json", "utf8"));
+
+    for (const pattern of data.patterns) {
+      processSymbol(pattern.patd.panm + "P");
+    }
+
+    for (const symbol of data.symbols) {
+      processSymbol(symbol.symd.synm);
+    }
+
     writeFileSync("symbols.json", JSON.stringify(symbols, null, 2) + "\n");
   },
 };
 
-export function process(svgText, callbacks) {
+export function processSvg(svgText, callbacks) {
   const dom = new JSDOM(svgText, { contentType: "image/svg+xml" });
   const svg = dom.window.document.querySelector("svg");
   callbacks.forEach((cb) => cb(svg));
