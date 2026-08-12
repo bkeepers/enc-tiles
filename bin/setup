@@ -2,6 +2,22 @@
 
 set -e
 
+cd "$(dirname "$0")/.."
+
+# Upper bound: tileserver-gl's native dependencies (@maplibre/maplibre-gl-native,
+# canvas, sqlite3) only publish prebuilt binaries for Node 20, 22, and 24, and
+# node-pre-gyp runs with --fallback-to-build=false, so `npm install` fails
+# outright on anything newer. Lower bound: vite requires 20.19 / 22.12. Keep in
+# sync with "engines" in package.json; see .nvmrc for the version we develop
+# against.
+if ! node -e 'const [major, minor] = process.versions.node.split(".").map(Number); process.exit(major === 24 || (major === 22 && minor >= 12) || (major === 20 && minor >= 19) ? 0 : 1)'; then
+  echo "Node $(node -v) is not supported. Use Node $(cat .nvmrc) instead:"
+  echo
+  echo "  nvm install && nvm use     # or: fnm use --install-if-missing"
+  echo
+  exit 1
+fi
+
 git submodule update --init
 npm install
 npm run build

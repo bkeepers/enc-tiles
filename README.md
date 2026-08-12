@@ -8,9 +8,12 @@
 
 # Contributing
 
+Requires Node 20, 22, or 24 — `tileserver-gl`'s native dependencies have no prebuilt binaries for newer releases. [.nvmrc](./.nvmrc) pins the version this project is developed against.
+
 ```sh
 $ git clone https://github.com/bkeepers/enc-tiles.git
 $ cd enc-tiles
+$ nvm install && nvm use
 $ bin/setup
 $ npm start
 ```

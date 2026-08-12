@@ -1,5 +1,8 @@
 {
   "name": "@enc-tiles/dev",
+  "engines": {
+    "node": "^20.19.0 || ^22.12.0 || ^24"
+  },
   "devDependencies": {
     "@maplibre/maplibre-gl-inspect": "^1.7.1",
     "@types/node": "^24.7.2",
