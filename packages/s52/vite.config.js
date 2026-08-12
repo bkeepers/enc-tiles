@@ -3,6 +3,7 @@ import { defineConfig } from "vite";
 import { resolve } from "path";
 import buildData from "./build/data.js";
 import buildColours from "./build/colours.js";
+import buildChartsymbols from "./build/chartsymbols.js";
 import buildSymbols from "./build/symbols.js";
 import buildSprites from "./build/sprites.js";
 import buildSpritecss from "./build/spritecss.js";
@@ -20,6 +21,7 @@ export default defineConfig({
     buildColours,
     buildSymbols,
     buildSprites,
+    buildChartsymbols,
     buildSpritecss,
   ],
 });
