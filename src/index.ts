@@ -10,7 +10,7 @@ import {
 import MaplibreInspect from "@maplibre/maplibre-gl-inspect";
 import { Protocol, PMTiles, type Header } from "pmtiles";
 import createStyle, { BANDS, type BandName } from "@enc-tiles/styles";
-import { requireArchiveHeader } from "./require-archive-header.js";
+import { loadArchiveHeaders } from "./load-archive-headers.js";
 
 const prefix = import.meta.env.VITE_TILESET_PREFIX ?? "noaa";
 const tilesUrl =
@@ -74,20 +74,12 @@ for (const band of BANDS) {
 // requests that would eventually have surfaced it never resolve at all,
 // leaving the map to hang rather than fail. Read every archive's header up
 // front instead, so a bad archive fails fast, by name, before the map is
-// built at all.
+// built at all -- and wait for all six to settle (see
+// load-archive-headers.ts) so a bulk upload that drops more than one
+// archive is reported all at once, not one redeploy at a time.
 let headers: Record<BandName, Header>;
 try {
-  headers = Object.fromEntries(
-    await Promise.all(
-      BANDS.map(async (band) => {
-        const { url, pmtiles } = archives[band.name]!;
-        return [
-          band.name,
-          await requireArchiveHeader(band.name, url, pmtiles),
-        ] as const;
-      }),
-    ),
-  ) as Record<BandName, Header>;
+  headers = await loadArchiveHeaders(BANDS, archives);
 } catch (error) {
   reportFatalError(error);
   throw error;
@@ -132,14 +124,24 @@ map.addControl(new MaplibreInspect({ popup: new Popup({}) }));
  * spinner-less page is easy to mistake for "still loading". This makes a
  * startup failure -- e.g. a missing tile archive -- impossible to miss in
  * the browser itself, not only in the console, which matters most in
- * production: if an upload half-fails and one archive goes missing, nobody
- * is tailing devtools.
+ * production: if an upload half-fails and one or more archives go missing,
+ * nobody is tailing devtools.
+ *
+ * `loadArchiveHeaders` throws an `AggregateError` when more than one band
+ * fails, so this lists every one of its `.errors` as its own paragraph
+ * rather than concatenating them into a single unreadable line -- each
+ * already names its own band, URL and cause.
  */
 function reportFatalError(error: unknown): void {
   console.error(error);
-  const message = error instanceof Error ? error.message : String(error);
+  const causes = error instanceof AggregateError ? error.errors : [error];
+  for (const cause of causes) console.error(cause);
+
+  const messages = causes.map((cause: unknown) =>
+    cause instanceof Error ? cause.message : String(cause),
+  );
   const banner = document.createElement("pre");
-  banner.textContent = `Failed to load tiles\n\n${message}`;
+  banner.textContent = `Failed to load tiles\n\n${messages.join("\n\n")}`;
   banner.style.cssText =
     "position:fixed;inset:0;margin:0;padding:2rem;box-sizing:border-box;" +
     "background:#7f1d1d;color:#fff;font:14px/1.5 ui-monospace,monospace;" +
