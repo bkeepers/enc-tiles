@@ -16,7 +16,7 @@ case "$ext" in
     format="MBV"
     ;;
   *)
-    echo "Output format must be .mbtiles or .pmtiles"
+    echo "Output format must be .mbtiles or .pmtiles" >&2
     exit 1
     ;;
 esac
@@ -24,7 +24,7 @@ esac
 mkdir -p "$(dirname $out)"
 
 # Get Intended Use band from DSID_INTU field
-INTENDED_USE=$(ogrinfo -q $in DSID | grep DSID_INTU | awk '{print $NF}')
+INTENDED_USE=$(ogrinfo -q $in DSID | grep DSID_INTU | awk '{print $NF}' || true)
 
 # zoom	scale
 # -z0	  1:320,000,000
@@ -79,7 +79,8 @@ case "$INTENDED_USE" in
     maxzoom=16
     ;;
   *)
-    echo "Unknown DSID_INTU: $INTENDED_USE"
+    echo "Unable to determine DSID_INTU for $in (got: '$INTENDED_USE')" >&2
+    exit 1
     ;;
 esac
 

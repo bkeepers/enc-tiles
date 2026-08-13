@@ -23,7 +23,7 @@
     "prepare": "husky",
     "build": "npm run --workspaces --if-present build",
     "build:app": "vite build",
-    "test": "npm run --workspaces --if-present test -- --run",
+    "test": "vitest --run && npm run --workspaces --if-present test -- --run",
     "start": "vite dev",
     "lint": "prettier --check .",
     "format": "prettier --write ."
