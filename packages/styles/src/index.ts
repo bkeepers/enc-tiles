@@ -5,6 +5,8 @@ import type {
 } from "maplibre-gl";
 import { build, LayerConfig } from "./symbolology/index.js";
 
+export * from "./bands.js";
+
 export interface StyleOptions {
   source: VectorSourceSpecification;
   name?: string;
