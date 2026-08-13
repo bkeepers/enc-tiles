@@ -1635,23 +1635,63 @@ Expected: `7239 cells all declare their coverage`, en environ 3 minutes.
 
 - [ ] **Step 5: Brancher l'audit sur le build**
 
-Dans le `Makefile`, ajouter une cible et la placer en dépendance de la conversion :
+> **Amendement du 2026-08-13, après revue.** La première version faisait dépendre
+> le stamp de fusion d'une cible `.PHONY` : `$(TILES_DIR)/.bands.stamp: audit
+$(TILES)`. Deux défauts, tous deux confirmés au `make -n`.
+>
+> 1. Une cible `.PHONY` est toujours à refaire, donc le stamp était **toujours
+>    périmé** : chaque `make` relançait l'audit (~3 min) _et_ la refusion complète
+>    des six bandes (~20 min), même sans le moindre changement. L'incrémentalité
+>    construite en tâche 6 était annulée.
+> 2. Même corrigé par un stamp, l'audit et les 7239 conversions restaient des
+>    prérequis **frères** sans arête entre eux. Sous le `make -j$(nproc)` qu'utilise
+>    réellement la CI, l'ordonnanceur parallèle les lance de front : seule la
+>    fusion était gardée, et l'arrêt précoce était perdu.
+>
+> D'où la forme ci-dessous : un stamp indexé sur le corpus, et un prérequis
+> **order-only** sur la règle de motif. L'order-only est essentiel — un prérequis
+> normal reconvertirait les 7239 cartes à chaque passage de l'audit.
+
+Dans le `Makefile` :
 
 ```make
 .PHONY: all clean data audit
 
+# Convenience target to force a run by hand.
 audit:
 	bin/audit-coverage $(ENC_DIR)
+
+# Stamp file so the audit only re-runs when the chart corpus changes, not on
+# every build.
+$(TILES_DIR)/.audit.stamp: $(ENC)
+	@mkdir -p $(TILES_DIR)
+	bin/audit-coverage $(ENC_DIR)
+	@touch $@
 ```
 
-et faire dépendre la cible de join de l'audit :
+Faire dépendre les conversions de l'audit en **order-only**, et la fusion du stamp :
 
 ```make
-$(TILES_DIR)/.bands.stamp: audit $(TILES)
+$(TILES_DIR)/%.pmtiles: $(ENC_DIR)/%.000 | $(TILES_DIR)/.audit.stamp
+	bin/s57-to-tiles $< $@
+
+$(TILES_DIR)/.bands.stamp: $(TILES_DIR)/.audit.stamp $(TILES)
 ```
 
-Run: `make -n | head -3`
-Expected: `bin/audit-coverage data/ENC_ROOT` apparaît avant les conversions.
+Run: `make -n`
+Expected sur un arbre à jour : `make: Nothing to be done for 'all'.`
+
+Puis, après avoir fait un `touch` sur une cellule (jamais de modification réelle
+sous `data/`), en séquentiel **et** en parallèle :
+
+Run: `make -n` puis `make -n -j8`
+Expected : `bin/audit-coverage data/ENC_ROOT` en première commande, avant tout
+`bin/s57-to-tiles`. Le dry run séquentiel ne prouve rien pour le cas parallèle,
+les deux sont nécessaires.
+
+Run: toucher `$(TILES_DIR)/.audit.stamp` seul, puis `make -n`
+Expected : aucune ligne `s57-to-tiles` — un stamp plus récent ne doit pas
+déclencher de reconversion.
 
 - [ ] **Step 6: Commit**
 
