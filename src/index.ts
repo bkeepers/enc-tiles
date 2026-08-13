@@ -19,6 +19,43 @@ const tilesUrl =
 const protocol = new Protocol({ metadata: true });
 addProtocol("pmtiles", protocol.tile);
 
+// MaplibreInspect (added below) discovers each vector source's layers by
+// calling the platform's `fetch()` directly on the source's declared `url`,
+// bypassing the "pmtiles" protocol MapLibre itself dispatches through. The
+// Fetch API can only ever handle schemes the platform understands, so
+// `fetch("pmtiles://...")` is always rejected — Chrome's console even shows
+// the colon after "http" gone (`pmtiles://http//host/...`), because the URL
+// parser it uses to validate/report the request treats "http" as an
+// authority component and drops the trailing colon when re-serializing it
+// for that error. That colon loss is a side effect of the rejection, not
+// its cause: an unmangled string would fail identically, since custom
+// schemes are simply outside what `fetch()` can dispatch. MapLibre's own
+// tile pipeline never hits this — `protocol.tile` parses the URL with a
+// plain string/regex, not `new URL()` — which is why real tiles load fine
+// even while this fails. Teach `fetch` to answer `pmtiles://` requests
+// itself, using that same `protocol.tile`, so any code that calls it
+// directly on one of our sources' URLs gets a real response.
+const nativeFetch = window.fetch.bind(window);
+window.fetch = (async (
+  input: RequestInfo | URL,
+  init?: RequestInit,
+): Promise<Response> => {
+  const url =
+    typeof input === "string"
+      ? input
+      : input instanceof URL
+        ? input.href
+        : input.url;
+  if (!url.startsWith("pmtiles://")) return nativeFetch(input, init);
+  const { data } = await protocol.tile(
+    { url, type: "json" },
+    new AbortController(),
+  );
+  return new Response(JSON.stringify(data), {
+    headers: { "content-type": "application/json" },
+  });
+}) as typeof fetch;
+
 const archives: Record<string, { url: string; pmtiles: PMTiles }> = {};
 
 for (const band of BANDS) {
