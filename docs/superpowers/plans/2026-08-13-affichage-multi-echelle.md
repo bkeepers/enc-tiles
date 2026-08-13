@@ -750,12 +750,14 @@ GNU Make 3.81 ne connaît pas les cibles groupées (`&:`), donc une seule recett
 
 - [ ] **Step 1: Remplacer la cible de join**
 
-En tête du `Makefile`, après `TILES := …` :
-
-```make
-BANDS := overview general coastal approach harbour berthing
-BAND_TILES := $(addprefix $(TILES_DIR)/noaa-,$(addsuffix .pmtiles,$(BANDS)))
-```
+> **Amendement du 2026-08-13, après revue.** Une première version faisait
+> déclarer `BANDS` et `BAND_TILES` en tête de fichier. Ces deux variables ne sont
+> référencées nulle part : `bin/join-bands` décide seul des bandes non vides à
+> produire. Câbler `all: $(BAND_TILES)` avec `$(BAND_TILES): .bands.stamp` ne les
+> rendrait pas utiles pour autant — sous Make 3.81 une règle sans recette ne
+> reconstruit pas une archive supprimée à la main, et laisserait `all` se déclarer
+> satisfaite en nommant un fichier absent. `all: $(TILES_DIR)/.bands.stamp` décrit
+> honnêtement ce que fait le build.
 
 Remplacer `all: ${TILES_DIR}/noaa.pmtiles` par :
 
@@ -767,7 +769,8 @@ Remplacer la cible `${TILES_DIR}/noaa.pmtiles` par :
 
 ```make
 # GNU Make 3.81 has no grouped targets, so one recipe produces all six archives
-# and a stamp file carries the dependency.
+# and a stamp file carries the dependency. Note: if a band archive is deleted by hand
+# while the stamp survives, `make` will not regenerate it; use `make clean && make`.
 $(TILES_DIR)/.bands.stamp: $(TILES)
 	@mkdir -p $(TILES_DIR)
 	# Increase file descriptor limit for tile-join, capped at the hard limit
