@@ -140,6 +140,38 @@ au build.
 `M_COVR` est déjà présent dans les tuiles et n'est stylé par aucune couche
 aujourd'hui (vérifié : 0 couche `M_COVR` dans le style généré).
 
+### 4.1 Une cellule peut avoir plusieurs polygones de couverture
+
+Le masque est une couche filtrée sur l'attribut (`CATCOV = 1`), pas une emprise
+rectangulaire par cellule : MapLibre peint **toutes** les entités qui passent le
+filtre, quel que soit leur nombre, et un anneau intérieur reste un trou. Le
+design ne suppose donc nulle part un polygone unique par cellule. Scan des 7239
+cellules NOAA :
+
+| Polygones `CATCOV=1` par cellule | Cellules       |
+| -------------------------------- | -------------- |
+| 1                                | 7178           |
+| 2                                | 51             |
+| 3                                | 9              |
+| 8                                | 1 (`US3TE400`) |
+
+- **0 cellule sans `CATCOV=1`.** C'est l'invariant dont dépend le masque : une
+  cellule sans polygone de couverture ne masquerait pas la bande inférieure. Un
+  audit le vérifie au build (§5.7).
+- **16 cellules ont des anneaux intérieurs** (jusqu'à 4 anneaux pour
+  `US5CA50M`), dont 14 en bande Harbour.
+- Toutes les géométries sources sont des `POLYGON`, aucun `MULTIPOLYGON`, et
+  aucune valeur de `CATCOV` autre que 1 (couverture) ou 2 (pas de couverture).
+
+Deux vérifications par échantillonnage de points confirment que le tuilage
+préserve la forme réelle de la couverture — GDAL découpe les polygones troués en
+morceaux mono-anneau qui contournent correctement les trous :
+
+- `US5CA50M` (1 polygone, 3 trous) : 0 point sur 200 tirés à l'intérieur de
+  chaque trou serait peint par le masque.
+- `US3TE400` (8 polygones disjoints) : 0 point sur 300 tirés dans la zone
+  `CATCOV=2` qui les sépare serait peint par le masque.
+
 Le résultat corrige les deux directions :
 
 - **En zoomant** : à z13 on voit Harbour où elle existe, Approach là où il n'y a
@@ -191,7 +223,8 @@ de NOAA.
   entre deux appels successifs de `createStyle`.
 - Nouvelle fonction produisant la couche masque d'une bande : `fill`,
   `source-layer: M_COVR`, `filter: ["==", ["get", "CATCOV"], 1]`,
-  `fill-color: colours[mode].NODTA`.
+  `fill-color: colours[mode].NODTA`. Une seule couche par bande, quel que soit le
+  nombre de polygones de couverture des cellules qu'elle contient (§4.1).
 
 ### 5.5 `src/index.ts`
 
@@ -212,6 +245,18 @@ de NOAA.
 Contrainte : `tiles.yml` est désactivé sur le fork `amnesic/enc-tiles` et le
 fork n'a pas les secrets R2. La modification du workflow ne peut donc pas être
 validée en exécution avant la fusion en amont ; elle doit être relue à la main.
+
+### 5.7 `bin/audit-coverage` (nouveau)
+
+Le masque repose sur un invariant : **chaque cellule fournit au moins un polygone
+`M_COVR CATCOV=1`**. Une cellule qui n'en aurait aucun ne masquerait pas la bande
+inférieure sous son emprise, et le défaut serait invisible sauf à tomber
+exactement dessus.
+
+Script Node lançant `ogrinfo` en parallèle sur `data/ENC_ROOT/*/*.000`, qui
+échoue en listant les cellules sans `CATCOV=1`. Environ 3 min sur les 7239
+cellules avec 10 processus. Appelé une fois par `make`, avant la conversion — pas
+une fois par cellule.
 
 ## 6. Risques et points de bascule
 
@@ -242,9 +287,16 @@ validée en exécution avant la fusion en amont ; elle doit être relue à la ma
 4. **Hypothèse « skin of the earth ».** Le masque suppose que les objets du
    groupe 1 couvrent intégralement l'intérieur de `M_COVR CATCOV=1`. Un ENC qui
    violerait cette garantie laisserait apparaître du NODTA. À vérifier
-   visuellement au lot 3.
+   visuellement au lot 3. La forme de la couverture elle-même n'est plus un
+   risque : le nombre de polygones par cellule et leurs trous sont mesurés et
+   traversent le tuilage intacts (§4.1).
 
-5. **Reconversion complète** nécessaire pour le correctif SOUNDG : ~22 min en
+5. **Une cellule sans `CATCOV=1`** ne masquerait pas la bande inférieure sous son
+   emprise. Aucune des 7239 cellules du jeu NOAA courant n'est dans ce cas, mais
+   rien ne le garantit pour une livraison future ni pour un autre producteur.
+   `bin/audit-coverage` (§5.7) transforme cette hypothèse en échec de build.
+
+6. **Reconversion complète** nécessaire pour le correctif SOUNDG : ~22 min en
    local d'après l'horodatage du build précédent (22:21 → 22:43).
 
 ## 7. Tests
@@ -256,11 +308,17 @@ validée en exécution avant la fusion en amont ; elle doit être relue à la ma
 - **`bin/join-bands`** : classement par `minzoom` ; échec explicite sur une
   archive z0/z0 ; échec explicite sur un `minzoom` hors des six valeurs
   attendues.
-- **Non-régression du bug** : deux cartes qui se recouvrent (une Coastal, une
-  Harbour), tuilées et jointes en deux bandes, puis vérification dans le viewer
-  qu'à z13 la Coastal est rendue hors emprise Harbour et masquée à l'intérieur.
-  C'est le test qui échoue avec le pipeline actuel et qui doit passer après le
-  lot 3.
+- **`bin/audit-coverage`** : échec listant les cellules sans `CATCOV=1`.
+- **Non-régression du bug** : deux cartes qui se recouvrent, tuilées et jointes
+  en deux bandes, puis vérification dans le viewer qu'à z13 la Coastal est rendue
+  hors emprise Harbour et masquée à l'intérieur. C'est le test qui échoue avec le
+  pipeline actuel et qui doit passer après le lot 3.
+
+  La paire retenue couvre en même temps le cas multi-polygones : la Coastal
+  `US3CA70M` contient la Harbour `US5CA63M`, qui a **3 polygones de couverture et
+  des anneaux intérieurs** (Los Angeles / Long Beach). Le test vérifie donc aussi
+  que la Coastal réapparaît entre les trois polygones et dans les trous, et pas
+  seulement à l'extérieur de l'emprise globale.
 
 ## 8. Lots
 
@@ -268,7 +326,7 @@ validée en exécution avant la fusion en amont ; elle doit être relue à la ma
 | --- | ------------------------------------------------------------------------------------------------------------ | ----------------------------------------------- |
 | 1   | Robustesse du pipeline : sortie en erreur sur INTU inconnu, glob explicite, nettoyage des `.pmtiles` périmés | indépendant, mergeable seul                     |
 | 2   | Découpage par bande, `bin/join-bands`, viewer multi-sources, CI et R2 — **sans masque**                      | l'écran vide disparaît ici ; mesure du risque 1 |
-| 3   | Masques `M_COVR` et ordre de dessin                                                                          | quilting ; mesure des risques 2 et 4            |
+| 3   | Masques `M_COVR`, ordre de dessin, `bin/audit-coverage`                                                      | quilting ; mesure des risques 2 et 4            |
 | 4   | `OGR_S57_OPTIONS` pour `SOUNDG` et reconversion                                                              | ajoute `DEPTH` aux tuiles                       |
 
 ## 9. Hors périmètre

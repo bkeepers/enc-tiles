@@ -496,9 +496,9 @@ import { groupByBand } from "../bin/lib/group-by-band.mjs";
 
 const headers: Record<string, { minzoom: number; maxzoom: number }> = {
   "tiles/US1EEZ1M/US1EEZ1M.pmtiles": { minzoom: 0, maxzoom: 6 },
-  "tiles/US3AK1CI/US3AK1CI.pmtiles": { minzoom: 9, maxzoom: 10 },
-  "tiles/US5AK8EC/US5AK8EC.pmtiles": { minzoom: 13, maxzoom: 14 },
-  "tiles/US5AK8FC/US5AK8FC.pmtiles": { minzoom: 13, maxzoom: 14 },
+  "tiles/US3CA70M/US3CA70M.pmtiles": { minzoom: 9, maxzoom: 10 },
+  "tiles/US5CA63M/US5CA63M.pmtiles": { minzoom: 13, maxzoom: 14 },
+  "tiles/US5CA65M/US5CA65M.pmtiles": { minzoom: 13, maxzoom: 14 },
   "tiles/USBROKEN/USBROKEN.pmtiles": { minzoom: 0, maxzoom: 0 },
 };
 
@@ -507,18 +507,18 @@ const readHeader = (path: string) => headers[path]!;
 test("groups archives by band, keeping band order", () => {
   const groups = groupByBand(
     [
-      "tiles/US5AK8EC/US5AK8EC.pmtiles",
+      "tiles/US5CA63M/US5CA63M.pmtiles",
       "tiles/US1EEZ1M/US1EEZ1M.pmtiles",
-      "tiles/US5AK8FC/US5AK8FC.pmtiles",
-      "tiles/US3AK1CI/US3AK1CI.pmtiles",
+      "tiles/US5CA65M/US5CA65M.pmtiles",
+      "tiles/US3CA70M/US3CA70M.pmtiles",
     ],
     readHeader,
   );
 
   expect([...groups.keys()]).toEqual(["overview", "coastal", "harbour"]);
   expect(groups.get("harbour")).toEqual([
-    "tiles/US5AK8EC/US5AK8EC.pmtiles",
-    "tiles/US5AK8FC/US5AK8FC.pmtiles",
+    "tiles/US5CA63M/US5CA63M.pmtiles",
+    "tiles/US5CA65M/US5CA65M.pmtiles",
   ]);
 });
 
@@ -1123,9 +1123,9 @@ et `.env.local` doit contenir `VITE_TILES_URL=http://localhost:5173/tiles/`.
 
 Lancer le serveur de dev via l'outil de preview, puis :
 
-- ouvrir la carte sur `#13/52.91/-168.82` (la carte Harbour `US5AK8EC`) — la carte doit être dessinée ;
-- se déplacer vers `#13/53.5/-169.5`, hors de toute emprise Harbour mais dans `US3AK1CI` — **avant le lot 3, la bande Coastal surzoomée doit apparaître empilée sous la Harbour ; l'essentiel est qu'il n'y ait plus de zone vide** ;
-- monter à `#16/52.91/-168.82` — la carte doit rester dessinée, alors qu'elle était vide auparavant.
+- ouvrir la carte sur `#13/33.9294/-118.8008` (dans la couverture de la Harbour `US5CA63M`) — la carte doit être dessinée ;
+- se déplacer vers `#13/33.4000/-118.8000`, hors de toute emprise Harbour mais dans la Coastal `US3CA70M` — **avant le lot 3, la bande Coastal surzoomée doit apparaître empilée sous les autres ; l'essentiel est qu'il n'y ait plus de zone vide** ;
+- monter à `#16/33.9294/-118.8008` — la carte doit rester dessinée, alors qu'elle était vide auparavant.
 
 Vérifier l'absence d'erreurs console et de 404 sur les six archives.
 
@@ -1232,7 +1232,7 @@ Attendu d'après l'estimation du spec : ~6972 couches, ~5,3 MB.
 
 - [ ] **Step 2: Mesurer le temps jusqu'au premier rendu**
 
-Serveur de dev lancé, carte ouverte sur `#12/52.91/-168.82`. Dans la console du navigateur, recharger la page puis exécuter :
+Serveur de dev lancé, carte ouverte sur `#12/33.9294/-118.8008`. Dans la console du navigateur, recharger la page puis exécuter :
 
 ```js
 const navigation = performance.getEntriesByType("navigation")[0];
@@ -1366,6 +1366,11 @@ Ajouter le constructeur de masque, à côté de `background` :
  * FLODOC, HULKES, PONTON) cover the whole interior of an M_COVR CATCOV=1
  * polygon, so painting that polygon and then drawing the band's own fills over
  * it hides everything stacked underneath.
+ *
+ * One layer covers the whole band: the filter selects features, so a cell that
+ * declares several coverage polygons (61 of the 7239 NOAA cells do, up to 8)
+ * gets each of them painted, and an interior ring stays a hole the band below
+ * shows through.
  */
 function coverageMask(
   source: string,
@@ -1443,9 +1448,144 @@ git add packages/styles/src packages/styles/test
 git commit -m "Mask smaller-scale bands with each band's own coverage"
 ```
 
-### Task 12: Non-régression bout en bout sur deux cartes qui se recouvrent
+### Task 12: `bin/audit-coverage` — garantir l'invariant dont dépend le masque
 
-C'est le test qui échoue avec le pipeline d'origine et qui doit passer une fois le lot 3 en place. Il utilise deux vraies cartes : la Coastal `US3AK1CI` (-170.4, 52.8 → -168.0, 54.0) contient strictement la Harbour `US5AK8EC` (-168.9, 52.875 → -168.75, 52.95).
+Le masque ne fonctionne que si **chaque cellule fournit au moins un polygone `M_COVR CATCOV=1`**. Une cellule qui n'en aurait aucun ne masquerait pas la bande inférieure sous son emprise, et le défaut serait invisible sauf à tomber exactement dessus. Sur le jeu NOAA du 2026-08-11, les 7239 cellules respectent l'invariant ; rien ne le garantit pour une livraison future.
+
+**Files:**
+
+- Create: `bin/audit-coverage`
+- Modify: `Makefile`
+
+**Interfaces:**
+
+- Consumes: `data/ENC_ROOT/*/*.000`.
+- Produces: un échec de build listant les cellules sans `CATCOV=1`.
+
+- [ ] **Step 1: Écrire le script**
+
+`bin/audit-coverage` :
+
+```js
+#!/usr/bin/env node
+// The band masks paint M_COVR CATCOV=1, so a cell with no coverage polygon
+// would silently fail to hide the smaller-scale band beneath it. Fail the build
+// instead of shipping an invisible hole.
+//
+// Usage: bin/audit-coverage [enc-root]
+
+import { execFile } from "node:child_process";
+import { existsSync, readdirSync } from "node:fs";
+import { availableParallelism } from "node:os";
+import { join } from "node:path";
+import { promisify } from "node:util";
+
+const run = promisify(execFile);
+const root = process.argv[2] ?? "data/ENC_ROOT";
+
+const cells = readdirSync(root)
+  .map((name) => ({ name, path: join(root, name, `${name}.000`) }))
+  .filter((cell) => existsSync(cell.path));
+
+if (cells.length === 0) {
+  console.error(`No ENC cells found under ${root}`);
+  process.exit(1);
+}
+
+async function coveragePolygons({ path }) {
+  const { stdout } = await run(
+    "ogrinfo",
+    ["-q", "-sql", "SELECT CATCOV FROM M_COVR WHERE CATCOV = 1", path],
+    { maxBuffer: 256 * 1024 * 1024 },
+  );
+  return (stdout.match(/^OGRFeature/gm) ?? []).length;
+}
+
+const workers = Math.max(1, availableParallelism() - 2);
+const queue = [...cells];
+const uncovered = [];
+
+await Promise.all(
+  Array.from({ length: workers }, async () => {
+    for (let cell = queue.pop(); cell; cell = queue.pop()) {
+      if ((await coveragePolygons(cell)) === 0) uncovered.push(cell.name);
+    }
+  }),
+);
+
+if (uncovered.length > 0) {
+  console.error(
+    `${uncovered.length} of ${cells.length} cells have no M_COVR CATCOV=1 polygon, so the band mask would not cover them:\n  ${uncovered.sort().join("\n  ")}`,
+  );
+  process.exit(1);
+}
+
+console.log(`${cells.length} cells all declare their coverage`);
+```
+
+```bash
+chmod +x bin/audit-coverage
+```
+
+- [ ] **Step 2: Vérifier sur un sous-ensemble connu**
+
+```bash
+mkdir -p /tmp/audit-ok/US3TE400 /tmp/audit-ok/US5CA63M
+cp data/ENC_ROOT/US3TE400/US3TE400.000 /tmp/audit-ok/US3TE400/
+cp data/ENC_ROOT/US5CA63M/US5CA63M.000 /tmp/audit-ok/US5CA63M/
+bin/audit-coverage /tmp/audit-ok
+```
+
+Expected: `2 cells all declare their coverage`, statut 0. Ces deux cellules ont respectivement 8 et 3 polygones de couverture : l'audit compte les entités, pas les cellules à un polygone.
+
+- [ ] **Step 3: Vérifier le chemin d'échec**
+
+```bash
+mkdir -p /tmp/audit-ko/US5NOCOV
+ogr2ogr -f S57 /dev/null /dev/null 2>/dev/null || true
+printf '' > /tmp/audit-ko/US5NOCOV/US5NOCOV.000
+bin/audit-coverage /tmp/audit-ko
+```
+
+Expected: statut non nul. Le fichier vide n'est pas un ENC lisible, donc `ogrinfo` échoue et la promesse rejette — l'audit doit s'arrêter plutôt que compter 0 en silence. Si le script termine en 0, ajouter la gestion d'erreur avant de continuer.
+
+- [ ] **Step 4: Lancer l'audit complet**
+
+Run: `time bin/audit-coverage`
+Expected: `7239 cells all declare their coverage`, en environ 3 minutes.
+
+- [ ] **Step 5: Brancher l'audit sur le build**
+
+Dans le `Makefile`, ajouter une cible et la placer en dépendance de la conversion :
+
+```make
+.PHONY: all clean data audit
+
+audit:
+	bin/audit-coverage $(ENC_DIR)
+```
+
+et faire dépendre la cible de join de l'audit :
+
+```make
+$(TILES_DIR)/.bands.stamp: audit $(TILES)
+```
+
+Run: `make -n | head -3`
+Expected: `bin/audit-coverage data/ENC_ROOT` apparaît avant les conversions.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add bin/audit-coverage Makefile
+git commit -m "Fail the build when a cell declares no coverage polygon"
+```
+
+### Task 13: Non-régression bout en bout, y compris couverture multi-polygones
+
+C'est le test qui échoue avec le pipeline d'origine et qui doit passer une fois le lot 3 en place.
+
+La paire de cartes est choisie pour couvrir **en même temps** le cas simple et le cas multi-polygones : la Coastal `US3CA70M` contient la Harbour `US5CA63M` (Los Angeles / Long Beach, emprise -118,824 / 33,759 → -118,371 / 34,071), qui a **3 polygones de couverture disjoints, dont un avec un anneau intérieur**. Le masque doit donc laisser réapparaître la Coastal entre les trois polygones et dans le trou, pas seulement à l'extérieur de l'emprise globale.
 
 **Files:**
 
@@ -1462,15 +1602,18 @@ C'est le test qui échoue avec le pipeline d'origine et qui doit passer une fois
 
 ```bash
 #!/usr/bin/env bash
-# Builds a two-chart tileset for verifying band stacking by hand: the coastal
-# chart US3AK1CI strictly contains the harbour chart US5AK8EC.
+# Builds a two-chart tileset for verifying band stacking by hand.
+#
+# US3CA70M (coastal) contains US5CA63M (harbour), and US5CA63M declares three
+# disjoint coverage polygons, one of them with an interior ring — so this pair
+# also exercises the multi-polygon and hole cases of the M_COVR mask.
 #
 # Usage: bin/fixture-tiles [output-dir]
 
 set -e
 
 out="${1:-public/tiles}"
-charts=(US3AK1CI US5AK8EC)
+charts=(US3CA70M US5CA63M)
 
 mkdir -p "$out"
 
@@ -1490,7 +1633,16 @@ chmod +x bin/fixture-tiles
 Run: `bin/fixture-tiles`
 Expected: `coastal: 1 charts -> public/tiles/fixture-coastal.pmtiles` et `harbour: 1 charts -> public/tiles/fixture-harbour.pmtiles`.
 
-- [ ] **Step 3: Vérifier le quilting dans le viewer**
+- [ ] **Step 3: Vérifier que les trois polygones de couverture arrivent dans les tuiles**
+
+```bash
+ogrinfo -q -sql "SELECT CATCOV FROM M_COVR WHERE CATCOV = 1" \
+  public/tiles/fixture-harbour.pmtiles | grep -c '^OGRFeature'
+```
+
+Expected: un nombre nettement supérieur à 3 — les polygones sont découpés par tuile. Ce qui compte est que le compte soit non nul aux deux niveaux de zoom de la bande ; si `M_COVR` disparaissait à z13 ou z14, le masque disparaîtrait avec.
+
+- [ ] **Step 4: Vérifier le quilting dans le viewer**
 
 Pointer temporairement le viewer sur les fixtures en ajoutant à `.env.local` :
 
@@ -1499,36 +1651,33 @@ VITE_TILES_URL=http://localhost:5173/tiles/
 VITE_TILESET_PREFIX=fixture
 ```
 
-Lancer le serveur de dev via l'outil de preview et vérifier, à `#13/52.91/-168.82` (à l'intérieur de l'emprise Harbour) :
+Lancer le serveur de dev via l'outil de preview et vérifier, aux positions suivantes — toutes calculées à partir des géométries réelles :
 
-- la carte Harbour est dessinée ;
-- aucun trait ni symbole de la Coastal ne transparaît à l'intérieur de l'emprise Harbour.
+| Position                | Attendu                                                                                                                                                             |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `#14/33.9294/-118.8008` | dans la couverture Harbour : la Harbour est dessinée, aucun trait ni symbole de la Coastal ne transparaît                                                           |
+| `#14/33.8557/-118.8005` | **hors couverture Harbour mais dans la Coastal** : la Coastal réapparaît. C'est le cœur du cas multi-polygones — si la Coastal reste masquée ici, le masque déborde |
+| `#15/33.8405/-118.3970` | polygone Harbour 1 : Harbour dessinée                                                                                                                               |
+| `#15/33.9787/-118.4709` | polygone Harbour 2 : Harbour dessinée                                                                                                                               |
+| `#15/33.9935/-118.7230` | polygone Harbour 3 (celui à anneau intérieur) : Harbour dessinée                                                                                                    |
+| `#13/33.4000/-118.8000` | dans la Coastal, loin de la Harbour : Coastal surzoomée. **C'est le cas qui rendait un écran vide avant le chantier.**                                              |
 
-Puis à `#13/53.5/-169.5` (dans la Coastal, hors Harbour) :
-
-- la carte Coastal est dessinée, surzoomée ;
-- **c'est le cas qui rendait un écran vide avant le chantier.**
-
-Puis à `#16/52.91/-168.82` :
-
-- la carte Harbour est toujours dessinée, surzoomée.
-
-Prendre une capture d'écran de chacun des trois cas.
+Prendre une capture d'écran des trois premiers cas.
 
 Une fois la vérification faite, retirer `VITE_TILESET_PREFIX=fixture` de `.env.local` pour que le viewer repointe sur les archives complètes. `.env.local` est ignoré par git, il n'y a rien à committer.
 
-- [ ] **Step 4: Vérifier l'hypothèse « skin of the earth » (spec §6, risque 4)**
+- [ ] **Step 5: Vérifier l'hypothèse « skin of the earth » (spec §6, risque 4)**
 
-Toujours à `#13/52.91/-168.82`, chercher des aplats de la couleur NODTA à l'intérieur de l'emprise Harbour. Leur présence signifierait qu'un objet du groupe 1 manque et que le masque laisse un trou. Consigner le résultat dans `docs/superpowers/plans/2026-08-13-mesures.md`.
+À `#14/33.9294/-118.8008`, chercher des aplats de la couleur NODTA à l'intérieur de la couverture Harbour. Leur présence signifierait qu'un objet du groupe 1 manque et que le masque laisse un trou. Consigner le résultat dans `docs/superpowers/plans/2026-08-13-mesures.md`.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
 git add bin/fixture-tiles docs/superpowers/plans/2026-08-13-mesures.md
-git commit -m "Add a two-chart fixture for verifying band stacking"
+git commit -m "Add a two-chart fixture covering multi-polygon coverage"
 ```
 
-### Task 13: Mesurer la collision de symboles entre bandes masquées — point de bascule
+### Task 14: Mesurer la collision de symboles entre bandes masquées — point de bascule
 
 Le masque agit à la peinture, mais le placement des symboles dans MapLibre est global : les couches `symbol` d'une bande masquée participent quand même à la détection de collision et, déclarées avant celles de la bande visible, elles gagnent la priorité de placement (spec §6, risque 2).
 
@@ -1538,12 +1687,12 @@ Le masque agit à la peinture, mais le placement des symboles dans MapLibre est 
 
 **Interfaces:**
 
-- Consumes: les fixtures de la tâche 12.
+- Consumes: les fixtures de la tâche 13.
 - Produces: la décision de conserver le design par masque ou de rouvrir sur la découpe géométrique.
 
 - [ ] **Step 1: Compter les étiquettes rendues avec et sans la bande inférieure**
 
-Serveur de dev lancé sur les fixtures, carte à `#14/52.91/-168.82`. Dans la console du navigateur :
+Serveur de dev lancé sur les fixtures, carte à `#14/33.9294/-118.8008`. Dans la console du navigateur :
 
 ```js
 const labelled = () =>
@@ -1581,7 +1730,7 @@ git commit -m "Record the cross-band symbol collision measurements"
 
 Indépendant des lots 2 et 3. Nécessite une reconversion complète des 7239 cartes (~22 min en local).
 
-### Task 14: Exposer `DEPTH` sur la couche `SOUNDG`
+### Task 15: Exposer `DEPTH` sur la couche `SOUNDG`
 
 `ogr2ogr` émet aujourd'hui `Warning 1: Attempt to write Z geometries to layer SOUNDG that does not support them. Z component will be discarded`. Pour les sondes S-57, la profondeur **est** la coordonnée Z : elle est donc perdue. `OGR_S57_OPTIONS="SPLIT_MULTIPOINT=ON,ADD_SOUNDG_DEPTH=ON"` éclate les multipoints en points et ajoute un attribut `DEPTH (Real)`. Mesuré sur `US509890` : 976 K → 1,0 M (+5 %) et 3 features → 2681 sondes.
 
@@ -1661,4 +1810,4 @@ git commit -m "Carry sounding depths into the tiles"
 
 ## Hors périmètre
 
-`CS(SOUNDG03)` n'est pas implémentée : le style ne contient **aucune couche `SOUNDG`**, donc la tâche 14 rend la donnée disponible sans la rendre visible. Même situation pour `CS(LIGHTS06)`, `CS(OBSTRN07)`, `CS(WRECKS05)`, `CS(RESARE04)`, `CS(SLCONS04)`, `CS(SYMINS02)`, `CS(TOPMAR01)` et `CS(QUAPOS01)`. Ces procédures de symbologie conditionnelle font l'objet d'un chantier séparé.
+`CS(SOUNDG03)` n'est pas implémentée : le style ne contient **aucune couche `SOUNDG`**, donc la tâche 15 rend la donnée disponible sans la rendre visible. Même situation pour `CS(LIGHTS06)`, `CS(OBSTRN07)`, `CS(WRECKS05)`, `CS(RESARE04)`, `CS(SLCONS04)`, `CS(SYMINS02)`, `CS(TOPMAR01)` et `CS(QUAPOS01)`. Ces procédures de symbologie conditionnelle font l'objet d'un chantier séparé.
