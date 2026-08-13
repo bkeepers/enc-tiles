@@ -76,18 +76,34 @@ export default defineConfig({
 
 `test/s57-to-tiles.test.ts` :
 
+> **Amendement du 2026-08-13, après revue.** La première version de ce test
+> n'assurait rien : elle appelait le script sur un fichier inexistant et se
+> contentait d'un statut non nul, or `ogr2ogr` échoue **de lui-même** dans ce
+> cas et le `echo` pré-existant imprimait déjà « DSID_INTU ». Le test restait
+> vert avec le `exit 1` retiré, y compris sur un PATH sans GDAL. Le test
+> ci-dessous pose un faux `ogr2ogr` en tête de `PATH` et vérifie que le script
+> s'arrête **avant** de l'appeler. Preuve exigée : avec le `exit 1` retiré, le
+> stub sort en 0 et le test doit ÉCHOUER.
+
 ```ts
 import { execFileSync } from "node:child_process";
-import { mkdtempSync } from "node:fs";
+import { chmodSync, existsSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { expect, test } from "vitest";
 
 // Runs bin/s57-to-tiles and captures its exit status and stderr instead of
 // throwing, so tests can assert on failure paths.
-function run(args: string[]): { status: number; stderr: string } {
+function run(
+  args: string[],
+  options?: { env?: NodeJS.ProcessEnv },
+): { status: number; stderr: string } {
   try {
-    execFileSync("bin/s57-to-tiles", args, { encoding: "utf8", stdio: "pipe" });
+    execFileSync("bin/s57-to-tiles", args, {
+      encoding: "utf8",
+      stdio: "pipe",
+      env: options?.env,
+    });
     return { status: 0, stderr: "" };
   } catch (error) {
     const failure = error as { status?: number; stderr?: string };
@@ -97,19 +113,34 @@ function run(args: string[]): { status: number; stderr: string } {
 
 // This path exercises the same branch whether or not GDAL is installed: with no
 // readable DSID layer the intended-use lookup yields an empty string either way.
+// The stub ogr2ogr is what makes the test load-bearing: without the guard the
+// script reaches it, the stub succeeds, and the sentinel assertion fails.
 test("fails when the intended-use band cannot be determined", () => {
-  const out = join(mkdtempSync(join(tmpdir(), "enc-tiles-")), "out.pmtiles");
-  const { status, stderr } = run(["does-not-exist.000", out]);
+  const stubDir = mkdtempSync(join(tmpdir(), "enc-tiles-stub-"));
+  const sentinel = join(stubDir, "ogr2ogr-was-called");
+  const stubOgr2ogr = join(stubDir, "ogr2ogr");
+
+  writeFileSync(stubOgr2ogr, `#!/bin/sh\ntouch "${sentinel}"\nexit 0\n`, {
+    mode: 0o755,
+  });
+  chmodSync(stubOgr2ogr, 0o755);
+
+  const out = join(stubDir, "out.pmtiles");
+  const { status, stderr } = run(["does-not-exist.000", out], {
+    env: { ...process.env, PATH: `${stubDir}:${process.env.PATH}` },
+  });
 
   expect(status).not.toBe(0);
   expect(stderr).toContain("DSID_INTU");
+  expect(existsSync(sentinel)).toBe(false);
 });
 
 test("rejects an output extension that is neither .mbtiles nor .pmtiles", () => {
   const out = join(mkdtempSync(join(tmpdir(), "enc-tiles-")), "out.geojson");
-  const { status } = run(["does-not-exist.000", out]);
+  const { status, stderr } = run(["does-not-exist.000", out]);
 
   expect(status).not.toBe(0);
+  expect(stderr).toContain("mbtiles");
 });
 ```
 
