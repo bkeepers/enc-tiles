@@ -1023,7 +1023,35 @@ export default function ({
 
 - [ ] **Step 5: Mettre à jour le test existant qui construit un `LayerConfig`**
 
-`packages/styles/test/instructions/index.test.ts`, ligne 5 : remplacer `source: "enc",` par `sources: ["enc"],`.
+`packages/styles/test/instructions/index.test.ts` se termine aujourd'hui par `expect(true).toBe(true)`, qui n'assure rien. Puisque cette tâche touche déjà le fichier, remplacer son contenu par :
+
+```ts
+import { expect, test } from "vitest";
+import { build, LayerConfig } from "../../src/symbolology";
+
+const config: LayerConfig = {
+  sources: ["enc"],
+  mode: "DAY",
+  shallowDepth: 3.0, // meters (9.8 feet)
+  safetyDepth: 6.0, // meters (19.6 feet)
+  deepDepth: 9.0, // meters (29.5 feet)
+};
+
+test("symbology from lookups", () => {
+  const layers = build(config);
+
+  expect(layers.length).toBeGreaterThan(0);
+
+  for (const layer of layers) {
+    expect(layer.id).toBeTruthy();
+    if (layer.type === "background") continue;
+    expect(layer.source).toBe("enc");
+    expect(layer["source-layer"]).toBeTruthy();
+  }
+});
+```
+
+L'import de `filter` disparaît : il n'était pas utilisé.
 
 - [ ] **Step 6: Vérifier que toute la suite passe**
 
@@ -1542,12 +1570,11 @@ Expected: `2 cells all declare their coverage`, statut 0. Ces deux cellules ont 
 
 ```bash
 mkdir -p /tmp/audit-ko/US5NOCOV
-ogr2ogr -f S57 /dev/null /dev/null 2>/dev/null || true
 printf '' > /tmp/audit-ko/US5NOCOV/US5NOCOV.000
 bin/audit-coverage /tmp/audit-ko
 ```
 
-Expected: statut non nul. Le fichier vide n'est pas un ENC lisible, donc `ogrinfo` échoue et la promesse rejette — l'audit doit s'arrêter plutôt que compter 0 en silence. Si le script termine en 0, ajouter la gestion d'erreur avant de continuer.
+Expected: statut non nul, et un message nommant `US5NOCOV`. Le fichier vide n'est pas un ENC lisible : `ogrinfo` échoue, `run` rejette, et le rejet non capturé fait sortir Node en erreur. Une cellule illisible ne doit jamais être comptée comme « 0 polygone » en silence, ni comme « couverte ».
 
 - [ ] **Step 4: Lancer l'audit complet**
 
