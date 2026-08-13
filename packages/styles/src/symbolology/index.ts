@@ -13,7 +13,7 @@ import { groupBy } from "../utils.js";
 
 export interface LayerConfig {
   mode: Mode;
-  source: string;
+  sources: string[];
   shallowDepth: number;
   safetyDepth: number;
   deepDepth: number;
@@ -43,20 +43,23 @@ export function build(config: LayerConfig): LayerSpecification[] {
     return [lookup.obcl, lookup.tnam].join("|");
   });
 
-  const layers: LayerSpecification[] = Object.values(lookupGroups).flatMap(
-    (lookups) => {
+  const layers = config.sources.flatMap((source) => {
+    // A fresh counter per source keeps ids unique across bands and stable
+    // between calls to build().
+    let index = 0;
+    const nextIndex = () => index++;
+
+    return Object.values(lookupGroups).flatMap((lookups) => {
       if (!lookups)
         throw new Error(
           "This should never happen but TypeScript insists it can.",
         );
 
-      if (lookups.length <= 1) {
-        return lookups.flatMap(lookupToLayers);
-      } else {
-        return lookupGroupToLayers(lookups);
-      }
-    },
-  );
+      return lookups.length <= 1
+        ? lookups.flatMap((lookup) => lookupToLayers(lookup, source, nextIndex))
+        : lookupGroupToLayers(lookups, source, nextIndex);
+    });
+  });
 
   return [background(config), ...layers];
 }
@@ -76,6 +79,8 @@ export function build(config: LayerConfig): LayerSpecification[] {
  */
 export function lookupGroupToLayers(
   lookups: LookupEntry[],
+  source: string,
+  nextIndex: () => number,
 ): LayerSpecification[] {
   const [fallbackLookup, ...otherLookups] = lookups;
 
@@ -89,7 +94,7 @@ export function lookupGroupToLayers(
     ],
   ];
   return [
-    ...lookupToLayers(fallbackLookup!).map((layer) => ({
+    ...lookupToLayers(fallbackLookup!, source, nextIndex).map((layer) => ({
       ...layer,
       ...("filter" in layer
         ? {
@@ -100,13 +105,17 @@ export function lookupGroupToLayers(
           }
         : {}),
     })),
-    ...otherLookups.flatMap(lookupToLayers),
+    ...otherLookups.flatMap((lookup) =>
+      lookupToLayers(lookup, source, nextIndex),
+    ),
   ];
 }
 
-let i = 0;
-
-export function lookupToLayers(lookup: LookupEntry): LayerSpecification[] {
+export function lookupToLayers(
+  lookup: LookupEntry,
+  source: string,
+  nextIndex: () => number,
+): LayerSpecification[] {
   return instructionsToStyles(lookup.inst).map((layer) => {
     return {
       ...layer,
@@ -125,9 +134,9 @@ export function lookupToLayers(lookup: LookupEntry): LayerSpecification[] {
         ...layer.layout,
         [`${layer.type}-sort-key`]: sortKey(lookup.dpri, layer),
       },
-      source: "enc",
+      source,
       "source-layer": lookup.obcl,
-      id: [i++, lookup.obcl, lookup.ftyp].join("-"),
+      id: [source, nextIndex(), lookup.obcl, lookup.ftyp].join("-"),
     };
   });
 }
