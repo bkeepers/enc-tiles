@@ -1,0 +1,54 @@
+#!/usr/bin/env node
+// The band masks paint M_COVR CATCOV=1, so a cell with no coverage polygon
+// would silently fail to hide the smaller-scale band beneath it. Fail the build
+// instead of shipping an invisible hole.
+//
+// Usage: bin/audit-coverage [enc-root]
+
+import { execFile } from "node:child_process";
+import { existsSync, readdirSync } from "node:fs";
+import { availableParallelism } from "node:os";
+import { join } from "node:path";
+import { promisify } from "node:util";
+
+const run = promisify(execFile);
+const root = process.argv[2] ?? "data/ENC_ROOT";
+
+const cells = readdirSync(root)
+  .map((name) => ({ name, path: join(root, name, `${name}.000`) }))
+  .filter((cell) => existsSync(cell.path));
+
+if (cells.length === 0) {
+  console.error(`No ENC cells found under ${root}`);
+  process.exit(1);
+}
+
+async function coveragePolygons({ path }) {
+  const { stdout } = await run(
+    "ogrinfo",
+    ["-q", "-sql", "SELECT CATCOV FROM M_COVR WHERE CATCOV = 1", path],
+    { maxBuffer: 256 * 1024 * 1024 },
+  );
+  return (stdout.match(/^OGRFeature/gm) ?? []).length;
+}
+
+const workers = Math.max(1, availableParallelism() - 2);
+const queue = [...cells];
+const uncovered = [];
+
+await Promise.all(
+  Array.from({ length: workers }, async () => {
+    for (let cell = queue.pop(); cell; cell = queue.pop()) {
+      if ((await coveragePolygons(cell)) === 0) uncovered.push(cell.name);
+    }
+  }),
+);
+
+if (uncovered.length > 0) {
+  console.error(
+    `${uncovered.length} of ${cells.length} cells have no M_COVR CATCOV=1 polygon, so the band mask would not cover them:\n  ${uncovered.sort().join("\n  ")}`,
+  );
+  process.exit(1);
+}
+
+console.log(`${cells.length} cells all declare their coverage`);
