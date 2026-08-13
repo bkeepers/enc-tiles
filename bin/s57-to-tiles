@@ -4,6 +4,11 @@
 
 set -e
 
+# The depth of an S-57 sounding is carried in the Z coordinate, which MVT drops.
+# SPLIT_MULTIPOINT turns each SOUNDG multipoint into individual points and
+# ADD_SOUNDG_DEPTH lifts the depth into a DEPTH attribute the style can read.
+export OGR_S57_OPTIONS="SPLIT_MULTIPOINT=ON,ADD_SOUNDG_DEPTH=ON"
+
 in=$1
 out=$2
 ext="${out##*.}"
