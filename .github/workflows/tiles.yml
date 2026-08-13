@@ -23,6 +23,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+
       - name: Install GDAL
         run: |
           sudo apt-get update
@@ -56,4 +61,7 @@ jobs:
           AWS_REQUEST_CHECKSUM_CALCULATION: when_required
           AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
           R2_BUCKET: ${{ secrets.R2_BUCKET }}
-        run: aws s3 cp tiles/noaa.pmtiles "s3://${R2_BUCKET}/noaa.pmtiles"
+        run: |
+          for band in overview general coastal approach harbour berthing; do
+            aws s3 cp "tiles/noaa-$band.pmtiles" "s3://${R2_BUCKET}/noaa-$band.pmtiles"
+          done
