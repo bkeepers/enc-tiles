@@ -8,8 +8,9 @@ import {
   Popup,
 } from "maplibre-gl";
 import MaplibreInspect from "@maplibre/maplibre-gl-inspect";
-import { Protocol, PMTiles } from "pmtiles";
-import createStyle, { BANDS } from "@enc-tiles/styles";
+import { Protocol, PMTiles, type Header } from "pmtiles";
+import createStyle, { BANDS, type BandName } from "@enc-tiles/styles";
+import { requireArchiveHeader } from "./require-archive-header.js";
 
 const prefix = import.meta.env.VITE_TILESET_PREFIX ?? "noaa";
 const tilesUrl =
@@ -65,8 +66,35 @@ for (const band of BANDS) {
   archives[band.name] = { url, pmtiles };
 }
 
+// `protocol.add` above is lazy: PMTiles only reads an archive's header the
+// first time MapLibre asks it for a tile or a TileJSON from that source. A
+// missing or bogus archive can therefore go unnoticed at startup -- and
+// worse, on a static host that answers a missing file with its SPA fallback
+// (HTTP 200/206, `content-type: text/html`) instead of a 404, some of the
+// requests that would eventually have surfaced it never resolve at all,
+// leaving the map to hang rather than fail. Read every archive's header up
+// front instead, so a bad archive fails fast, by name, before the map is
+// built at all.
+let headers: Record<BandName, Header>;
+try {
+  headers = Object.fromEntries(
+    await Promise.all(
+      BANDS.map(async (band) => {
+        const { url, pmtiles } = archives[band.name]!;
+        return [
+          band.name,
+          await requireArchiveHeader(band.name, url, pmtiles),
+        ] as const;
+      }),
+    ),
+  ) as Record<BandName, Header>;
+} catch (error) {
+  reportFatalError(error);
+  throw error;
+}
+
 // Centre on the harbour band: it carries the bulk of the coverage.
-const header = await archives["harbour"]!.pmtiles.getHeader();
+const header = headers["harbour"];
 
 const style = createStyle({
   sprite: `${window.location.origin}${import.meta.env.BASE_URL}sprites`,
@@ -96,3 +124,25 @@ map.addControl(new MaplibreInspect({ popup: new Popup({}) }));
 // query the live map (e.g. `map.querySourceFeatures(...)`) without a
 // separate build step.
 (window as unknown as { map: Map }).map = map;
+
+/**
+ * Replace the page with a visible error message.
+ *
+ * A thrown top-level error still reaches devtools, but a blank map behind a
+ * spinner-less page is easy to mistake for "still loading". This makes a
+ * startup failure -- e.g. a missing tile archive -- impossible to miss in
+ * the browser itself, not only in the console, which matters most in
+ * production: if an upload half-fails and one archive goes missing, nobody
+ * is tailing devtools.
+ */
+function reportFatalError(error: unknown): void {
+  console.error(error);
+  const message = error instanceof Error ? error.message : String(error);
+  const banner = document.createElement("pre");
+  banner.textContent = `Failed to load tiles\n\n${message}`;
+  banner.style.cssText =
+    "position:fixed;inset:0;margin:0;padding:2rem;box-sizing:border-box;" +
+    "background:#7f1d1d;color:#fff;font:14px/1.5 ui-monospace,monospace;" +
+    "white-space:pre-wrap;overflow:auto;z-index:9999;";
+  document.body.replaceChildren(banner);
+}
