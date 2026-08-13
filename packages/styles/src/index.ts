@@ -28,7 +28,13 @@ export default function ({
   mode = "DAY",
   sprite,
 }: StyleOptions): StyleSpecification {
-  if (Boolean(source) === Boolean(sources)) {
+  // Boolean({}) is true, so an empty `sources` object must be treated as
+  // absent — otherwise `createStyle({ sources: {} })` slips past this guard
+  // and silently returns a background-only style with no sources at all.
+  const hasSource = Boolean(source);
+  const hasSources = sources !== undefined && Object.keys(sources).length > 0;
+
+  if (hasSource === hasSources) {
     throw new Error("Provide exactly one of `source` or `sources`");
   }
 
@@ -45,6 +51,7 @@ export default function ({
   const config: LayerConfig = {
     mode,
     sources: specs.map(([id]) => id),
+    masks: !source,
     shallowDepth: 3.0, // meters (9.8 feet)
     safetyDepth: 6.0, // meters (19.6 feet)
     deepDepth: 9.0, // meters (29.5 feet)

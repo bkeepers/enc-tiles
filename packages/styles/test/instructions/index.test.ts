@@ -4,6 +4,7 @@ import { build, LayerConfig } from "../../src/symbolology";
 const config: LayerConfig = {
   sources: ["enc"],
   mode: "DAY",
+  masks: false,
   shallowDepth: 3.0, // meters (9.8 feet)
   safetyDepth: 6.0, // meters (19.6 feet)
   deepDepth: 9.0, // meters (29.5 feet)

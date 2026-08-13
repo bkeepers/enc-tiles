@@ -60,3 +60,51 @@ test("rejects being given both source and sources", () => {
     createStyle({ source: vector("test.pmtiles"), sources: allBands }),
   ).toThrow(/exactly one/);
 });
+
+test("rejects an empty sources object as if it were absent", () => {
+  expect(() => createStyle({ sources: {} })).toThrow(/exactly one/);
+});
+
+test("masks every band but the first, right before its own layers", () => {
+  const style = createStyle({ sources: allBands });
+  const ids = style.layers.map((layer) => layer.id);
+
+  expect(ids).not.toContain("overview-coverage-mask");
+
+  for (const [position, band] of BANDS.entries()) {
+    if (position === 0) continue;
+
+    const previous = BANDS[position - 1]!.name;
+    const mask = ids.indexOf(`${band.name}-coverage-mask`);
+    const first = ids.findIndex((id) => id.startsWith(`${band.name}-0-`));
+    const lastPrevious = ids.findLastIndex((id) =>
+      id.startsWith(`${previous}-`),
+    );
+
+    expect(mask, `${band.name} mask is missing`).toBeGreaterThan(-1);
+    expect(mask).toBeGreaterThan(lastPrevious);
+    expect(mask).toBeLessThan(first);
+  }
+});
+
+test("the mask paints the coverage polygons of its own band", () => {
+  const style = createStyle({ sources: allBands });
+  const mask = style.layers.find(
+    (layer) => layer.id === "harbour-coverage-mask",
+  );
+
+  expect(mask).toMatchObject({
+    type: "fill",
+    source: "harbour",
+    "source-layer": "M_COVR",
+    filter: ["==", ["get", "CATCOV"], 1],
+  });
+});
+
+test("a single source emits no mask", () => {
+  const style = createStyle({ source: vector("test.pmtiles") });
+
+  expect(
+    style.layers.some((layer) => layer.id.endsWith("-coverage-mask")),
+  ).toBe(false);
+});
