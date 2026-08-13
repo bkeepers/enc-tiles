@@ -25,7 +25,7 @@ $(TILES_DIR)/.audit.stamp: $(ENC)
 	bin/audit-coverage $(ENC_DIR)
 	@touch $@
 
-$(TILES_DIR)/%.pmtiles: $(ENC_DIR)/%.000
+$(TILES_DIR)/%.pmtiles: $(ENC_DIR)/%.000 | $(TILES_DIR)/.audit.stamp
 	bin/s57-to-tiles $< $@
 
 # GNU Make 3.81 has no grouped targets, so one recipe produces all six archives
