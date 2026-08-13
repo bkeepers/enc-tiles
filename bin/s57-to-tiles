@@ -24,7 +24,7 @@ esac
 mkdir -p "$(dirname $out)"
 
 # Get Intended Use band from DSID_INTU field
-INTENDED_USE=$(ogrinfo -q $in DSID | grep DSID_INTU | awk '{print $NF}' || true)
+INTENDED_USE=$(ogrinfo -q $in DSID | grep DSID_INTU | awk '{print $NF}')
 
 # zoom	scale
 # -z0	  1:320,000,000
