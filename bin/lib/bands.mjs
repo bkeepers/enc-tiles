@@ -15,8 +15,8 @@ export const BANDS = [
 
 /**
  * Resolve the band a tileset belongs to from its PMTiles header minzoom.
- * Returns undefined for a minzoom no band claims, which is how a degenerate
- * z0/z0 archive gets caught.
+ * Returns undefined if no band starts at this minzoom, allowing callers to
+ * reject archives with unexpected zoom ranges.
  */
 export function bandForMinzoom(minzoom) {
   return BANDS.find((band) => band.minzoom === minzoom);
