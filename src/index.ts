@@ -54,3 +54,8 @@ const map = new Map({
 map.addControl(new NavigationControl({ showZoom: true, showCompass: false }));
 map.addControl(new FullscreenControl());
 map.addControl(new MaplibreInspect({ popup: new Popup({}) }));
+
+// Exposed for debugging in this demo inspector: lets the browser console
+// query the live map (e.g. `map.querySourceFeatures(...)`) without a
+// separate build step.
+(window as unknown as { map: Map }).map = map;
