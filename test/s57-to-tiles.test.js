@@ -769,12 +769,15 @@ describe("the chart's own name", () => {
   });
 
   test("a chart with no readable DSNM still tiles, unstamped", () => {
-    // Advisory: the name is a label, and nothing the rung, the clip or the
-    // census does depends on it.
+    // It remains an advisory tile for compatibility, but the cross-cell
+    // partition is disabled: without a current identity the script cannot
+    // exclude itself from the neighbour evidence roster.
     const result = run({ ...NAMED_CELL, STUB_DSNM: "none" });
 
     expect(result.status).toBe(0);
     expect(result.sql).not.toContain("ADD COLUMN DSNM");
+    expect(result.sql).not.toContain("quilting_neighbors.geojson");
+    expect(result.node).not.toContain("--neighbor-area-evidence");
     expect(result.stderr).toContain("no readable DSID_DSNM");
   });
 
@@ -1225,7 +1228,7 @@ describe("the area edge generator", () => {
     );
   });
 
-  test("a partitioned cell hands it the whole-region neighbour roster", () => {
+  test("a partitioned cell hands it the other cells' coverage and semantic roster", () => {
     // The roster is what tells an interior chart border (dropped) from the
     // edge of ALL charted data (kept -- the US/Russia EEZ line defect), and it
     // is exported UNFILTERED: the QFLOOR-filtered quilting exports never carry
@@ -1235,11 +1238,22 @@ describe("the area edge generator", () => {
     expect(node).toMatch(
       /generate-area-edges .*--neighbor-coverage \S+quilting_neighbors\.geojson/,
     );
+    expect(node).toMatch(
+      /generate-area-edges .*--neighbor-area-evidence \S+area_evidence\.geojson/,
+    );
     const exportLine = statements(sql).find((entry) =>
       entry.includes("quilting_neighbors.geojson"),
     );
     expect(exportLine).toBeDefined();
-    expect(exportLine).not.toContain("-where");
+    expect(exportLine).toContain("DSNM <> 'US5WA22M'");
+    expect(exportLine).toContain("DSNM,INTU,CSCALE,QFLOOR");
+    const evidenceLine = statements(sql).find((entry) =>
+      entry.includes("area_evidence.geojson"),
+    );
+    expect(evidenceLine).toBeDefined();
+    expect(evidenceLine).toContain("area_evidence");
+    expect(evidenceLine).toContain("DSNM <> 'US5WA22M'");
+    expect(evidenceLine).toContain("CLASS,CONTENT,DSNM,QFLOOR");
   });
 
   test("an unpartitioned cell passes no roster: the legacy drop stands", () => {
@@ -1251,6 +1265,7 @@ describe("the area edge generator", () => {
       .find((entry) => entry.includes("_AREA_EDGE.geojson"));
     expect(line).toBeDefined();
     expect(line).not.toContain("--neighbor-coverage");
+    expect(line).not.toContain("--neighbor-area-evidence");
   });
 
   test("EXEZNE reaches the derivation AND the tiles", () => {

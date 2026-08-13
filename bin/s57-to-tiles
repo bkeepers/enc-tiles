@@ -183,8 +183,9 @@ fi
 # every tile.
 #
 # Advisory: a chart whose DSID carries no usable name is tiled without the
-# stamp rather than refused. The name is a label, and the rung, the clip and
-# the census all key off numbers this does not touch.
+# stamp rather than refused. It cannot safely participate in semantic
+# cross-cell quilting (there is then no way to exclude its own evidence), so
+# the partition is disabled below and the legacy unpartitioned tile stands.
 dsnm=$(printf '%s\n' "$dsid" | grep DSID_DSNM | awk '{print $NF}' |
   sed 's/\.[0-9][0-9][0-9]$//' | grep -xE '[A-Za-z0-9]{8}' || true)
 if [ -z "$dsnm" ]; then
@@ -233,6 +234,12 @@ if [ -z "$mid_lat" ]; then
   echo "$input: no readable M_COVR extent; publishing unpartitioned" >&2
 elif ! quilt_floor=$(quilt_rung_floor "$cscale" "$mid_lat"); then
   echo "$input: 1:$cscale at $mid_lat is not on the rung ladder; publishing unpartitioned" >&2
+  quilt_floor=""
+elif [ -n "$coverage" ] && [ -z "$dsnm" ]; then
+  # Semantic evidence is keyed by DSNM, so a nameless current chart cannot be
+  # excluded from its own neighbour roster. Keep the legacy advisory tile, but
+  # do not run a partition whose cross-cell comparison would be unsound.
+  echo "$input: no DSID_DSNM; publishing unpartitioned without semantic neighbour evidence" >&2
   quilt_floor=""
 fi
 
@@ -598,7 +605,17 @@ if [ -n "$coverage" ] && [ -f "$coverage" ] && [ -n "$quilt_floor" ]; then
   # bin/quilt-edges.mjs.
   nbr_geojson="$tmpdir/quilting_neighbors.geojson"
   ogr2ogr -f GeoJSON "$nbr_geojson" "$coverage" coverage \
-    -select "INTU,CSCALE,QFLOOR" 2>/dev/null
+    -where "DSNM <> '${dsnm}'" -select "DSNM,INTU,CSCALE,QFLOOR" 2>/dev/null
+
+  # The other cells' semantic areas, from the SAME atomically accepted cache
+  # fragments as their coverage. Coverage selects the serving floor/owners at
+  # each copy interval; these polygons then prove whether EVERY serving owner
+  # continues the same class and content across this cell border. Excluding the
+  # current DSNM is essential: its own matching polygon is not evidence about
+  # what lies on the far side.
+  area_evidence_geojson="$tmpdir/area_evidence.geojson"
+  ogr2ogr -f GeoJSON "$area_evidence_geojson" "$coverage" area_evidence \
+    -where "DSNM <> '${dsnm}'" -select "CLASS,CONTENT,DSNM,QFLOOR" 2>/dev/null
 
   if [ -s "$all_geojson" ]; then
     ogr2ogr -f GPKG "$gpkg" "$all_geojson" -append -nln quilting 2>/dev/null
@@ -1019,8 +1036,9 @@ fi
 # chart border. _AREA_EDGE is the same derivation run per class over every
 # remaining area class the style strokes — a boundary segment is emitted only
 # where the CONTENT differs across it (once per side, carrying that side's
-# attributes), and single-owner segments on the quilt cut or the cell's own
-# ring are dropped. The participating class list lives in the generator
+# attributes). At a chart border they are dropped only when every serving
+# neighbour proves the same class and content; different or absent content
+# keeps the true boundary. The participating class list lives in the generator
 # (--list-classes), so this loop and the derivation cannot drift apart. See
 # bin/generate-area-edges.
 # The class list is captured FIRST so its exit status is observed: a process
@@ -1044,12 +1062,15 @@ if [ ${#area_edge_args[@]} -gt 0 ]; then
   if [ -f "$tmpdir/M_COVR.geojson" ]; then
     area_edge_args+=(--cell-coverage "$tmpdir/M_COVR.geojson")
   fi
-  # The whole-region coverage roster from step 2b, when the partition ran: the
-  # cell-ring drop then keeps a truncated boundary wherever NO chart continues
-  # across the cell's own edge (a data limit running along a real maritime
-  # limit). Absent -- an unpartitioned cell -- the drop stays unconditional.
+  # The other-cell coverage and semantic rosters from step 2b, when the
+  # partition ran: together they distinguish an identical continuation from a
+  # different area or a charted end. Absent -- an unpartitioned cell -- the
+  # legacy coverage-only drop stays unconditional.
   if [ -f "$tmpdir/quilting_neighbors.geojson" ]; then
     area_edge_args+=(--neighbor-coverage "$tmpdir/quilting_neighbors.geojson")
+  fi
+  if [ -f "$tmpdir/area_evidence.geojson" ]; then
+    area_edge_args+=(--neighbor-area-evidence "$tmpdir/area_evidence.geojson")
   fi
   area_edges_geojson="$tmpdir/_AREA_EDGE.geojson"
   node "$SCRIPT_DIR/generate-area-edges" "$area_edges_geojson" "${area_edge_args[@]}"

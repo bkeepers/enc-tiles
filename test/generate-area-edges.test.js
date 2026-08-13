@@ -80,6 +80,19 @@ function run(...args) {
   return JSON.parse(readFileSync(output, "utf8")).features;
 }
 
+function writeEvidence(...args) {
+  const output = join(work, "evidence-output.geojson");
+  const count = execFileSync(
+    process.execPath,
+    [SCRIPT, output, "--write-evidence", ...args],
+    { encoding: "utf8" },
+  );
+  return {
+    count: Number(count),
+    features: JSON.parse(readFileSync(output, "utf8")).features,
+  };
+}
+
 /** The meridian segments of one feature's line, in traversal order. */
 function meridianRuns(feature) {
   const runs = [];
@@ -95,6 +108,33 @@ function meridianRuns(feature) {
 /** Whether any emitted line runs ALONG the shared meridian. */
 function hasMeridian(features) {
   return features.some((feature) => meridianRuns(feature).length > 0);
+}
+
+/** Coverage/evidence for charts serving the far (east) side of the seam. */
+function neighborCoverage(name, ...owners) {
+  return writeCollection(
+    name,
+    owners.map(({ dsnm, qfloor }) =>
+      polygon({ DSNM: dsnm, QFLOOR: qfloor }, EAST_HALF),
+    ),
+  );
+}
+
+function neighborEvidence(name, ...areas) {
+  return writeCollection(
+    name,
+    areas.map(({ dsnm, qfloor, obcl = "RESARE", content }) =>
+      polygon(
+        {
+          CLASS: obcl,
+          CONTENT: JSON.stringify(content),
+          DSNM: dsnm,
+          QFLOOR: qfloor,
+        },
+        EAST_HALF,
+      ),
+    ),
+  );
 }
 
 /** Shoelace of a closed line in lon/lat: > 0 counter-clockwise. */
@@ -263,6 +303,55 @@ describe("the merge rule", () => {
     ]);
 
     expect(hasMeridian(run("--area", `DRYDOC:${areas}`))).toBe(false);
+  });
+});
+
+describe("the cached semantic evidence", () => {
+  test("uses the exact canonical content identity and deterministic schema", () => {
+    const areas = writeCollection("RESARE.geojson", [
+      polygon(
+        {
+          RESTRN: "7",
+          OBJNAM: "Alpha",
+          LNAM: "record-id",
+          SCAMIN: 90000,
+          FIDN: 42,
+          _QZMIN: 9,
+          INFORM: null,
+        },
+        WEST_HALF,
+      ),
+    ]);
+
+    const evidence = writeEvidence(
+      "--evidence-dsnm",
+      "US5LEFT1",
+      "--evidence-qfloor",
+      "9",
+      "--area",
+      `RESARE:${areas}`,
+    );
+
+    expect(evidence.count).toBe(1);
+    expect(evidence.features).toHaveLength(1);
+    expect(evidence.features[0].properties).toEqual({
+      CLASS: "RESARE",
+      CONTENT: '{"OBJNAM":"Alpha","RESTRN":"7"}',
+      DSNM: "US5LEFT1",
+      QFLOOR: 9,
+    });
+    expect(evidence.features[0].geometry.coordinates).toEqual([WEST_HALF]);
+  });
+
+  test("writes a valid proved-empty collection and count", () => {
+    const evidence = writeEvidence(
+      "--evidence-dsnm",
+      "US5EMPTY",
+      "--evidence-qfloor",
+      "9",
+    );
+
+    expect(evidence).toEqual({ count: 0, features: [] });
   });
 });
 
@@ -634,6 +723,235 @@ describe("the edge of all charted data (--neighbor-coverage)", () => {
     // stands.
     expect(features).toHaveLength(1);
     expect(hasMeridian(features)).toBe(true);
+  });
+});
+
+describe("cross-cell semantic evidence", () => {
+  const current = () =>
+    writeCollection("RESARE.geojson", [polygon({ RESTRN: "7" }, WEST_HALF)]);
+  const cell = () =>
+    writeCollection("M_COVR.geojson", [polygon({ CATCOV: 1 }, WEST_HALF)]);
+
+  function runSemantic(coverage, evidence, areas = current()) {
+    return run(
+      "--area",
+      `RESARE:${areas}`,
+      "--cell-coverage",
+      cell(),
+      "--neighbor-coverage",
+      coverage,
+      "--neighbor-area-evidence",
+      evidence,
+    );
+  }
+
+  test("two cells with the SAME class and content have no border seam", () => {
+    const coverage = neighborCoverage("neighbors.geojson", {
+      dsnm: "US5RIGHT",
+      qfloor: 9,
+    });
+    const evidence = neighborEvidence("evidence.geojson", {
+      dsnm: "US5RIGHT",
+      qfloor: 9,
+      content: { RESTRN: "7" },
+    });
+
+    expect(hasMeridian(runSemantic(coverage, evidence))).toBe(false);
+  });
+
+  test("a serving cell with no same-class content keeps the charted end", () => {
+    const coverage = neighborCoverage("neighbors.geojson", {
+      dsnm: "US5RIGHT",
+      qfloor: 9,
+    });
+    // A valid empty FeatureCollection is the merged manifest's proved-absent
+    // case, not a missing/corrupt evidence input.
+    const evidence = writeCollection("evidence.geojson", []);
+
+    expect(hasMeridian(runSemantic(coverage, evidence))).toBe(true);
+  });
+
+  test("an evidence-aware roster with no far-side coverage keeps the edge", () => {
+    // The roster may be non-empty for charts elsewhere in the region. Only a
+    // chart containing the OUTWARD probe is a serving owner of this border.
+    const coverage = writeCollection("neighbors.geojson", [
+      polygon({ DSNM: "US5OTHER", QFLOOR: 9 }, WEST_HALF),
+    ]);
+    const evidence = writeCollection("evidence.geojson", []);
+
+    expect(hasMeridian(runSemantic(coverage, evidence))).toBe(true);
+  });
+
+  test("two cells with DIFFERENT content keep the full per-side boundary", () => {
+    const coverage = neighborCoverage("neighbors.geojson", {
+      dsnm: "US5RIGHT",
+      qfloor: 9,
+    });
+    const evidence = neighborEvidence("evidence.geojson", {
+      dsnm: "US5RIGHT",
+      qfloor: 9,
+      content: { RESTRN: "1" },
+    });
+
+    const features = runSemantic(coverage, evidence);
+    expect(hasMeridian(features)).toBe(true);
+    expect(features.every((f) => f.properties.RESTRN === "7")).toBe(true);
+  });
+
+  test("every same-floor serving owner must match: one different keeps it", () => {
+    const coverage = neighborCoverage(
+      "neighbors.geojson",
+      { dsnm: "US5SAME1", qfloor: 9 },
+      { dsnm: "US5DIFF1", qfloor: 9 },
+    );
+    const evidence = neighborEvidence(
+      "evidence.geojson",
+      { dsnm: "US5SAME1", qfloor: 9, content: { RESTRN: "7" } },
+      { dsnm: "US5DIFF1", qfloor: 9, content: { RESTRN: "1" } },
+    );
+
+    expect(hasMeridian(runSemantic(coverage, evidence))).toBe(true);
+  });
+
+  test("every same-floor serving owner must match: one absent keeps it", () => {
+    const coverage = neighborCoverage(
+      "neighbors.geojson",
+      { dsnm: "US5SAME1", qfloor: 9 },
+      { dsnm: "US5EMPTY", qfloor: 9 },
+    );
+    const evidence = neighborEvidence("evidence.geojson", {
+      dsnm: "US5SAME1",
+      qfloor: 9,
+      content: { RESTRN: "7" },
+    });
+
+    expect(hasMeridian(runSemantic(coverage, evidence))).toBe(true);
+  });
+
+  test("multiple same-floor serving owners all matching suppress the seam", () => {
+    const coverage = neighborCoverage(
+      "neighbors.geojson",
+      { dsnm: "US5SAME1", qfloor: 9 },
+      { dsnm: "US5SAME2", qfloor: 9 },
+    );
+    const evidence = neighborEvidence(
+      "evidence.geojson",
+      { dsnm: "US5SAME1", qfloor: 9, content: { RESTRN: "7" } },
+      { dsnm: "US5SAME2", qfloor: 9, content: { RESTRN: "7" } },
+    );
+
+    expect(hasMeridian(runSemantic(coverage, evidence))).toBe(false);
+  });
+
+  test("overlapping local owners suppress only the content that continues", () => {
+    const areas = writeCollection("RESARE.geojson", [
+      polygon({ RESTRN: "7" }, WEST_HALF),
+      polygon({ RESTRN: "1" }, WEST_HALF),
+    ]);
+    const coverage = neighborCoverage("neighbors.geojson", {
+      dsnm: "US5RIGHT",
+      qfloor: 9,
+    });
+    const evidence = neighborEvidence("evidence.geojson", {
+      dsnm: "US5RIGHT",
+      qfloor: 9,
+      content: { RESTRN: "7" },
+    });
+
+    const features = runSemantic(coverage, evidence, areas);
+    const meridian = features.filter((feature) => hasMeridian([feature]));
+    expect(meridian).toHaveLength(1);
+    expect(meridian[0].properties).toMatchObject({
+      CLASS: "RESARE",
+      RESTRN: "1",
+    });
+  });
+
+  test("the selected serving floor changes at the z9 handoff", () => {
+    const areas = writeCollection("RESARE.geojson", [
+      polygon({ RESTRN: "7", _QZMIN: 8, _QZMAX: 8 }, WEST_HALF),
+      polygon({ RESTRN: "7", _QZMIN: 9 }, WEST_HALF),
+    ]);
+    const coverage = neighborCoverage(
+      "neighbors.geojson",
+      { dsnm: "US3COARS", qfloor: 8 },
+      { dsnm: "US4FINER", qfloor: 9 },
+    );
+    const evidence = neighborEvidence(
+      "evidence.geojson",
+      { dsnm: "US3COARS", qfloor: 8, content: { RESTRN: "1" } },
+      { dsnm: "US4FINER", qfloor: 9, content: { RESTRN: "7" } },
+    );
+
+    const features = runSemantic(coverage, evidence, areas);
+    expect(hasMeridian(features.filter((f) => f.properties._QZMIN === 8))).toBe(
+      true,
+    );
+    expect(hasMeridian(features.filter((f) => f.properties._QZMIN === 9))).toBe(
+      false,
+    );
+  });
+
+  test("proved absence on the z9 owner keeps the maritime-limit handoff", () => {
+    const areas = writeCollection("RESARE.geojson", [
+      polygon({ RESTRN: "7", _QZMIN: 8, _QZMAX: 8 }, WEST_HALF),
+      polygon({ RESTRN: "7", _QZMIN: 9 }, WEST_HALF),
+    ]);
+    const coverage = neighborCoverage(
+      "neighbors.geojson",
+      { dsnm: "US3COARS", qfloor: 8 },
+      { dsnm: "US4FINER", qfloor: 9 },
+    );
+    const evidence = neighborEvidence("evidence.geojson", {
+      dsnm: "US3COARS",
+      qfloor: 8,
+      content: { RESTRN: "7" },
+    });
+
+    const features = runSemantic(coverage, evidence, areas);
+    expect(hasMeridian(features.filter((f) => f.properties._QZMIN === 8))).toBe(
+      false,
+    );
+    expect(hasMeridian(features.filter((f) => f.properties._QZMIN === 9))).toBe(
+      true,
+    );
+  });
+
+  test("a fallback interval selects the coarsest covering owner", () => {
+    const areas = writeCollection("RESARE.geojson", [
+      polygon({ RESTRN: "7", _QZMAX: 7, _QFALL: 1 }, WEST_HALF),
+    ]);
+    const coverage = neighborCoverage(
+      "neighbors.geojson",
+      { dsnm: "US2FALLB", qfloor: 8 },
+      { dsnm: "US4LATER", qfloor: 10 },
+    );
+    const evidence = neighborEvidence(
+      "evidence.geojson",
+      { dsnm: "US2FALLB", qfloor: 8, content: { RESTRN: "7" } },
+      { dsnm: "US4LATER", qfloor: 10, content: { RESTRN: "1" } },
+    );
+
+    const features = runSemantic(coverage, evidence, areas);
+    expect(hasMeridian(features)).toBe(false);
+  });
+
+  test("an OGR-null _QZMIN falls through to the fallback's _QZMAX", () => {
+    const areas = writeCollection("RESARE.geojson", [
+      polygon({ RESTRN: "7", _QZMIN: null, _QZMAX: 8, _QFALL: 1 }, WEST_HALF),
+    ]);
+    const coverage = neighborCoverage(
+      "neighbors.geojson",
+      { dsnm: "US1OLDER", qfloor: 7 },
+      { dsnm: "US2FALLB", qfloor: 8 },
+    );
+    const evidence = neighborEvidence(
+      "evidence.geojson",
+      { dsnm: "US1OLDER", qfloor: 7, content: { RESTRN: "1" } },
+      { dsnm: "US2FALLB", qfloor: 8, content: { RESTRN: "7" } },
+    );
+
+    expect(hasMeridian(runSemantic(coverage, evidence, areas))).toBe(false);
   });
 });
 

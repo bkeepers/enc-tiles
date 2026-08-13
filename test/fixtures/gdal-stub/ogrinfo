@@ -25,6 +25,8 @@
 #   STUB_COUNT_FAILS       the post-clip counting query exits non-zero
 #   STUB_COUNT_GARBAGE     the post-clip count comes back with no integer in it
 #   STUB_COUNT_TYPE        the count column's OGR type (Integer/Integer64)
+#   STUB_EMPTY_COUNT_MATCH a substring of a count query that should exit zero
+#                          without returning a count row
 #   STUB_STATE             file used to tell the pre-clip count from the
 #                          post-clip one; they are the same query text
 #   STUB_SQL_LOG           file every -sql statement is appended to, so a test
@@ -41,6 +43,12 @@ emit_count() {
   echo "OGRFeature(SELECT):0"
   echo "  n (${STUB_COUNT_TYPE:-Integer}) = $1"
 }
+
+if [ -n "${STUB_EMPTY_COUNT_MATCH:-}" ] &&
+  [[ "$args" == *"${STUB_EMPTY_COUNT_MATCH}"* ]]; then
+  echo "Layer name: SELECT"
+  exit 0
+fi
 
 case "$args" in
   *-sql*)
@@ -82,6 +90,17 @@ case "$args" in
           echo "  QFLOOR (Integer) = $f"
           i=$((i + 1))
         done
+        exit 0
+        ;;
+      *"FROM area_evidence_manifest"*)
+        case "$sql" in
+          *"COUNT(*)"*) emit_count "${STUB_MANIFEST_ROWS:-1}" ;;
+          *) emit_count "${STUB_MANIFEST_TOTAL:-${STUB_AREA_TOTAL:-0}}" ;;
+        esac
+        exit 0
+        ;;
+      *"FROM area_evidence"*)
+        emit_count "${STUB_AREA_TOTAL:-0}"
         exit 0
         ;;
       *"FROM coverage"*)

@@ -60,35 +60,34 @@ afterEach(() => {
 
 function run(env = {}) {
   const input = join(work, "US5WA22M.000");
+  const output = join(work, "coverage.gpkg");
   const sqlLog = join(work, `sql-${runs++}.log`);
   writeFileSync(input, "");
+  if (env.STUB_EXISTING_OUTPUT) writeFileSync(output, env.STUB_EXISTING_OUTPUT);
 
-  const result = spawnSync(
-    "bash",
-    [SCRIPT, join(work, "coverage.gpkg"), input],
-    {
-      encoding: "utf8",
-      env: {
-        ...process.env,
-        PATH: `${stubDir}:${process.env.PATH}`,
-        STUB_SQL_LOG: sqlLog,
-        STUB_EXTENT: extentAt(48.5),
-        ...env,
-      },
+  const result = spawnSync("bash", [SCRIPT, output, input], {
+    encoding: "utf8",
+    env: {
+      ...process.env,
+      PATH: `${stubDir}:${process.env.PATH}`,
+      STUB_SQL_LOG: sqlLog,
+      STUB_EXTENT: extentAt(48.5),
+      ...env,
     },
-  );
+  });
   return {
     status: result.status,
     stdout: result.stdout ?? "",
     stderr: result.stderr ?? "",
     sql: existsSync(sqlLog) ? readFileSync(sqlLog, "utf8") : "",
+    output: existsSync(output) ? readFileSync(output, "utf8") : null,
   };
 }
 
 /** The columns the coverage rows were stamped with, or null if none were. */
 function stamps(sql) {
   const match =
-    /SELECT \*, (\d+) AS INTU, (\d+) AS CSCALE, (\d+) AS QFLOOR FROM M_COVR/.exec(
+    /SELECT \*, '[A-Za-z0-9]{8}' AS DSNM, (\d+) AS INTU, (\d+) AS CSCALE, (\d+) AS QFLOOR FROM M_COVR/.exec(
       sql,
     );
   if (!match) return null;
@@ -206,5 +205,113 @@ describe("what reaches the coverage table", () => {
 
     expect(sql).toContain("FROM M_COVR WHERE CATCOV=1");
     expect(sql).not.toContain("INTU >");
+  });
+
+  test("coverage and the semantic manifest carry the exact cell identity", () => {
+    const { sql } = run({ STUB_DSNM: "US5WA22M.000" });
+
+    expect(sql).toContain("'US5WA22M' AS DSNM");
+    expect(sql).toContain(
+      "INSERT INTO area_evidence_manifest (DSNM,QFLOOR,SCHEMA,FEATURE_COUNT) VALUES ('US5WA22M',12,1,0)",
+    );
+  });
+
+  test("zero participating areas is a proved empty manifest, not a failure", () => {
+    const result = run({ STUB_TABLES: "M_COVR" });
+
+    expect(result.status).toBe(0);
+    expect(result.sql).toContain("DELETE FROM area_evidence");
+    expect(result.sql).toContain("DELETE FROM area_evidence_manifest");
+    expect(result.sql).toContain("FEATURE_COUNT) VALUES ('US5WA22M',12,1,0)");
+  });
+
+  test("the evidence layer promotes Polygon and MultiPolygon into one schema", () => {
+    const result = run({ STUB_TABLES: "M_COVR RESARE" });
+    const evidenceImports = result.sql
+      .split("\n--\n")
+      .filter(
+        (entry) =>
+          entry.includes("area-evidence-schema.geojson") ||
+          entry.includes("area-evidence.geojson"),
+      );
+
+    expect(evidenceImports).not.toHaveLength(0);
+    expect(
+      evidenceImports.every((entry) => entry.includes("-nlt PROMOTE_TO_MULTI")),
+    ).toBe(true);
+  });
+
+  test("a participating class export failure rejects the whole fragment", () => {
+    const result = run({
+      STUB_TABLES: "M_COVR RESARE",
+      STUB_OGR2OGR_FAIL_MATCH: "RESARE",
+    });
+
+    expect(result.status).not.toBe(0);
+    expect(result.sql).not.toContain("FEATURE_COUNT) VALUES ('US5WA22M'");
+  });
+
+  test("a failed replacement leaves the previously accepted fragment intact", () => {
+    const result = run({
+      STUB_TABLES: "M_COVR RESARE",
+      STUB_OGR2OGR_FAIL_MATCH: "RESARE",
+      STUB_EXISTING_OUTPUT: "accepted-fragment",
+    });
+
+    expect(result.status).not.toBe(0);
+    expect(result.output).toBe("accepted-fragment");
+  });
+
+  test("a coverage import failure cannot receive an authoritative manifest", () => {
+    const result = run({
+      STUB_TABLES: "M_COVR",
+      STUB_OGR2OGR_FAIL_MATCH: "M_COVR -update",
+      STUB_EXISTING_OUTPUT: "accepted-fragment",
+    });
+
+    expect(result.status).not.toBe(0);
+    expect(result.sql).not.toContain("FEATURE_COUNT) VALUES ('US5WA22M'");
+    expect(result.output).toBe("accepted-fragment");
+  });
+
+  test("an empty count query fails closed and preserves the old fragment", () => {
+    const result = run({
+      STUB_TABLES: "M_COVR",
+      STUB_EMPTY_COUNT_MATCH: "FROM area_evidence",
+      STUB_EXISTING_OUTPUT: "accepted-fragment",
+    });
+
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toContain(
+      "Could not validate coverage/evidence counts",
+    );
+    expect(result.output).toBe("accepted-fragment");
+  });
+
+  test("evidence and manifest count mismatch rejects the fragment", () => {
+    const result = run({
+      STUB_TABLES: "M_COVR",
+      STUB_AREA_TOTAL: "1",
+      STUB_MANIFEST_TOTAL: "0",
+    });
+
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toContain("does not match manifest");
+    expect(result.output).toBeNull();
+  });
+
+  test("a missing schema-1 manifest row rejects the fragment", () => {
+    const result = run({ STUB_TABLES: "M_COVR", STUB_MANIFEST_ROWS: "0" });
+
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toContain("manifest is incomplete");
+    expect(result.output).toBeNull();
+  });
+
+  test("a missing DSNM cannot masquerade as semantic absence", () => {
+    const result = run({ STUB_DSNM: "none" });
+
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toContain("no readable DSID_DSNM");
   });
 });

@@ -8,13 +8,13 @@
 if [ -n "$STUB_NODE_LOG" ]; then
   echo "$*" >> "$STUB_NODE_LOG"
 fi
-# `--list-classes` is a METADATA query, not a generator run: bin/s57-to-tiles
-# reads the participating class list off it to build the _AREA_EDGE wiring, so
-# it is answered by the real node -- swallowing it would silently empty that
-# wiring in every test. The real binary is whichever node on PATH is not this
-# stub.
+# `--list-classes` and `--write-evidence` are extraction operations, not tile
+# derived-layer runs: the shell scripts consume their stdout and (for evidence)
+# output file, so both are answered by the real node. Swallowing either would
+# silently empty the fragment or wiring in every test. The real binary is
+# whichever node on PATH is not this stub.
 for arg in "$@"; do
-  if [ "$arg" = "--list-classes" ]; then
+  if [ "$arg" = "--list-classes" ] || [ "$arg" = "--write-evidence" ]; then
     self_dir=$(cd "$(dirname "$0")" && pwd)
     while IFS= read -r candidate; do
       candidate_dir=$(cd "$(dirname "$candidate")" && pwd)
@@ -22,7 +22,7 @@ for arg in "$@"; do
         exec "$candidate" "$@"
       fi
     done < <(type -ap node)
-    echo "stub node: no real node on PATH for --list-classes" >&2
+    echo "stub node: no real node on PATH for extraction operation" >&2
     exit 1
   fi
 done

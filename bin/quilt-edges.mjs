@@ -234,7 +234,14 @@ export function coveragePolygons(paths) {
           if (y < minY) minY = y;
           if (y > maxY) maxY = y;
         }
-        entries.push({ polygon, minX, minY, maxX, maxY });
+        entries.push({
+          polygon,
+          minX,
+          minY,
+          maxX,
+          maxY,
+          properties: feature.properties ?? {},
+        });
       }
     }
   }
@@ -253,17 +260,23 @@ function inRing(ring, [x, y]) {
   return inside;
 }
 
-/** Whether any coverage polygon contains the point (holes even-odd). */
-export function coverageContains(entries, point) {
+/** Every polygon entry that contains `point` (holes use even-odd fill). */
+export function polygonsContaining(entries, point) {
   const [x, y] = point;
+  const matches = [];
   for (const entry of entries) {
     if (x < entry.minX || x > entry.maxX || y < entry.minY || y > entry.maxY)
       continue;
     let inside = false;
     for (const ring of entry.polygon) if (inRing(ring, point)) inside = !inside;
-    if (inside) return true;
+    if (inside) matches.push(entry);
   }
-  return false;
+  return matches;
+}
+
+/** Whether any coverage polygon contains the point (holes even-odd). */
+export function coverageContains(entries, point) {
+  return polygonsContaining(entries, point).length > 0;
 }
 
 /**
@@ -418,11 +431,17 @@ export function chain(entries) {
  *             direction). Without it the segment walks its first owner's
  *             canonical orientation, which is all a single-edge classifier
  *             ever needed.
- *   onSeam    (a, b, walk) -> the segment is a chart border; see THE CHART
+ *   onSeam    (a, b, walk, sides, range) -> the segment is a chart border;
+ *             see THE CHART
  *             BORDER. Consulted only for ONE-SIDED segments -- a single owner,
  *             or several owners all walking the same way -- and handed the
  *             owners' shared canonical walk so a continuation probe knows
- *             which side is out.
+ *             which side is out. The legacy boolean result remains supported:
+ *             true drops the whole segment, false keeps it. A semantic caller
+ *             may instead return `{ suppressSides: number[] }`; only those
+ *             owner indexes are removed before classification. This is how an
+ *             area continued by identical neighbour content disappears while
+ *             a different or absent neighbour keeps this cell's side.
  *
  * Returns `{ features, segmentTotal, seamTotal }`, the two totals being what
  * the generators report on stderr.
@@ -491,9 +510,25 @@ export function deriveDifferEdges({
         // evidence of a change and says nothing -- for a lone truncated area
         // and equally for overlapping areas truncated together (see THE CHART
         // BORDER: the nested-jurisdiction seam).
-        if (onSeam(segment.a, segment.b, dirs[0])) {
+        const seam = onSeam(
+          segment.a,
+          segment.b,
+          dirs[0],
+          sides,
+          interval.range,
+        );
+        if (seam === true) {
           seamTotal++;
           continue;
+        }
+        if (seam && Array.isArray(seam.suppressSides)) {
+          const suppressed = new Set(seam.suppressSides);
+          sides = sides.filter((_, index) => !suppressed.has(index));
+          dirs = dirs.filter((_, index) => !suppressed.has(index));
+          if (sides.length === 0) {
+            seamTotal++;
+            continue;
+          }
         }
       }
       if (sides.length < 2) {

@@ -7,7 +7,8 @@
 //   bin/generate-area-edges <output.geojson> \
 //     --area RESARE:RESARE.geojson [--area CTNARE:CTNARE.geojson ...] \
 //     [--coverage quilting_coverage.geojson] [--cell-coverage M_COVR.geojson] \
-//     [--neighbor-coverage quilting_neighbors.geojson]
+//     [--neighbor-coverage quilting_neighbors.geojson] \
+//     [--neighbor-area-evidence area_evidence.geojson]
 //
 //   bin/generate-area-edges --list-classes
 //     prints the participating classes, one per line, which is how
@@ -54,21 +55,22 @@
 //
 //   A ONE-SIDED segment -- one owner, or overlapping areas truncated together,
 //   every interior on the same side -- lying along a quilt cut (--coverage) or
-//   along this cell's own M_COVR ring (--cell-coverage) is DROPPED, exactly as
-//   _MQUAL_EDGE and _BUAARE_EDGE drop theirs: the area continues onto the next
-//   chart, this cell cannot see what is there, and a line at every cell border
-//   is the defect this layer exists to remove. See THE CHART BORDER in
-//   bin/quilt-edges.mjs for the trade that buys -- a real change falling
-//   exactly on the border goes unmarked in this cell and is marked in the
-//   neighbour wherever it holds both sides.
+//   this cell's M_COVR ring (--cell-coverage) is a CANDIDATE chart seam. The
+//   other charts' M_COVR roster (--neighbor-coverage) selects the serving floor
+//   for this copy-ladder interval and every DSNM that owns the far-side probe
+//   there. The cached semantic roster (--neighbor-area-evidence) then suppresses
+//   one current side ONLY when EVERY serving DSNM contains the same CLASS and
+//   exact content identity. One different owner, or one owner whose manifest
+//   proved the class absent, keeps the boundary. That is the evidence the old
+//   coverage-only presumption lacked: identical cross-cell content merges, but
+//   a real change exactly at a cell edge stands.
 //
-//   --neighbor-coverage (the OTHER charts' M_COVR roster, own rows harmless)
-//   refines the cell-ring half of that drop: where NO chart lies across the
-//   ring, the truncation is the true charted end of the area -- NOAA runs data
-//   limits along real maritime limits, the US/Russia EEZ line above all -- and
-//   the boundary presentation stands. See THE EDGE OF ALL CHARTED DATA in
-//   bin/quilt-edges.mjs; without the flag the drop is unconditional, as it
-//   always was.
+//   Where no chart lies across the ring, the truncation is the true charted end
+//   of the area -- NOAA runs data limits along real maritime limits, the
+//   US/Russia EEZ line above all -- and the presentation stands. Without the
+//   semantic roster an older caller retains the historical unconditional seam
+//   drop; cached fragments are accepted only with a manifest, so missing or
+//   malformed evidence never reaches the evidence-aware path as "absence".
 //
 // Each output feature carries:
 //
@@ -87,7 +89,13 @@
 
 import { writeFileSync } from "fs";
 
-import { chartBorderTest, deriveDifferEdges } from "./quilt-edges.mjs";
+import {
+  chartBorderTest,
+  coveragePolygons,
+  deriveDifferEdges,
+  outwardProbe,
+  polygonsContaining,
+} from "./quilt-edges.mjs";
 import { readFeatures } from "./quilt-geojson.mjs";
 
 /**
@@ -272,7 +280,11 @@ const classPaths = [];
 const coveragePaths = [];
 const cellCoveragePaths = [];
 const neighborCoveragePaths = [];
+const neighborAreaEvidencePaths = [];
 const positional = [];
+let writeEvidence = false;
+let evidenceDsnm = "";
+let evidenceQfloor = null;
 
 for (let i = 0; i < args.length; i++) {
   if (args[i] === "--area" && args[i + 1]) {
@@ -289,16 +301,63 @@ for (let i = 0; i < args.length; i++) {
     cellCoveragePaths.push(args[++i]);
   else if (args[i] === "--neighbor-coverage" && args[i + 1])
     neighborCoveragePaths.push(args[++i]);
+  else if (args[i] === "--neighbor-area-evidence" && args[i + 1])
+    neighborAreaEvidencePaths.push(args[++i]);
+  else if (args[i] === "--write-evidence") writeEvidence = true;
+  else if (args[i] === "--evidence-dsnm" && args[i + 1])
+    evidenceDsnm = args[++i];
+  else if (args[i] === "--evidence-qfloor" && args[i + 1])
+    evidenceQfloor = Number(args[++i]);
   else positional.push(args[i]);
 }
 
 const outputPath = positional[0];
-if (!outputPath || classPaths.length === 0) {
+if (!outputPath || (classPaths.length === 0 && !writeEvidence)) {
   console.error(
-    "Usage: generate-area-edges <output.geojson> --area <CLASS:file> [--area <CLASS:file> ...] [--coverage <file>] [--cell-coverage <file>] [--neighbor-coverage <file>]\n" +
+    "Usage: generate-area-edges <output.geojson> --area <CLASS:file> [--area <CLASS:file> ...] [--coverage <file>] [--cell-coverage <file>] [--neighbor-coverage <file>] [--neighbor-area-evidence <file>]\n" +
       "       generate-area-edges --list-classes",
   );
   process.exit(1);
+}
+
+// extract-coverage uses this mode to cache exactly the identity this generator
+// compares, rather than asking shell/OGR SQL to reproduce its exclusions and
+// canonical JSON ordering. The deliberately narrow schema can be merged across
+// unlike S-57 classes without field drift.
+if (writeEvidence) {
+  if (!evidenceDsnm || !Number.isFinite(evidenceQfloor)) {
+    console.error(
+      "generate-area-edges --write-evidence requires --evidence-dsnm and --evidence-qfloor",
+    );
+    process.exit(1);
+  }
+  const evidence = [];
+  for (const { name, path } of classPaths) {
+    for (const feature of readFeatures(path)) {
+      if (
+        feature.geometry?.type !== "Polygon" &&
+        feature.geometry?.type !== "MultiPolygon"
+      ) {
+        continue;
+      }
+      evidence.push({
+        type: "Feature",
+        geometry: feature.geometry,
+        properties: {
+          CLASS: name,
+          CONTENT: JSON.stringify(contentOf(feature.properties)),
+          DSNM: evidenceDsnm,
+          QFLOOR: evidenceQfloor,
+        },
+      });
+    }
+  }
+  writeFileSync(
+    outputPath,
+    JSON.stringify({ type: "FeatureCollection", features: evidence }),
+  );
+  process.stdout.write(String(evidence.length));
+  process.exit(0);
 }
 
 /**
@@ -318,6 +377,80 @@ const onSeam = chartBorderTest(
   cellCoveragePaths,
   neighborCoveragePaths,
 );
+
+// The coverage roster says WHICH chart floor owns the far-side probe at a
+// given zoom; the evidence says whether that owner carries this same semantic
+// area. Looking only at evidence would let a hidden coarser chart suppress the
+// visible finer chart's different/absent boundary.
+const neighborCoverage = coveragePolygons(neighborCoveragePaths);
+const neighborEvidence = coveragePolygons(neighborAreaEvidencePaths);
+
+function representativeZoom(range) {
+  const stamp = (value) => {
+    // OGR exports a nullable integer as JSON null. Number(null) and Number("")
+    // are both zero, which would turn a fallback interval into z0 and select
+    // the wrong serving owner rather than fall through to its real _QZMAX.
+    if (value === null || value === undefined || value === "") return null;
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  };
+  const min = stamp(range?._QZMIN);
+  if (min !== null) return min;
+  return stamp(range?._QZMAX);
+}
+
+function servingOwnersAt(point, range) {
+  const containing = polygonsContaining(neighborCoverage, point).filter(
+    (entry) =>
+      typeof entry.properties.DSNM === "string" &&
+      Number.isFinite(Number(entry.properties.QFLOOR)),
+  );
+  const floors = containing.map((entry) => Number(entry.properties.QFLOOR));
+  if (floors.length === 0) return null;
+  const zoom = representativeZoom(range);
+  const reached =
+    zoom === null ? floors : floors.filter((floor) => floor <= zoom);
+  const floor = reached.length > 0 ? Math.max(...reached) : Math.min(...floors);
+  return {
+    floor,
+    owners: new Set(
+      containing
+        .filter((entry) => Number(entry.properties.QFLOOR) === floor)
+        .map((entry) => entry.properties.DSNM),
+    ),
+  };
+}
+
+function semanticSeamDecision(name, a, b, walk, sides, range) {
+  if (!onSeam(a, b, walk)) return false;
+  // No semantic roster means an older caller: retain the historical
+  // coverage-only suppression rather than changing every edge generator.
+  if (neighborAreaEvidencePaths.length === 0) return true;
+
+  const point = outwardProbe(walk);
+  const serving = servingOwnersAt(point, range);
+  if (serving === null || serving.owners.size === 0)
+    return { suppressSides: [] };
+  const evidence = polygonsContaining(neighborEvidence, point).filter(
+    (entry) =>
+      serving.owners.has(entry.properties.DSNM) &&
+      Number(entry.properties.QFLOOR) === serving.floor &&
+      entry.properties.CLASS === name,
+  );
+  return {
+    suppressSides: sides.flatMap((side, index) =>
+      [...serving.owners].every((owner) =>
+        evidence.some(
+          (entry) =>
+            entry.properties.DSNM === owner &&
+            entry.properties.CONTENT === side.key,
+        ),
+      )
+        ? [index]
+        : [],
+    ),
+  };
+}
 
 const out = [];
 let segmentTotal = 0;
@@ -368,7 +501,8 @@ for (const { name, path } of classPaths) {
       }
       return edges;
     },
-    onSeam,
+    onSeam: (a, b, walk, sides, range) =>
+      semanticSeamDecision(name, a, b, walk, sides, range),
   });
 
   out.push(...derived.features);

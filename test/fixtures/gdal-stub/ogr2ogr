@@ -10,6 +10,7 @@
 #                            the whole argument line, because the selection is
 #                            an -sql in extract-coverage and a -where in
 #                            s57-to-tiles
+#   STUB_OGR2OGR_FAIL_MATCH   exit non-zero when argv contains this text
 set -u
 
 fmt="$2"
@@ -17,6 +18,12 @@ out="$3"
 mkdir -p "$(dirname "$out")" 2>/dev/null
 
 [ -n "${STUB_SQL_LOG:-}" ] && printf '%s\n--\n' "$*" >>"$STUB_SQL_LOG"
+
+if [ -n "${STUB_OGR2OGR_FAIL_MATCH:-}" ] &&
+  [[ "$*" == *"${STUB_OGR2OGR_FAIL_MATCH}"* ]]; then
+  echo "ERROR 1: forced ogr2ogr failure for ${STUB_OGR2OGR_FAIL_MATCH}" >&2
+  exit 1
+fi
 
 case "$fmt" in
   GPKG) : >"$out" ;;

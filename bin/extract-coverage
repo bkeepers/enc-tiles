@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 # Extracts M_COVR (CATCOV=1) polygons from all charts into a single GPKG,
-# tagged with each chart's INTU, compilation scale and quilt floor. Used by
-# s57-to-tiles to partition a cell's features into the zoom intervals that cell
-# owns (docs/architecture/QUILT_ZOOM_PARTITION.md).
+# tagged with each chart's identity, INTU, compilation scale and quilt floor.
+# The same fragment carries the semantic identity and geometry of every area
+# class whose boundary Plotroom strokes. s57-to-tiles needs both halves: M_COVR
+# selects the chart owners at a zoom, and area_evidence proves whether those
+# owners continue the SAME area across a cell border.
 #
 # EVERY chart's coverage is imported, not just the finer ones: the copy ladder
 # needs the finer rungs for its caps AND the union of the coarser ones to decide
@@ -26,13 +28,53 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 export OGR_S57_OPTIONS="SPLIT_MULTIPOINT=ON,ADD_SOUNDG_DEPTH=ON,LIST_AS_STRING=ON"
 
-rm -f "$output"
+# A coverage fragment is accepted atomically: coverage, semantic evidence and
+# a manifest that distinguishes a real zero-feature cell from a failed export.
+# Seed then delete one row to make both auxiliary layers exist with deterministic
+# types even when no participating area exists in any input chart.
+tmpdir=$(mktemp -d)
+output_dir=$(cd "$(dirname "$output")" && pwd)
+output_base=$(basename "$output")
+working=$(mktemp "${output_dir}/.${output_base}.working.XXXXXX")
+rm -f "$working"
+cleanup() { rm -rf "$tmpdir"; rm -f "$working"; }
+trap cleanup EXIT
+cat >"$tmpdir/area-evidence-schema.geojson" <<'EOF'
+{"type":"FeatureCollection","features":[{"type":"Feature","properties":{"CLASS":"","CONTENT":"","DSNM":"SEED0000","QFLOOR":0},"geometry":{"type":"MultiPolygon","coordinates":[[[[0,0],[1,0],[1,1],[0,1],[0,0]]]]}}]}
+EOF
+ogr2ogr -f GPKG "$working" "$tmpdir/area-evidence-schema.geojson" \
+  -nln area_evidence -nlt PROMOTE_TO_MULTI
+ogrinfo --quiet "$working" -dialect sqlite \
+  -sql "DELETE FROM area_evidence" >/dev/null
+
+cat >"$tmpdir/area-evidence-manifest.csv" <<'EOF'
+DSNM,QFLOOR,SCHEMA,FEATURE_COUNT
+SEED0000,0,1,0
+EOF
+ogr2ogr -f GPKG "$working" "$tmpdir/area-evidence-manifest.csv" \
+  -update -nln area_evidence_manifest -nlt NONE -oo AUTODETECT_TYPE=YES
+ogrinfo --quiet "$working" -dialect sqlite \
+  -sql "DELETE FROM area_evidence_manifest" >/dev/null
+
+area_edge_classes=$(node "$SCRIPT_DIR/generate-area-edges" --list-classes)
+[ -n "$area_edge_classes" ] || {
+  echo "generate-area-edges --list-classes returned nothing" >&2
+  exit 1
+}
+coverage_charts=0
 
 for input in "$@"; do
   # Extract INTU and the compilation scale from the one DSID read
   dsid=$(ogrinfo -q "$input" DSID 2>/dev/null)
   intu=$(echo "$dsid" | grep DSID_INTU | awk '{print $NF}')
   [ -z "$intu" ] && continue
+
+  dsnm=$(printf '%s\n' "$dsid" | grep DSID_DSNM | awk '{print $NF}' |
+    sed 's/\.[0-9][0-9][0-9]$//' | grep -xE '[A-Za-z0-9]{8}' || true)
+  if [ -z "$dsnm" ]; then
+    echo "$input: no readable DSID_DSNM; no atomic coverage/evidence fragment" >&2
+    continue
+  fi
 
   # Check if M_COVR layer exists
   layers=$(ogrinfo -q "$input" 2>/dev/null | awk '{print $2}')
@@ -66,27 +108,80 @@ for input in "$@"; do
   # Append M_COVR features with CATCOV=1 to output, adding INTU, the scale it
   # was keyed from and the precomputed floor. s57-to-tiles groups masks by
   # QFLOOR and re-derives nothing.
-  sql="SELECT *, ${intu} AS INTU, ${cscale} AS CSCALE, ${qfloor} AS QFLOOR FROM M_COVR WHERE CATCOV=1"
-  if [ -f "$output" ]; then
-    ogr2ogr -f GPKG "$output" "$input" M_COVR \
-      -append -nln coverage \
-      -sql "$sql" \
-      -skipfailures 2>/dev/null
-  else
-    ogr2ogr -f GPKG "$output" "$input" M_COVR \
-      -nln coverage \
-      -sql "$sql" \
-      -skipfailures 2>/dev/null
+  sql="SELECT *, '${dsnm}' AS DSNM, ${intu} AS INTU, ${cscale} AS CSCALE, ${qfloor} AS QFLOOR FROM M_COVR WHERE CATCOV=1"
+  coverage_mode=()
+  [ "$coverage_charts" -gt 0 ] && coverage_mode=(-append)
+  ogr2ogr -f GPKG "$working" "$input" M_COVR -update \
+    "${coverage_mode[@]}" -nln coverage \
+    -sql "$sql"
+
+  # Export each participating class independently and without -skipfailures:
+  # an unreadable class must fail the fragment, not masquerade as a manifest
+  # that proved the class absent. The Node generator owns the canonical content
+  # identity, so extraction and later edge comparison cannot drift.
+  area_args=()
+  while IFS= read -r area_class; do
+    if printf '%s\n' "$layers" | grep -qx "$area_class"; then
+      class_geojson="$tmpdir/${dsnm}-${area_class}.geojson"
+      ogr2ogr -f GeoJSON "$class_geojson" "$input" "$area_class"
+      area_args+=(--area "${area_class}:$class_geojson")
+    fi
+  done <<< "$area_edge_classes"
+
+  evidence_geojson="$tmpdir/${dsnm}-area-evidence.geojson"
+  feature_count=$(node "$SCRIPT_DIR/generate-area-edges" \
+    "$evidence_geojson" --write-evidence --evidence-dsnm "$dsnm" \
+    --evidence-qfloor "$qfloor" "${area_args[@]}")
+  case "$feature_count" in
+    ''|*[!0-9]*)
+      echo "$input: generate-area-edges returned an invalid evidence count '$feature_count'" >&2
+      exit 1
+      ;;
+  esac
+  if [ "$feature_count" -gt 0 ]; then
+    ogr2ogr -f GPKG "$working" "$evidence_geojson" -update \
+      -append -nln area_evidence -nlt PROMOTE_TO_MULTI
   fi
+  ogrinfo --quiet "$working" -dialect sqlite -sql \
+    "INSERT INTO area_evidence_manifest (DSNM,QFLOOR,SCHEMA,FEATURE_COUNT) VALUES ('${dsnm}',${qfloor},1,${feature_count})" \
+    >/dev/null
+  coverage_charts=$((coverage_charts + 1))
 done
 
-if [ -f "$output" ]; then
+if [ "$coverage_charts" -gt 0 ]; then
   # Create spatial index for fast lookups during clipping
-  ogrinfo --quiet "$output" -dialect sqlite \
+  ogrinfo --quiet "$working" -dialect sqlite \
     -sql "SELECT CreateSpatialIndex('coverage', 'geom')" 2>/dev/null || true
-  count=$(ogrinfo -q "$output" -dialect sqlite \
+  ogrinfo --quiet "$working" -dialect sqlite \
+    -sql "SELECT CreateSpatialIndex('area_evidence', 'geom')" 2>/dev/null || true
+  count=$(ogrinfo -q "$working" -dialect sqlite \
     -sql "SELECT COUNT(*) FROM coverage" 2>/dev/null | grep -o '[0-9]*' | tail -1)
-  echo "Extracted $count M_COVR polygons to $output"
+  evidence_count=$(ogrinfo -q "$working" -dialect sqlite \
+    -sql "SELECT COUNT(*) FROM area_evidence" 2>/dev/null | grep -o '[0-9]*' | tail -1)
+  manifest_count=$(ogrinfo -q "$working" -dialect sqlite \
+    -sql "SELECT COALESCE(SUM(FEATURE_COUNT),0) AS n FROM area_evidence_manifest" 2>/dev/null |
+    grep -o '[0-9]*' | tail -1)
+  manifest_rows=$(ogrinfo -q "$working" -dialect sqlite \
+    -sql "SELECT COUNT(*) AS n FROM area_evidence_manifest WHERE SCHEMA = 1" 2>/dev/null |
+    grep -o '[0-9]*' | tail -1)
+  for value in "$count" "$evidence_count" "$manifest_count" "$manifest_rows"; do
+    case "$value" in
+      ''|*[!0-9]*)
+        echo "Could not validate coverage/evidence counts in $working" >&2
+        exit 1
+        ;;
+    esac
+  done
+  if [ "$count" -eq 0 ] || [ "$manifest_rows" -ne "$coverage_charts" ]; then
+    echo "Coverage/evidence manifest is incomplete in $working" >&2
+    exit 1
+  fi
+  if [ "$evidence_count" -ne "$manifest_count" ]; then
+    echo "Semantic evidence count $evidence_count does not match manifest $manifest_count" >&2
+    exit 1
+  fi
+  mv -f "$working" "$output"
+  echo "Extracted $count M_COVR polygons and $evidence_count semantic areas to $output"
 else
   echo "No M_COVR features found"
   exit 1
