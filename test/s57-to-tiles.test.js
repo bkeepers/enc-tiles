@@ -106,6 +106,27 @@ function run(env = {}, { coverage: withCoverage = true } = {}) {
   };
 }
 
+test("normalizes every exported layer across the antimeridian", () => {
+  const result = run(
+    {
+      STUB_PRE_TOTAL: "2",
+      STUB_TOTAL: "2",
+      STUB_TABLES: "DEPARE M_COVR",
+    },
+    { coverage: false },
+  );
+
+  expect(result.status).toBe(0);
+  const exports = statements(result.sql).filter(
+    (statement) =>
+      statement.includes("-f GeoJSON") && statement.includes("chart.gpkg"),
+  );
+  expect(exports.length).toBeGreaterThan(0);
+  for (const statement of exports) {
+    expect(statement).toMatch(/chart\.gpkg \S+ -t_srs EPSG:4326 -wrapdateline/);
+  }
+});
+
 /** The tiling range tippecanoe was actually asked for, or null if it never ran. */
 function tilingRange(tippecanoe) {
   if (tippecanoe === null) return null;

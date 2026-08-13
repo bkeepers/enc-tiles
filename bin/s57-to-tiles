@@ -863,7 +863,16 @@ layers=$(ogrinfo -q "$gpkg" 2>/dev/null | grep "^[0-9]" | awk '{print $2}' | gre
 geojson_files=()
 for layer in $layers; do
   geojson="$tmpdir/$layer.geojson"
-  ogr2ogr -f GeoJSON "$geojson" "$gpkg" "$layer" || continue
+  # S-57 permits coordinates to stay continuous past the antimeridian (for
+  # example the western part of US1WC07M is encoded west of -180). Web
+  # Mercator does not: without an explicit wrap, tippecanoe clips those
+  # coordinates into a few-pixel buffer on x=max instead of placing the real
+  # geometry in the positive-longitude world. Transforming to the same CRS is
+  # intentional -- it gives GDAL's dateline splitter a destination frame in
+  # which to normalize out-of-range longitudes and split crossing lines and
+  # polygons. Ordinary layers wholly inside [-180, 180] are unchanged.
+  ogr2ogr -f GeoJSON "$geojson" "$gpkg" "$layer" \
+    -t_srs EPSG:4326 -wrapdateline || continue
   if [ -s "$geojson" ]; then
     geojson_files+=("$geojson")
   fi
