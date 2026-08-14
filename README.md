@@ -20,7 +20,15 @@ $ npm start
 
 Open [http://localhost:5173](http://localhost:5173) in your browser to view the demo map with ENC tiles.
 
-[Inspect tiles using pmtiles.io](https://pmtiles.io/#url=https%3A%2F%2Fpub-0b8220da652f4a95a2293d0f61351a33.r2.dev%2Fnoaa.pmtiles&map=3.05/39.23/-73.65&inspectFeatures=true).
+The tileset is published as one archive per S-57 usage band, each declaring
+its own zoom range — `noaa-overview` (z0–6), `noaa-general` (7–8),
+`noaa-coastal` (9–10), `noaa-approach` (11–12), `noaa-harbour` (13–14) and
+`noaa-berthing` (15–16). The viewer needs all six; a band is a scale, not a
+level of detail, so no one archive covers the whole zoom range on its own.
+
+Inspect one on pmtiles.io — here
+[`noaa-coastal`](https://pmtiles.io/#url=https%3A%2F%2Fpub-0b8220da652f4a95a2293d0f61351a33.r2.dev%2Fnoaa-coastal.pmtiles&map=9/40.60/-74.00&inspectFeatures=true),
+at a zoom that band covers; swap the band name in the URL for the others.
 
 ## Prior Art
 
