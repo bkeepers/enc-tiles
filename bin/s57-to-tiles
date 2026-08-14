@@ -613,8 +613,16 @@ if [ -n "$coverage" ] && [ -f "$coverage" ] && [ -n "$quilt_floor" ]; then
   # continues the same class and content across this cell border. Excluding the
   # current DSNM is essential: its own matching polygon is not evidence about
   # what lies on the far side.
+  # AUTODETECT_JSON_STRINGS=NO: CONTENT is a JSON *string* and the semantic
+  # merge compares it byte-for-byte against the local side's serialization.
+  # Left to its default the GeoJSON writer re-emits the string as a raw JSON
+  # object, which never compares equal, and every chart-border edge in the
+  # fleet silently survived the merge rule (2026-08-14, Adak SWPARE seam).
+  # generate-area-edges canonicalizes defensively as well; this keeps the
+  # transport honest so the file matches what --write-evidence produced.
   area_evidence_geojson="$tmpdir/area_evidence.geojson"
   ogr2ogr -f GeoJSON "$area_evidence_geojson" "$coverage" area_evidence \
+    -lco AUTODETECT_JSON_STRINGS=NO \
     -where "DSNM <> '${dsnm}'" -select "CLASS,CONTENT,DSNM,QFLOOR" 2>/dev/null
 
   if [ -s "$all_geojson" ]; then

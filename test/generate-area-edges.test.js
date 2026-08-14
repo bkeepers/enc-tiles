@@ -759,6 +759,37 @@ describe("cross-cell semantic evidence", () => {
     expect(hasMeridian(runSemantic(coverage, evidence))).toBe(false);
   });
 
+  test("evidence whose CONTENT arrives as a JSON OBJECT still suppresses", () => {
+    // The roster travels through a GeoPackage and back out via ogr2ogr's
+    // GeoJSON writer, whose AUTODETECT_JSON_STRINGS default rewrites the
+    // stored CONTENT *string* as a raw object with driver-ordered keys. The
+    // comparison must canonicalize, not string-compare the transport: this
+    // exact shape retained every chart-border edge in the fleet (2026-08-14,
+    // the Adak swept-area seam).
+    const coverage = neighborCoverage("neighbors.geojson", {
+      dsnm: "US5RIGHT",
+      qfloor: 9,
+    });
+    const evidence = writeCollection("evidence.geojson", [
+      polygon(
+        {
+          CLASS: "RESARE",
+          // Unsorted keys and a nested value, as the driver emits them.
+          CONTENT: { RESTRN: "7", INFORM: "Area Alpha" },
+          DSNM: "US5RIGHT",
+          QFLOOR: 9,
+        },
+        EAST_HALF,
+      ),
+    ]);
+    const areas = writeCollection("areas.geojson", [
+      polygon({ INFORM: "Area Alpha", RESTRN: "7" }, WEST_HALF),
+    ]);
+
+    const out = runSemantic(coverage, evidence, areas);
+    expect(hasMeridian(out)).toBe(false);
+  });
+
   test("a serving cell with no same-class content keeps the charted end", () => {
     const coverage = neighborCoverage("neighbors.geojson", {
       dsnm: "US5RIGHT",

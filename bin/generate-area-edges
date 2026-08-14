@@ -258,6 +258,41 @@ const IDENTITY_EXCLUSIONS = new Set([
  * exclusions, nulls dropped (GeoJSON exports spell "no value" both ways, and
  * an attribute a producer left null is the same content as one it left out).
  */
+/**
+ * One canonical string for an evidence CONTENT value, whatever shape the
+ * transport gave it. bin/generate-area-edges --write-evidence stores CONTENT
+ * as a JSON STRING, but the GeoJSON writer that exports the cached roster back
+ * out of the coverage GeoPackage (bin/s57-to-tiles step 2b) auto-detects
+ * JSON-shaped strings and re-emits them as raw JSON OBJECTS
+ * (AUTODETECT_JSON_STRINGS, default YES) -- and an object never string-equals
+ * a side's serialized identity, which silently retained EVERY chart-border
+ * edge in the fleet (found 2026-08-14, the Adak swept-area seam). The export
+ * now pins the option off, and this canonicalizer makes the comparison immune
+ * to the transport either way: strings that parse as objects and objects
+ * alike reduce to the same sorted-key serialization contentOf produces.
+ */
+function canonicalContent(value) {
+  let content = value;
+  if (typeof content === "string") {
+    // The common, intended case: already the exact serialization.
+    if (!content.startsWith("{")) return content;
+    try {
+      content = JSON.parse(content);
+    } catch {
+      return value;
+    }
+  }
+  if (content === null || typeof content !== "object" || Array.isArray(content))
+    return typeof value === "string" ? value : JSON.stringify(value);
+  return JSON.stringify(
+    Object.fromEntries(
+      Object.entries(content)
+        .filter(([, v]) => v !== null && v !== undefined)
+        .sort(([ka], [kb]) => (ka < kb ? -1 : ka > kb ? 1 : 0)),
+    ),
+  );
+}
+
 function contentOf(properties) {
   const content = {};
   for (const key of Object.keys(properties ?? {}).sort()) {
@@ -443,7 +478,7 @@ function semanticSeamDecision(name, a, b, walk, sides, range) {
         evidence.some(
           (entry) =>
             entry.properties.DSNM === owner &&
-            entry.properties.CONTENT === side.key,
+            canonicalContent(entry.properties.CONTENT) === side.key,
         ),
       )
         ? [index]
