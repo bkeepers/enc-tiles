@@ -65,6 +65,36 @@ test("rejects an empty sources object as if it were absent", () => {
   expect(() => createStyle({ sources: {} })).toThrow(/exactly one/);
 });
 
+test("rejects being given neither source nor sources", () => {
+  expect(() => createStyle({})).toThrow(/exactly one/);
+});
+
+// A tileset need not carry all six bands: `bin/fixture-tiles` builds two
+// charts, which yield a coastal and a harbour archive and nothing else.
+test("declares only the bands it is given, in table order", () => {
+  const style = createStyle({
+    sources: {
+      harbour: vector("pmtiles://fixture-harbour.pmtiles"),
+      coastal: vector("pmtiles://fixture-coastal.pmtiles"),
+    },
+  });
+
+  expect(Object.keys(style.sources)).toEqual(["coastal", "harbour"]);
+  expect(validateStyleMin(style)).toEqual([]);
+
+  const ids = style.layers.map((layer) => layer.id);
+  expect(ids.some((id) => id.startsWith("approach-"))).toBe(false);
+
+  // The mask erases the band beneath it, so it belongs to every band but
+  // whichever is drawn first -- here coastal, though it is not the first of
+  // the full table.
+  expect(ids).not.toContain("coastal-coverage-mask");
+  expect(ids).toContain("harbour-coverage-mask");
+  expect(ids.indexOf("harbour-coverage-mask")).toBeGreaterThan(
+    ids.findLastIndex((id) => id.startsWith("coastal-")),
+  );
+});
+
 test("masks every band but the first, right before its own layers", () => {
   const style = createStyle({ sources: allBands });
   const ids = style.layers.map((layer) => layer.id);
