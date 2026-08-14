@@ -3,6 +3,7 @@ import type {
   BackgroundLayerSpecification,
   ExpressionFilterSpecification,
   ExpressionSpecification,
+  FillLayerSpecification,
   FilterSpecification,
   LayerSpecification,
 } from "maplibre-gl";
@@ -13,7 +14,12 @@ import { groupBy } from "../utils.js";
 
 export interface LayerConfig {
   mode: Mode;
-  source: string;
+  sources: string[];
+  /**
+   * Paint each band's M_COVR coverage before its own layers, so a larger-scale
+   * band erases the smaller-scale bands stacked beneath it.
+   */
+  masks: boolean;
   shallowDepth: number;
   safetyDepth: number;
   deepDepth: number;
@@ -43,20 +49,28 @@ export function build(config: LayerConfig): LayerSpecification[] {
     return [lookup.obcl, lookup.tnam].join("|");
   });
 
-  const layers: LayerSpecification[] = Object.values(lookupGroups).flatMap(
-    (lookups) => {
+  const layers = config.sources.flatMap((source, position) => {
+    // A fresh counter per source keeps ids unique across bands and stable
+    // between calls to build().
+    let index = 0;
+    const nextIndex = () => index++;
+
+    const symbology = Object.values(lookupGroups).flatMap((lookups) => {
       if (!lookups)
         throw new Error(
           "This should never happen but TypeScript insists it can.",
         );
 
-      if (lookups.length <= 1) {
-        return lookups.flatMap(lookupToLayers);
-      } else {
-        return lookupGroupToLayers(lookups);
-      }
-    },
-  );
+      return lookups.length <= 1
+        ? lookups.flatMap((lookup) => lookupToLayers(lookup, source, nextIndex))
+        : lookupGroupToLayers(lookups, source, nextIndex);
+    });
+
+    // The first band needs no mask: the background layer already covers it.
+    return config.masks && position > 0
+      ? [coverageMask(source, config), ...symbology]
+      : symbology;
+  });
 
   return [background(config), ...layers];
 }
@@ -76,6 +90,8 @@ export function build(config: LayerConfig): LayerSpecification[] {
  */
 export function lookupGroupToLayers(
   lookups: LookupEntry[],
+  source: string,
+  nextIndex: () => number,
 ): LayerSpecification[] {
   const [fallbackLookup, ...otherLookups] = lookups;
 
@@ -89,7 +105,7 @@ export function lookupGroupToLayers(
     ],
   ];
   return [
-    ...lookupToLayers(fallbackLookup!).map((layer) => ({
+    ...lookupToLayers(fallbackLookup!, source, nextIndex).map((layer) => ({
       ...layer,
       ...("filter" in layer
         ? {
@@ -100,13 +116,17 @@ export function lookupGroupToLayers(
           }
         : {}),
     })),
-    ...otherLookups.flatMap(lookupToLayers),
+    ...otherLookups.flatMap((lookup) =>
+      lookupToLayers(lookup, source, nextIndex),
+    ),
   ];
 }
 
-let i = 0;
-
-export function lookupToLayers(lookup: LookupEntry): LayerSpecification[] {
+export function lookupToLayers(
+  lookup: LookupEntry,
+  source: string,
+  nextIndex: () => number,
+): LayerSpecification[] {
   return instructionsToStyles(lookup.inst).map((layer) => {
     return {
       ...layer,
@@ -125,9 +145,9 @@ export function lookupToLayers(lookup: LookupEntry): LayerSpecification[] {
         ...layer.layout,
         [`${layer.type}-sort-key`]: sortKey(lookup.dpri, layer),
       },
-      source: "enc",
+      source,
       "source-layer": lookup.obcl,
-      id: [i++, lookup.obcl, lookup.ftyp].join("-"),
+      id: [source, nextIndex(), lookup.obcl, lookup.ftyp].join("-"),
     };
   });
 }
@@ -138,6 +158,33 @@ function background({ mode }: LayerConfig): BackgroundLayerSpecification {
     type: "background",
     paint: {
       "background-color": colours[mode].NODTA,
+    },
+  };
+}
+
+/**
+ * S-57 guarantees that group 1 objects (LNDARE, DEPARE, UNSARE, DRGARE,
+ * FLODOC, HULKES, PONTON) cover the whole interior of an M_COVR CATCOV=1
+ * polygon, so painting that polygon and then drawing the band's own fills over
+ * it hides everything stacked underneath.
+ *
+ * One layer covers the whole band: the filter selects features, so a cell that
+ * declares several coverage polygons (61 of the 7239 NOAA cells do, up to 8)
+ * gets each of them painted, and an interior ring stays a hole the band below
+ * shows through.
+ */
+function coverageMask(
+  source: string,
+  { mode }: LayerConfig,
+): FillLayerSpecification {
+  return {
+    id: `${source}-coverage-mask`,
+    type: "fill",
+    source,
+    "source-layer": "M_COVR",
+    filter: ["==", ["get", "CATCOV"], 1],
+    paint: {
+      "fill-color": colours[mode].NODTA,
     },
   };
 }

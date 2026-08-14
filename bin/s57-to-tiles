@@ -4,6 +4,11 @@
 
 set -e
 
+# The depth of an S-57 sounding is carried in the Z coordinate, which MVT drops.
+# SPLIT_MULTIPOINT turns each SOUNDG multipoint into individual points and
+# ADD_SOUNDG_DEPTH lifts the depth into a DEPTH attribute the style can read.
+export OGR_S57_OPTIONS="SPLIT_MULTIPOINT=ON,ADD_SOUNDG_DEPTH=ON"
+
 in=$1
 out=$2
 ext="${out##*.}"
@@ -16,7 +21,7 @@ case "$ext" in
     format="MBV"
     ;;
   *)
-    echo "Output format must be .mbtiles or .pmtiles"
+    echo "Output format must be .mbtiles or .pmtiles" >&2
     exit 1
     ;;
 esac
@@ -79,7 +84,8 @@ case "$INTENDED_USE" in
     maxzoom=16
     ;;
   *)
-    echo "Unknown DSID_INTU: $INTENDED_USE"
+    echo "Unable to determine DSID_INTU for $in (got: '$INTENDED_USE')" >&2
+    exit 1
     ;;
 esac
 

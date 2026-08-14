@@ -1,0 +1,68 @@
+#!/usr/bin/env node
+// Merges the per-chart PMTiles archives into one archive per ENC usage band.
+//
+// Each band keeps its own zoom range, which is what lets MapLibre overzoom a
+// band beyond its maxzoom instead of showing nothing.
+//
+// Usage: bin/join-bands --prefix tiles/noaa [--dry-run] tiles/*/*.pmtiles
+
+import { spawnSync } from "node:child_process";
+import { unlinkSync, writeFileSync } from "node:fs";
+import { parseArgs } from "node:util";
+import { groupByBand } from "./lib/group-by-band.mjs";
+
+const { values, positionals } = parseArgs({
+  options: {
+    prefix: { type: "string" },
+    "dry-run": { type: "boolean", default: false },
+  },
+  allowPositionals: true,
+});
+
+if (!values.prefix) {
+  console.error("Error: --prefix is required");
+  process.exit(1);
+}
+
+if (positionals.length === 0) {
+  console.error("Error: no input archives given");
+  process.exit(1);
+}
+
+const groups = groupByBand(positionals);
+
+for (const [band, paths] of groups) {
+  const output = `${values.prefix}-${band}.pmtiles`;
+
+  // tile-join runs in a container with the working directory bind-mounted, so
+  // the list file has to live under it and be referenced relatively.
+  const listPath = `${values.prefix}-${band}.inputs.txt`;
+  const args = [
+    "--force",
+    "--no-tile-size-limit",
+    "-o",
+    output,
+    "-r",
+    listPath,
+  ];
+
+  console.log(`${band}: ${paths.length} charts -> ${output}`);
+
+  if (values["dry-run"]) {
+    console.log(`  tile-join ${args.join(" ")}`);
+    continue;
+  }
+
+  writeFileSync(listPath, `${paths.join("\n")}\n`);
+
+  try {
+    const result = spawnSync("tile-join", args, { stdio: "inherit" });
+
+    if (result.error) throw result.error;
+    if (result.status !== 0) {
+      throw new Error(`tile-join exited with status ${result.status}`);
+    }
+  } finally {
+    unlinkSync(listPath);
+  }
+}
