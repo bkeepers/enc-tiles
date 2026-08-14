@@ -19,3 +19,23 @@ for chart in "${charts[@]}"; do
 done
 
 bin/join-bands --prefix "$out/fixture" "$out"/charts/*.pmtiles
+
+# Two charts yield two bands, and the viewer refuses to start unless every
+# band it expects loads. Tell it to expect only the ones just built --
+# derived from the archives rather than hardcoded, so this stays right if the
+# chart list above changes.
+bands=""
+for archive in "$out"/fixture-*.pmtiles; do
+  band="${archive##*/fixture-}"
+  bands="${bands}${bands:+,}${band%.pmtiles}"
+done
+
+cat <<EOF
+
+Built $out/fixture-*.pmtiles ($bands). To view them:
+
+  VITE_TILESET_PREFIX=fixture VITE_TILESET_BANDS=$bands npm start
+
+then open http://localhost:5173/#11/33.70/-118.50 — the viewer opens on New
+York by default, where this fixture has no charts.
+EOF
