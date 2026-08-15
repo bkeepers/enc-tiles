@@ -240,6 +240,13 @@ const IDENTITY_EXCLUSIONS = new Set([
   "SCAMAX",
   "INTU",
   "CSCALE",
+  // Per-cell FILE REFERENCES: the value embeds the producing chart's own name
+  // (US4AK2DD's ADMARE carries TXTDSC "US101DDB.TXT", its neighbour's the
+  // DE-named twin), so two cells' halves of one area can never match on them.
+  // They point at sidecar files that never ship with the tiles at all.
+  "TXTDSC",
+  "NTXTDS",
+  "PICREP",
   // The tippecanoe --exclude list from bin/s57-to-tiles, step 4.
   "LNAM_REFS",
   "FFPT_RIND",

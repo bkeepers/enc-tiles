@@ -407,6 +407,36 @@ describe("the identity exclusions", () => {
     }
   });
 
+  test("per-cell FILE REFERENCES are bookkeeping: TXTDSC twins merge", () => {
+    // The sidecar-file attributes embed the producing chart's own name
+    // (US101DDB.TXT beside US101DEB.TXT for one administrative area split
+    // across US4AK2DD|DE), so treating them as content ruled a line between
+    // every bordering pair that carries a text pointer (2026-08-14).
+    const areas = writeCollection("ADMARE.geojson", [
+      polygon({ JRSDTN: 2, NATION: "US", TXTDSC: "US101DDB.TXT" }, WEST_HALF),
+      polygon(
+        {
+          JRSDTN: 2,
+          NATION: "US",
+          TXTDSC: "US101DEB.TXT",
+          NTXTDS: "US101DEC.TXT",
+          PICREP: "US101DE1.TIF",
+        },
+        EAST_HALF,
+      ),
+    ]);
+    const features = run("--area", `ADMARE:${areas}`);
+
+    expect(hasMeridian(features)).toBe(false);
+    for (const feature of features) {
+      expect(feature.properties).toEqual({
+        CLASS: "ADMARE",
+        JRSDTN: 2,
+        NATION: "US",
+      });
+    }
+  });
+
   test("a null attribute is the same content as an absent one", () => {
     const areas = writeCollection("RESARE.geojson", [
       polygon({ RESTRN: "7", CATREA: null }, WEST_HALF),
@@ -788,6 +818,72 @@ describe("cross-cell semantic evidence", () => {
 
     const out = runSemantic(coverage, evidence, areas);
     expect(hasMeridian(out)).toBe(false);
+  });
+
+  test("the far-side owner across the ANTIMERIDIAN is found and suppresses", () => {
+    // US2ARCCB's western ring lies at -180 with US2ARCCA continuing at +180:
+    // each cell's S-57 geometry stays in its own longitude domain, and an
+    // un-wrapped outward probe at -180.0001 found no owner, which read as a
+    // charted data end and retained the EXEZNE line along the dateline
+    // (2026-08-14). The probe wraps back into [-180, 180] now.
+    const eastAtDateline = [
+      [-180, 0],
+      [-179.5, 0],
+      [-179.5, 1],
+      [-180, 1],
+      [-180, 0],
+    ];
+    const westOfDateline = [
+      [179.5, 0],
+      [180, 0],
+      [180, 1],
+      [179.5, 1],
+      [179.5, 0],
+    ];
+    const areas = writeCollection("EXEZNE.geojson", [
+      polygon({ NATION: "US" }, eastAtDateline),
+    ]);
+    const cellRing = writeCollection("M_COVR.geojson", [
+      polygon({ CATCOV: 1 }, eastAtDateline),
+    ]);
+    const coverage = writeCollection("neighbors.geojson", [
+      polygon({ DSNM: "US2ARCCA", QFLOOR: 5 }, westOfDateline),
+    ]);
+    const evidence = writeCollection("evidence.geojson", [
+      polygon(
+        {
+          CLASS: "EXEZNE",
+          CONTENT: '{"NATION":"US"}',
+          DSNM: "US2ARCCA",
+          QFLOOR: 5,
+        },
+        westOfDateline,
+      ),
+    ]);
+
+    const features = run(
+      "--area",
+      `EXEZNE:${areas}`,
+      "--cell-coverage",
+      cellRing,
+      "--neighbor-coverage",
+      coverage,
+      "--neighbor-area-evidence",
+      evidence,
+    );
+    // The dateline edge is suppressed; the three landward sides remain.
+    const lines = features.flatMap((f) =>
+      f.geometry.type === "LineString"
+        ? [f.geometry.coordinates]
+        : f.geometry.coordinates,
+    );
+    const datelineRuns = lines.flatMap((line) =>
+      line.filter(
+        (point, i) => i > 0 && line[i - 1][0] === -180 && point[0] === -180,
+      ),
+    );
+    expect(datelineRuns).toHaveLength(0);
+    expect(features.length).toBeGreaterThan(0);
   });
 
   test("a serving cell with no same-class content keeps the charted end", () => {

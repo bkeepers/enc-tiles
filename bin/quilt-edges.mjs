@@ -291,11 +291,26 @@ export function outwardProbe([from, to]) {
   const dy = to[1] - from[1];
   const length = Math.hypot(dx, dy);
   const mid = [(from[0] + to[0]) / 2, (from[1] + to[1]) / 2];
-  if (length === 0) return mid;
+  if (length === 0) return [wrapLongitude(mid[0]), mid[1]];
   return [
-    mid[0] + (-dy / length) * NEIGHBOR_PROBE_EPSILON,
+    wrapLongitude(mid[0] + (-dy / length) * NEIGHBOR_PROBE_EPSILON),
     mid[1] + (dx / length) * NEIGHBOR_PROBE_EPSILON,
   ];
+}
+
+/**
+ * A probe stepped outward across the ANTIMERIDIAN lands at a longitude no
+ * polygon occupies: S-57 keeps each cell's geometry in its own domain, so
+ * US2ARCCB's western ring at -180 has US2ARCCA lying at +180 on the far side,
+ * and an un-wrapped -180.0001 finds no serving owner -- which read as "no
+ * chart continues here" and retained the EXEZNE boundary along the dateline
+ * (2026-08-14). Wrapping the point back into [-180, 180] makes containment
+ * find the far-side owner in the domain it actually lives in.
+ */
+function wrapLongitude(lon) {
+  if (lon > 180) return lon - 360;
+  if (lon < -180) return lon + 360;
+  return lon;
 }
 
 /**
