@@ -65,6 +65,13 @@
 //   coverage-only presumption lacked: identical cross-cell content merges, but
 //   a real change exactly at a cell edge stands.
 //
+//   Two exemptions sit above that test. The MARITIME ZONE classes (ZONE_CLASSES)
+//   carry a jurisdiction, not a per-chart compilation, so ANY serving owner
+//   suppresses their chart-border presentation whatever the band and whatever
+//   the content. And a probe that crosses the ANTIMERIDIAN into this cell's own
+//   coverage is the same chart continuing across its -wrapdateline split, not a
+//   neighbour and not a data end.
+//
 //   Where no chart lies across the ring, the truncation is the true charted end
 //   of the area -- NOAA runs data limits along real maritime limits, the
 //   US/Russia EEZ line above all -- and the presentation stands. Without the
@@ -94,6 +101,7 @@ import {
   coveragePolygons,
   deriveDifferEdges,
   outwardProbe,
+  outwardProbeRaw,
   polygonsContaining,
 } from "./quilt-edges.mjs";
 import { readFeatures } from "./quilt-geojson.mjs";
@@ -422,6 +430,13 @@ const onSeam = chartBorderTest(
   cellCoveragePaths,
   neighborCoveragePaths,
 );
+// The same rings WITHOUT the neighbour refinement -- "this segment lies along a
+// chart border", nothing about what is across it. The wrap seam needs exactly
+// that: the chart on the far side of a -wrapdateline split is this cell ITSELF,
+// and a cell's own DSNM is excluded from --neighbor-coverage by construction
+// (bin/s57-to-tiles), so the refined test reads its own far half as "nothing
+// continues here" and the decision below would never be reached.
+const onRing = chartBorderTest(coveragePaths, cellCoveragePaths, null);
 
 // The coverage roster says WHICH chart floor owns the far-side probe at a
 // given zoom; the evidence says whether that owner carries this same semantic
@@ -429,6 +444,38 @@ const onSeam = chartBorderTest(
 // visible finer chart's different/absent boundary.
 const neighborCoverage = coveragePolygons(neighborCoveragePaths);
 const neighborEvidence = coveragePolygons(neighborAreaEvidencePaths);
+// This cell's OWN footprint, for the wrap seam: a dateline-spanning cell is
+// exported with -wrapdateline, which splits both the areas and the M_COVR ring
+// at +/-180, so the split edge tests as a chart border and the outward probe
+// wraps into the SAME chart's far half. The cell's own DSNM is not in the
+// neighbour roster, so that far half reads as "no chart at all" unless we
+// recognise it here.
+const ownCellCoverage = coveragePolygons(cellCoveragePaths);
+
+/**
+ * The maritime-jurisdiction ladder: the classes whose extent is a JURISDICTION,
+ * not a per-chart compilation (user directive 2026-08-15).
+ *
+ * A zone's boundary drawn at a CHART border is a compilation artifact whenever
+ * ANY chart serves the far side. Same-scale neighbours disagree on the Coast
+ * Pilot INFORM boilerplate, stop the polygon a hair short of the shared border,
+ * or omit the class entirely -- US4AK2CE carries no ADMARE at all while
+ * US4AK2DE's is clipped at their shared border, and exact-identity plus
+ * proved-absence manufactured a line across land and water between them. So for
+ * these classes ANY serving owner suppresses, whatever the band and whatever
+ * the content. Only a genuine charted end of all data (no serving owner at all)
+ * keeps the line, and a zone's REAL limit lies interior to a chart, where no
+ * seam test ever reaches it.
+ */
+const ZONE_CLASSES = new Set([
+  "ADMARE",
+  "CONZNE",
+  "COSARE",
+  "CUSZNE",
+  "EXEZNE",
+  "TESARE",
+  "FSHZNE",
+]);
 
 function representativeZoom(range) {
   const stamp = (value) => {
@@ -467,15 +514,48 @@ function servingOwnersAt(point, range) {
 }
 
 function semanticSeamDecision(name, a, b, walk, sides, range) {
+  if (!onRing(a, b, walk)) return false;
+
+  const raw = outwardProbeRaw(walk);
+  const point = outwardProbe(walk);
+  // THE WRAP SEAM: a probe that stepped ACROSS the antimeridian and landed
+  // inside this cell's own coverage is this same chart continuing. The
+  // -wrapdateline export cut US1GLBDS in two at +/-180; the cut edge lies on
+  // the (equally cut) M_COVR ring, so it tests as a chart border, and the
+  // far side is the cell's own other half -- which, its own DSNM being absent
+  // from the neighbour roster, read as the charted end of all data and drew
+  // portions of the dateline straight through the chart's own footprint.
+  if (
+    raw[0] !== point[0] &&
+    polygonsContaining(ownCellCoverage, point).length
+  ) {
+    return {
+      suppressSides: sides.flatMap((side, index) =>
+        side !== NO_AREA ? [index] : [],
+      ),
+    };
+  }
+
+  // An ordinary chart border: some OTHER chart has to lie across it, or the
+  // truncation is the charted end of all data and the presentation stands.
   if (!onSeam(a, b, walk)) return false;
   // No semantic roster means an older caller: retain the historical
   // coverage-only suppression rather than changing every edge generator.
   if (neighborAreaEvidencePaths.length === 0) return true;
 
-  const point = outwardProbe(walk);
   const serving = servingOwnersAt(point, range);
   if (serving === null || serving.owners.size === 0)
     return { suppressSides: [] };
+  // ZONE CLASSES (user directive 2026-08-15): with any chart serving the far
+  // side, a jurisdiction's boundary at a CHART border is a compilation
+  // artifact -- see ZONE_CLASSES. No band test, no content proof.
+  if (ZONE_CLASSES.has(name)) {
+    return {
+      suppressSides: sides.flatMap((side, index) =>
+        side !== NO_AREA ? [index] : [],
+      ),
+    };
+  }
   // BAND NESTING (user directive 2026-08-15): a chart border between SCALE
   // BANDS never draws an area boundary. Scale editions legitimately differ in
   // vocabulary and in which zone classes they compile at all -- a US4 approach

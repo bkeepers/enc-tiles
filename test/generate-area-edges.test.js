@@ -987,6 +987,178 @@ describe("cross-cell semantic evidence", () => {
     expect(hasMeridian(out)).toBe(true);
   });
 
+  test("a ZONE class suppresses a same-band owner with DIFFERENT content", () => {
+    // The maritime-jurisdiction ladder (2026-08-15): same-scale neighbours
+    // disagree on the Coast Pilot INFORM boilerplate their ADMARE carries, and
+    // exact identity turned that editorial difference into a drawn line along
+    // the shared chart border. A zone's extent is a jurisdiction; its real
+    // limit lies interior to a chart.
+    const areas = writeCollection("ADMARE.geojson", [
+      polygon({ JRSDTN: 2, NATION: "US" }, WEST_HALF),
+    ]);
+    const coverage = neighborCoverage("neighbors.geojson", {
+      dsnm: "US4AK2CE",
+      qfloor: 9,
+    });
+    const evidence = neighborEvidence("evidence.geojson", {
+      dsnm: "US4AK2CE",
+      qfloor: 9,
+      obcl: "ADMARE",
+      content: { JRSDTN: 2, INFORM: "boilerplate" },
+    });
+
+    const out = run(
+      "--area",
+      `ADMARE:${areas}`,
+      "--cell-coverage",
+      cell(),
+      "--neighbor-coverage",
+      coverage,
+      "--neighbor-area-evidence",
+      evidence,
+      "--cell-floor",
+      "9",
+    );
+    expect(hasMeridian(out)).toBe(false);
+  });
+
+  test("a ZONE class suppresses a same-band owner that never compiled it", () => {
+    // US4AK2CE has no ADMARE at all where US4AK2DE's is clipped at their shared
+    // border. Proved absence is a same-band keep for ordinary classes; for a
+    // zone it is the neighbour simply not compiling the jurisdiction.
+    const areas = writeCollection("ADMARE.geojson", [
+      polygon({ JRSDTN: 2, NATION: "US" }, WEST_HALF),
+    ]);
+    const coverage = neighborCoverage("neighbors.geojson", {
+      dsnm: "US4AK2CE",
+      qfloor: 9,
+    });
+    const evidence = writeCollection("evidence.geojson", []);
+
+    const out = run(
+      "--area",
+      `ADMARE:${areas}`,
+      "--cell-coverage",
+      cell(),
+      "--neighbor-coverage",
+      coverage,
+      "--neighbor-area-evidence",
+      evidence,
+      "--cell-floor",
+      "9",
+    );
+    expect(hasMeridian(out)).toBe(false);
+  });
+
+  test("a ZONE class with NO owner still keeps the charted end", () => {
+    // The exemption is about compilation disagreement between charts. With no
+    // chart across the border there is nothing to disagree with: the data ends.
+    const areas = writeCollection("ADMARE.geojson", [
+      polygon({ JRSDTN: 2, NATION: "US" }, WEST_HALF),
+    ]);
+    const coverage = writeCollection("neighbors.geojson", []);
+    const evidence = writeCollection("evidence.geojson", []);
+
+    const out = run(
+      "--area",
+      `ADMARE:${areas}`,
+      "--cell-coverage",
+      cell(),
+      "--neighbor-coverage",
+      coverage,
+      "--neighbor-area-evidence",
+      evidence,
+      "--cell-floor",
+      "9",
+    );
+    expect(hasMeridian(out)).toBe(true);
+  });
+
+  test("a NON-zone class keeps a same-band owner's differing content", () => {
+    // The zone exemption is exactly that: the ordinary classes keep their
+    // exact-identity requirement, so a restricted area whose restriction really
+    // changes at the border still draws its boundary there.
+    const coverage = neighborCoverage("neighbors.geojson", {
+      dsnm: "US5RIGHT",
+      qfloor: 9,
+    });
+    const evidence = neighborEvidence("evidence.geojson", {
+      dsnm: "US5RIGHT",
+      qfloor: 9,
+      content: { RESTRN: "8" },
+    });
+
+    const out = run(
+      "--area",
+      `RESARE:${current()}`,
+      "--cell-coverage",
+      cell(),
+      "--neighbor-coverage",
+      coverage,
+      "--neighbor-area-evidence",
+      evidence,
+      "--cell-floor",
+      "9",
+    );
+    expect(hasMeridian(out)).toBe(true);
+  });
+
+  test("the cell's OWN far half across the wrap seam is not a data end", () => {
+    // US1GLBDS spans the dateline, so -wrapdateline splits its geometry AND its
+    // M_COVR ring at +/-180. The split edge tests as a chart border, the probe
+    // wraps across, and the chart it lands in is ITSELF -- absent from the
+    // neighbour roster by construction, which read as the charted end of all
+    // data and drew portions of the dateline through the chart's own footprint.
+    const eastAtDateline = [
+      [-180, 0],
+      [-179.5, 0],
+      [-179.5, 1],
+      [-180, 1],
+      [-180, 0],
+    ];
+    const ownFarHalf = [
+      [179.5, 0],
+      [180, 0],
+      [180, 1],
+      [179.5, 1],
+      [179.5, 0],
+    ];
+    const areas = writeCollection("EXEZNE.geojson", [
+      polygon({ NATION: "US" }, eastAtDateline),
+    ]);
+    // One cell, both halves of the wrap split.
+    const cellRing = writeCollection("M_COVR.geojson", [
+      polygon({ CATCOV: 1 }, eastAtDateline),
+      polygon({ CATCOV: 1 }, ownFarHalf),
+    ]);
+    const coverage = writeCollection("neighbors.geojson", []);
+    const evidence = writeCollection("evidence.geojson", []);
+
+    const features = run(
+      "--area",
+      `EXEZNE:${areas}`,
+      "--cell-coverage",
+      cellRing,
+      "--neighbor-coverage",
+      coverage,
+      "--neighbor-area-evidence",
+      evidence,
+    );
+    const lines = features.flatMap((f) =>
+      f.geometry.type === "LineString"
+        ? [f.geometry.coordinates]
+        : f.geometry.coordinates,
+    );
+    const datelineRuns = lines.flatMap((line) =>
+      line.filter(
+        (point, i) => i > 0 && line[i - 1][0] === -180 && point[0] === -180,
+      ),
+    );
+    expect(datelineRuns).toHaveLength(0);
+    // The three landward sides, with no chart beyond them, still stand.
+    expect(features.length).toBeGreaterThan(0);
+  });
+
   test("a serving cell with no same-class content keeps the charted end", () => {
     const coverage = neighborCoverage("neighbors.geojson", {
       dsnm: "US5RIGHT",

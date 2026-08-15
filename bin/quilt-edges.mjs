@@ -286,14 +286,29 @@ export function coverageContains(entries, point) {
  * of travel -- so "out of the fill" is the LEFT of travel, taken at the
  * segment's midpoint.
  */
-export function outwardProbe([from, to]) {
+export function outwardProbe(walk) {
+  const [x, y] = outwardProbeRaw(walk);
+  return [wrapLongitude(x), y];
+}
+
+/**
+ * The same probe UNWRAPPED -- the raw midpoint plus the outward step, left in
+ * the geometry's own longitude domain.
+ *
+ * Callers that only ask "who is over there" want `outwardProbe`. A caller that
+ * needs to know whether the step CROSSED the antimeridian compares the two: a
+ * raw longitude the wrap moved is a step off the edge of the domain, which is
+ * how a -wrapdateline split cell recognises its own far half on the other side
+ * (see bin/generate-area-edges, the wrap seam).
+ */
+export function outwardProbeRaw([from, to]) {
   const dx = to[0] - from[0];
   const dy = to[1] - from[1];
   const length = Math.hypot(dx, dy);
   const mid = [(from[0] + to[0]) / 2, (from[1] + to[1]) / 2];
-  if (length === 0) return [wrapLongitude(mid[0]), mid[1]];
+  if (length === 0) return mid;
   return [
-    wrapLongitude(mid[0] + (-dy / length) * NEIGHBOR_PROBE_EPSILON),
+    mid[0] + (-dy / length) * NEIGHBOR_PROBE_EPSILON,
     mid[1] + (dx / length) * NEIGHBOR_PROBE_EPSILON,
   ];
 }
