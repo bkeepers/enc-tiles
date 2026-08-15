@@ -886,6 +886,107 @@ describe("cross-cell semantic evidence", () => {
     expect(features.length).toBeGreaterThan(0);
   });
 
+  test("a DIFFERENT-BAND owner suppresses without content proof", () => {
+    // Band nesting (2026-08-15): scale editions differ in vocabulary and in
+    // which zone classes they compile at all, so a chart border between rungs
+    // is a compilation join, not a limit. Cell floor 9, far side served by a
+    // floor-7 chart whose ADMARE says something else entirely: the truncated
+    // boundary drops.
+    const coverage = neighborCoverage("neighbors.geojson", {
+      dsnm: "US3COARSE",
+      qfloor: 7,
+    });
+    const evidence = neighborEvidence("evidence.geojson", {
+      dsnm: "US3COARSE",
+      qfloor: 7,
+      content: { OBJNAM: "Three Nautical Mile Line", JRSDTN: 2 },
+    });
+
+    const out = run(
+      "--area",
+      `RESARE:${current()}`,
+      "--cell-coverage",
+      cell(),
+      "--neighbor-coverage",
+      coverage,
+      "--neighbor-area-evidence",
+      evidence,
+      "--cell-floor",
+      "9",
+    );
+    expect(hasMeridian(out)).toBe(false);
+  });
+
+  test("a DIFFERENT-BAND owner suppresses even a class it never compiled", () => {
+    // The US2ARCEC COSARE cut where US4AK6NQ serves: the finer chart carries
+    // no COSARE at all, which under same-band rules is a proved absence that
+    // keeps the line -- but across a band handover the zone plainly continues.
+    const coverage = neighborCoverage("neighbors.geojson", {
+      dsnm: "US4FINER",
+      qfloor: 10,
+    });
+    const evidence = writeCollection("evidence.geojson", []);
+
+    const out = run(
+      "--area",
+      `RESARE:${current()}`,
+      "--cell-coverage",
+      cell(),
+      "--neighbor-coverage",
+      coverage,
+      "--neighbor-area-evidence",
+      evidence,
+      "--cell-floor",
+      "5",
+    );
+    expect(hasMeridian(out)).toBe(false);
+  });
+
+  test("a SAME-BAND owner still demands exact content with --cell-floor", () => {
+    const coverage = neighborCoverage("neighbors.geojson", {
+      dsnm: "US5RIGHT",
+      qfloor: 9,
+    });
+    const evidence = neighborEvidence("evidence.geojson", {
+      dsnm: "US5RIGHT",
+      qfloor: 9,
+      content: { RESTRN: "8" },
+    });
+
+    const out = run(
+      "--area",
+      `RESARE:${current()}`,
+      "--cell-coverage",
+      cell(),
+      "--neighbor-coverage",
+      coverage,
+      "--neighbor-area-evidence",
+      evidence,
+      "--cell-floor",
+      "9",
+    );
+    expect(hasMeridian(out)).toBe(true);
+  });
+
+  test("no owner at all still keeps the charted end with --cell-floor", () => {
+    const coverage = writeCollection("neighbors.geojson", []);
+    const evidence = writeCollection("evidence.geojson", []);
+
+    const out = run(
+      "--area",
+      `RESARE:${current()}`,
+      "--cell-coverage",
+      cell(),
+      "--neighbor-coverage",
+      coverage,
+      "--neighbor-area-evidence",
+      evidence,
+      "--cell-floor",
+      "9",
+    );
+    expect(hasMeridian(out)).toBe(true);
+  });
+
   test("a serving cell with no same-class content keeps the charted end", () => {
     const coverage = neighborCoverage("neighbors.geojson", {
       dsnm: "US5RIGHT",

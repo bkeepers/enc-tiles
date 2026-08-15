@@ -1089,6 +1089,12 @@ if [ ${#area_edge_args[@]} -gt 0 ]; then
   if [ -f "$tmpdir/area_evidence.geojson" ]; then
     area_edge_args+=(--neighbor-area-evidence "$tmpdir/area_evidence.geojson")
   fi
+  # The cell's own rung: a far-side owner on a DIFFERENT rung is a band
+  # handover, and band handovers never draw an area boundary (see the BAND
+  # NESTING block in generate-area-edges).
+  if [ -n "$quilt_floor" ]; then
+    area_edge_args+=(--cell-floor "$quilt_floor")
+  fi
   area_edges_geojson="$tmpdir/_AREA_EDGE.geojson"
   node "$SCRIPT_DIR/generate-area-edges" "$area_edges_geojson" "${area_edge_args[@]}"
   if [ -s "$area_edges_geojson" ]; then

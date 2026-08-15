@@ -327,6 +327,7 @@ const positional = [];
 let writeEvidence = false;
 let evidenceDsnm = "";
 let evidenceQfloor = null;
+let cellFloor = null;
 
 for (let i = 0; i < args.length; i++) {
   if (args[i] === "--area" && args[i + 1]) {
@@ -350,13 +351,15 @@ for (let i = 0; i < args.length; i++) {
     evidenceDsnm = args[++i];
   else if (args[i] === "--evidence-qfloor" && args[i + 1])
     evidenceQfloor = Number(args[++i]);
+  else if (args[i] === "--cell-floor" && args[i + 1])
+    cellFloor = Number(args[++i]);
   else positional.push(args[i]);
 }
 
 const outputPath = positional[0];
 if (!outputPath || (classPaths.length === 0 && !writeEvidence)) {
   console.error(
-    "Usage: generate-area-edges <output.geojson> --area <CLASS:file> [--area <CLASS:file> ...] [--coverage <file>] [--cell-coverage <file>] [--neighbor-coverage <file>] [--neighbor-area-evidence <file>]\n" +
+    "Usage: generate-area-edges <output.geojson> --area <CLASS:file> [--area <CLASS:file> ...] [--coverage <file>] [--cell-coverage <file>] [--neighbor-coverage <file>] [--neighbor-area-evidence <file>] [--cell-floor <N>]\n" +
       "       generate-area-edges --list-classes",
   );
   process.exit(1);
@@ -473,6 +476,22 @@ function semanticSeamDecision(name, a, b, walk, sides, range) {
   const serving = servingOwnersAt(point, range);
   if (serving === null || serving.owners.size === 0)
     return { suppressSides: [] };
+  // BAND NESTING (user directive 2026-08-15): a chart border between SCALE
+  // BANDS never draws an area boundary. Scale editions legitimately differ in
+  // vocabulary and in which zone classes they compile at all -- a US4 approach
+  // chart omitting COSARE does not end the contiguous zone, and a US4 cell
+  // ringed inside US2/US3 coverage is a compilation join, not a limit. When
+  // every serving far-side owner sits on a DIFFERENT rung than this cell, the
+  // truncated presentation drops without demanding content proof. Same-band
+  // owners keep the exact-identity requirement below, and a border with no
+  // owner at all is still the charted end of all data and stands.
+  if (Number.isFinite(cellFloor) && serving.floor !== cellFloor) {
+    return {
+      suppressSides: sides.flatMap((side, index) =>
+        side !== NO_AREA ? [index] : [],
+      ),
+    };
+  }
   const evidence = polygonsContaining(neighborEvidence, point).filter(
     (entry) =>
       serving.owners.has(entry.properties.DSNM) &&
