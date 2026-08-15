@@ -22,9 +22,9 @@ const SCRIPT = fileURLToPath(
 );
 
 // The band-5 tiling ladder, which is what bin/s57-to-tiles passes down.
-// Maxzoom 12: the offset-3 ladder floors a 1:12k cell at 12, so band 5 tiles
-// z12 natively.
-const BAND = ["--minzoom", "0", "--maxzoom", "12"];
+// Maxzoom 13: the offset-2 ladder floors a 1:12k cell at 13, so band 5 tiles
+// z13 natively.
+const BAND = ["--minzoom", "0", "--maxzoom", "13"];
 
 let work;
 
@@ -90,7 +90,7 @@ describe("the properties become a tippecanoe member", () => {
   test("an unbounded top copy runs to the band maxzoom", () => {
     const [feature] = run("DEPARE", [point({ _QZMIN: 10 })]);
 
-    expect(feature.tippecanoe).toEqual({ minzoom: 10, maxzoom: 12 });
+    expect(feature.tippecanoe).toEqual({ minzoom: 10, maxzoom: 13 });
   });
 
   test("a feature the partition never touched is left alone", () => {
@@ -180,7 +180,7 @@ describe("the hazard classes are composed like everything else", () => {
 
     expect(kept.map((feature) => feature.tippecanoe)).toEqual([
       { minzoom: 9, maxzoom: 10 },
-      { minzoom: 11, maxzoom: 12 },
+      { minzoom: 11, maxzoom: 13 },
     ]);
   });
 

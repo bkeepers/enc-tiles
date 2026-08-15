@@ -207,12 +207,12 @@ case "$intu" in
   2) minzoom=0; maxzoom=6  ;;
   3) minzoom=0; maxzoom=8 ;;
   4) minzoom=0; maxzoom=10 ;;
-  # Band 5's deepest rung is now 12 (a 1:12,000 cell's floor under the
-  # offset-3 ladder), and every interval of the ladder needs a tile to live
-  # in -- so the band tiles to 12 natively rather than relying on the step-2b
+  # Band 5's deepest rung is now 13 (a 1:12,000 cell's floor under the
+  # offset-2 ladder), and every interval of the ladder needs a tile to live
+  # in -- so the band tiles to 13 natively rather than relying on the step-2b
   # raise for its own standard scales.
-  5) minzoom=0; maxzoom=12 ;;
-  6) minzoom=0; maxzoom=12 ;;
+  5) minzoom=0; maxzoom=13 ;;
+  6) minzoom=0; maxzoom=13 ;;
   *) echo "Unknown INTU: $intu"; exit 1 ;;
 esac
 
@@ -248,13 +248,15 @@ fi
 #
 # A cell is tiled to the deepest of its band maxzoom, this cap and its deepest
 # ladder rung (step 2d), but the archive a browser mounts is the national join,
-# and that join is capped at the MINIMUM band maxzoom across its regions -- 12
-# under the offset-3 ladder, because the harbour band (INTU 5) now tiles z12
+# and that join is capped at the MINIMUM band maxzoom across its regions -- 13
+# under the offset-2 ladder, because the harbour band (INTU 5) now tiles z13
 # natively in every region. Every tile above the cap is deleted from the
-# published archive. (Historical note: the cap was 11, and the old z12 join
-# OOM'd because tile-join SYNTHESIZED z12 for the regions that lacked it --
-# under this ladder the fine cells tile z12 natively, so the synthesis path is
-# gone.)
+# published archive. (Historical note: the cap was 11, then 12, and the old z12
+# join OOM'd because tile-join SYNTHESIZED z12 for the regions that lacked it --
+# under this ladder the fine cells tile the cap natively, so the synthesis path
+# is gone. The cap tracks the ladder: when QUILT_RUNG_OFFSET went 3 -> 2 on
+# 2026-08-15 every rung moved one deeper, and holding the cap at 12 would have
+# collapsed the 1:22k and 1:12k bands onto a single zoom.)
 #
 # It is also the ceiling QUILT_FLOOR_MAX clamps every rung into, which is what
 # keeps step 2d's raise from ever tiling a cell past the cap.
@@ -267,7 +269,7 @@ fi
 # band-6 sectors going blank from z12 when the cap was 11.
 #
 # If the join's minimum ever moves again, this moves with it, in one place.
-publication_maxzoom=12
+publication_maxzoom=13
 
 mkdir -p "$(dirname "$output")"
 
@@ -1396,10 +1398,10 @@ fi
 # contract promises the loser gets rescaled rather than read against the wrong
 # extent and landing 4x off. Pinning all three knobs to the same value removes
 # the question. (Bands 4 and coarser still stop above their own maxzoom, so the
-# hazard is as live under the offset-3 ladder as it was then.)
+# hazard is as live under the offset-2 ladder as it was then.)
 #
 # Why 14 (16384 units) rather than the default 12 (4096): the published archive
-# stops at maxzoom 12 and clients overzoom 3-5 levels past that. At a 4096-unit grid,
+# stops at maxzoom 13 and clients overzoom 3-5 levels past that. At a 4096-unit grid,
 # quantization opens ~1-unit slivers between adjacent DEPARE polygons that reach
 # 4-8 px on screen by z16-17, showing the basemap through depth-area seams. The
 # 16384-unit grid keeps them sub-pixel to roughly z16.

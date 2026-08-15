@@ -202,11 +202,11 @@ describe("INTU is validated exactly as s57-to-tiles validates it", () => {
 
 describe("the finest-here clip", () => {
   test("selects coverage STRICTLY finer than this chart's own floor", () => {
-    // 1:12k at Puget latitude floors at z12 on the offset-3 ladder — the same
+    // 1:12k at Puget latitude floors at z13 on the offset-2 ladder — the same
     // rung extract-coverage stamps and s57-to-tiles partitions against.
     const { sql } = run({ STUB_CSCALE: "12000" });
 
-    expect(sql).toContain("QFLOOR > 12");
+    expect(sql).toContain("QFLOOR > 13");
     expect(sql).not.toContain("QFLOOR >=");
   });
 
@@ -214,9 +214,9 @@ describe("the finest-here clip", () => {
     const puget = run({ STUB_CSCALE: "22000" });
     const alaska = run({ STUB_CSCALE: "22000", STUB_EXTENT: extentAt(70) });
 
-    expect(puget.sql).toContain("QFLOOR > 11");
+    expect(puget.sql).toContain("QFLOOR > 12");
     // cos(70) is a third of cos(48.5): same chart, one rung lower.
-    expect(alaska.sql).toContain("QFLOOR > 10");
+    expect(alaska.sql).toContain("QFLOOR > 11");
   });
 
   test("differences every class against the mask, un-cast", () => {
@@ -302,10 +302,10 @@ describe("a chart with no DSPM_CSCL", () => {
   test("falls back to the COARSER rung of its INTU band's pair", () => {
     // Same fallback extract-coverage applies: a legacy chart is floored no
     // lower than the band it has always been floored to (band 5 -> 1:22k,
-    // z11 at Puget latitude).
+    // z12 at Puget latitude).
     const { sql, status } = run({ STUB_CSCALE: "none", STUB_INTU: "5" });
 
     expect(status).toBe(0);
-    expect(sql).toContain("QFLOOR > 11");
+    expect(sql).toContain("QFLOOR > 12");
   });
 });

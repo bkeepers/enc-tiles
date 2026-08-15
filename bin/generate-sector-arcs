@@ -54,7 +54,7 @@
 //   that selection all four would draw at once.
 // * --top-zoom, THE PUBLICATION CEILING, over the top of it. The tileset a
 //   browser actually mounts is the national join, and that join is capped at
-//   the MINIMUM band maxzoom across its inputs (z12 under the offset-3 ladder:
+//   the MINIMUM band maxzoom across its inputs (z13 under the offset-2 ladder:
 //   every band's own maxzoom now sits at or under it, so today no copy is cut
 //   by this bound -- the guard stays because the ceiling is the join's fact,
 //   not this generator's). Every tile above the cap is deleted, and with it

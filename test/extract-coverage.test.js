@@ -99,18 +99,18 @@ function stamps(sql) {
 }
 
 describe("the rung stamped on each chart's coverage", () => {
-  // The offset-3 ladder at Puget latitude: every chart one zoom later than the
-  // historical band floors, matching where ECDIS and Coastal Explorer time the
-  // same charts. Every one of these lands on an integer rung, which is what
-  // makes the intra-band handovers (22k -> 12k, 350k -> 180k) exact rather
-  // than a rounding artefact.
+  // The offset-2 ladder at Puget latitude: every chart two zooms later than the
+  // historical band floors, which is where a live comparison put the estimated
+  // scale against each chart's actual compilation scale. Every one of these
+  // lands on an integer rung, which is what makes the intra-band handovers
+  // (22k -> 12k, 350k -> 180k) exact rather than a rounding artefact.
   test.each([
-    [350000, 7],
-    [180000, 8],
-    [90000, 9],
-    [45000, 10],
-    [22000, 11],
-    [12000, 12],
+    [350000, 8],
+    [180000, 9],
+    [90000, 10],
+    [45000, 11],
+    [22000, 12],
+    [12000, 13],
   ])("1:%i at Puget latitude floors at z%i", (cscale, floor) => {
     expect(stamps(run({ STUB_CSCALE: String(cscale) }).sql)).toEqual({
       intu: 5,
@@ -127,19 +127,23 @@ describe("the rung stamped on each chart's coverage", () => {
       run({ STUB_CSCALE: "22000", STUB_EXTENT: extentAt(70) }).sql,
     );
 
-    expect(puget.qfloor).toBe(11);
-    expect(alaska.qfloor).toBe(10);
+    expect(puget.qfloor).toBe(12);
+    expect(alaska.qfloor).toBe(11);
   });
 
   test("the floor is clamped into the PUBLISHED web ladder", () => {
     // Nothing below z0 exists to own, and the top of the ladder is the
-    // published archive's maxzoom (12, which every band's own tiling now
-    // reaches). A floor of 13 would stamp content into z13 tiles that the
+    // published archive's maxzoom (13, which every band's own tiling now
+    // reaches). A floor of 14 would stamp content into z14 tiles that the
     // national join deletes, and the style would then draw it at no zoom.
-    expect(stamps(run({ STUB_CSCALE: "40000000" }).sql).qfloor).toBe(0);
-    expect(stamps(run({ STUB_CSCALE: "500" }).sql).qfloor).toBe(12);
-    // A berthing scale past the cap at Puget latitude (raw rung 13).
-    expect(stamps(run({ STUB_CSCALE: "5000" }).sql).qfloor).toBe(12);
+    //
+    // The coarse end takes a coarser scale than it used to: on the offset-2
+    // ladder a 1:40M chart floors at z1 under its own steam, so it no longer
+    // reaches the bottom of the clamp at all.
+    expect(stamps(run({ STUB_CSCALE: "150000000" }).sql).qfloor).toBe(0);
+    expect(stamps(run({ STUB_CSCALE: "500" }).sql).qfloor).toBe(13);
+    // A berthing scale past the cap at Puget latitude (raw rung 14).
+    expect(stamps(run({ STUB_CSCALE: "5000" }).sql).qfloor).toBe(13);
   });
 });
 
@@ -150,20 +154,20 @@ describe("a chart whose DSID carries no DSPM_CSCL", () => {
     // producing the tiles it always did.
     const result = run({ STUB_CSCALE: "none", STUB_INTU: "5" });
 
-    expect(stamps(result.sql)).toEqual({ intu: 5, cscale: 22000, qfloor: 11 });
+    expect(stamps(result.sql)).toEqual({ intu: 5, cscale: 22000, qfloor: 12 });
     expect(result.stderr).toContain("no DSPM_CSCL");
   });
 
   test.each([
-    [1, 10000000, 2],
-    [2, 1500000, 5],
-    [3, 350000, 7],
-    [4, 90000, 9],
-    // 1:4000 is z14 on the raw offset-3 ladder (round(16.52) - 3) — two rungs
-    // past the cap, not one — and is clamped to the
+    [1, 10000000, 3],
+    [2, 1500000, 6],
+    [3, 350000, 8],
+    [4, 90000, 10],
+    // 1:4000 is z14 on the raw offset-2 ladder (round(16.50) - 2) — one rung
+    // past the cap — and is clamped to the
     // publication cap -- which band 6 now tiles natively, so the clamped
     // floor names a tile the archive actually holds.
-    [6, 4000, 12],
+    [6, 4000, 13],
   ])("band %i falls back to 1:%i", (intu, cscale, floor) => {
     expect(
       stamps(run({ STUB_CSCALE: "none", STUB_INTU: String(intu) }).sql),
@@ -212,7 +216,7 @@ describe("what reaches the coverage table", () => {
 
     expect(sql).toContain("'US5WA22M' AS DSNM");
     expect(sql).toContain(
-      "INSERT INTO area_evidence_manifest (DSNM,QFLOOR,SCHEMA,FEATURE_COUNT) VALUES ('US5WA22M',12,1,0)",
+      "INSERT INTO area_evidence_manifest (DSNM,QFLOOR,SCHEMA,FEATURE_COUNT) VALUES ('US5WA22M',13,1,0)",
     );
   });
 
@@ -222,7 +226,7 @@ describe("what reaches the coverage table", () => {
     expect(result.status).toBe(0);
     expect(result.sql).toContain("DELETE FROM area_evidence");
     expect(result.sql).toContain("DELETE FROM area_evidence_manifest");
-    expect(result.sql).toContain("FEATURE_COUNT) VALUES ('US5WA22M',12,1,0)");
+    expect(result.sql).toContain("FEATURE_COUNT) VALUES ('US5WA22M',13,1,0)");
   });
 
   test("the evidence layer promotes Polygon and MultiPolygon into one schema", () => {

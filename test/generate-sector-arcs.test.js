@@ -176,11 +176,11 @@ describe("tippecanoe confinement", () => {
 describe("the publication ceiling", () => {
   // What bin/s57-to-tiles passes as --top-zoom. The national join is capped at
   // the MINIMUM band maxzoom across its member regions and deletes every tile
-  // above it, so this is the deepest zoom a published archive holds. 12 under
-  // the offset-3 ladder: band 5 now tiles z12 natively, so no band exceeds it.
-  const PUBLICATION_MAXZOOM = 12;
+  // above it, so this is the deepest zoom a published archive holds. 13 under
+  // the offset-2 ladder: band 5 now tiles z13 natively, so no band exceeds it.
+  const PUBLICATION_MAXZOOM = 13;
   // The band ladder in bin/s57-to-tiles, INTU 1 through 6.
-  const BAND_MAXZOOMS = [4, 6, 8, 10, 12, 12];
+  const BAND_MAXZOOMS = [4, 6, 8, 10, 13, 13];
   // Past here the browser is overzooming whatever any ladder says; the style
   // still asks its question at every one of these zooms.
   const DEEPEST_DISPLAY_ZOOM = 17;
@@ -239,7 +239,7 @@ describe("the publication ceiling", () => {
   );
 
   test("a band ABOVE the ceiling is still capped, and `_zmax` does not promise past it", () => {
-    // No band exceeds the ceiling on the offset-3 ladder (every maxzoom <= 12),
+    // No band exceeds the ceiling on the offset-2 ladder (every maxzoom <= 13),
     // so this pins the generic cap logic itself -- the branch that saved the
     // band-6 sectors when the cap was 11, and the one that binds again if the
     // ladders ever diverge.
