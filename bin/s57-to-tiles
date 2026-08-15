@@ -554,6 +554,42 @@ quilt_copy() {
   "
 }
 
+# One rung mask for a ZONE table: the same union the shared mask takes, but only
+# over finer charts that actually CARRY this class.
+#
+# A maritime zone's extent is a jurisdiction, not a per-chart compilation. The
+# shared mask cut a coarse chart's zone wherever ANY finer chart served, so
+# where the finer chart covers the ground and does not compile the class, the
+# zone AND its real boundary vanished for that rung -- which is what gapped the
+# US/Russia convention line inside US1GLBDS (~57.51N 175.84E), whose treaty-line
+# boundary is interior to the chart, four degrees from any chart border. A finer
+# chart that does chart the zone still wins its rungs exactly as before, because
+# its own polygon then draws the line.
+#
+#   $1 table  $2 rung floor, or "all" for the whole finer union (the top copy)
+#
+# Echoes the mask table name, or NOTHING when the restricted union is empty --
+# which quilt_copy reads as "no cut", the same as a cell with nothing finer over
+# it. Differencing against a NULL union would delete the copy instead.
+zone_rung_mask() {
+  local table="$1" rung="$2" name predicate rows
+  name="quilt_mask_zone_${table}_${rung}"
+  predicate="q.QFLOOR > ${quilt_floor}"
+  [ "$rung" = "all" ] || predicate="${predicate} AND q.QFLOOR <= ${rung}"
+
+  ogrinfo --quiet "$gpkg" -dialect sqlite -sql \
+    "CREATE TABLE ${name} AS SELECT ST_Union(q.geom) as geom FROM quilting q
+     WHERE ${predicate}
+       AND EXISTS (SELECT 1 FROM zone_evidence z
+                   WHERE z.DSNM = q.DSNM AND z.CLASS = '${table}')"
+
+  rows=$(count_rows \
+    "SELECT COUNT(*) AS n FROM ${name} WHERE geom IS NOT NULL" \
+    "zone quilt mask ${table} ${rung} count")
+  if [ "$rows" -gt 0 ]; then printf '%s' "$name"; fi
+  return 0
+}
+
 # Step 2b: Quilting — partition each feature into the zoom intervals this cell
 # OWNS instead of deleting the ground a finer chart also covers.
 #
@@ -584,9 +620,12 @@ if [ -n "$coverage" ] && [ -f "$coverage" ] && [ -n "$quilt_floor" ]; then
   # (direct GPKG-to-GPKG append can have geometry column name conflicts). Both
   # directions are needed: the finer rungs cap this cell, the coarser union
   # decides where it has to keep serving below its floor.
+  #
+  # DSNM travels with the rows because the ZONE masks below join them to the
+  # zone_evidence roster by chart name; nothing else reads it off `quilting`.
   all_geojson="$tmpdir/quilting_all.geojson"
   ogr2ogr -f GeoJSON "$all_geojson" "$coverage" coverage \
-    -where "QFLOOR <> ${quilt_floor}" -select "INTU,CSCALE,QFLOOR" 2>/dev/null
+    -where "QFLOOR <> ${quilt_floor}" -select "DSNM,INTU,CSCALE,QFLOOR" 2>/dev/null
 
   # Finer coverage alone, for generate-depare-edges at step 3c: an edge left by
   # a COARSER neighbour is not a quilt seam.
@@ -625,8 +664,28 @@ if [ -n "$coverage" ] && [ -f "$coverage" ] && [ -n "$quilt_floor" ]; then
     -lco AUTODETECT_JSON_STRINGS=NO \
     -where "DSNM <> '${dsnm}'" -select "CLASS,CONTENT,DSNM,QFLOOR" 2>/dev/null
 
+  # The same roster reduced to PRESENCE -- which chart carries which class --
+  # for the zone-aware quilt masks below. Content is irrelevant here: the
+  # question the mask asks is only "does THAT chart compile this zone at all",
+  # so the geometry rides along unused and the two attributes are the answer.
+  zone_presence_geojson="$tmpdir/zone_presence.geojson"
+  ogr2ogr -f GeoJSON "$zone_presence_geojson" "$coverage" area_evidence \
+    -lco AUTODETECT_JSON_STRINGS=NO \
+    -where "DSNM <> '${dsnm}'" -select "DSNM,CLASS" 2>/dev/null
+
   if [ -s "$all_geojson" ]; then
     ogr2ogr -f GPKG "$gpkg" "$all_geojson" -append -nln quilting 2>/dev/null
+
+    # The zone-presence roster, beside the coverage it qualifies. Absent (an
+    # older cache with no area_evidence, or a first-ever region run) every table
+    # simply uses the shared masks, which is the behaviour that shipped before.
+    zone_evidence_ready=0
+    if [ -s "$zone_presence_geojson" ]; then
+      if ogr2ogr -f GPKG "$gpkg" "$zone_presence_geojson" \
+        -append -nln zone_evidence 2>/dev/null; then
+        zone_evidence_ready=1
+      fi
+    fi
 
     # The geometry expressions in this block are deliberately left un-cast.
     # GDAL's SQLite dialect already hands GPKG geometry columns to the
@@ -709,6 +768,16 @@ if [ -n "$coverage" ] && [ -f "$coverage" ] && [ -n "$quilt_floor" ]; then
     whole_max="NULL"
     [ ${#ladder_floors[@]} -gt 0 ] && whole_max=$((${ladder_floors[0]} - 1))
 
+    # The zone tables, from the derivation that owns the set
+    # (bin/generate-area-edges --list-zone-classes) rather than restated here --
+    # the same one-source-of-truth contract as --list-classes at step 3f. Only
+    # consulted when the presence roster made it into the GPKG.
+    zone_classes=""
+    if [ "$zone_evidence_ready" = "1" ]; then
+      zone_classes=$(node "$SCRIPT_DIR/generate-area-edges" --list-zone-classes |
+        tr '\n' ' ')
+    fi
+
     for table in $tables; do
       [ "$table" = "DSID" ] && continue
 
@@ -733,6 +802,13 @@ if [ -n "$coverage" ] && [ -f "$coverage" ] && [ -n "$quilt_floor" ]; then
           -sql "ALTER TABLE \"${table}\" ADD COLUMN ${stamp} INTEGER"
       done
 
+      # A ZONE table cuts against a mask of its own: only the finer charts that
+      # carry this class. See zone_rung_mask.
+      zone_table=0
+      case " $zone_classes " in
+        *" $table "*) zone_table=1 ;;
+      esac
+
       # Ladder copies, every one of them taken from the still-unstamped
       # originals so each interval's geometry is the ORIGINAL minus that
       # interval's mask rather than the previous copy's leftovers.
@@ -743,6 +819,7 @@ if [ -n "$coverage" ] && [ -f "$coverage" ] && [ -n "$quilt_floor" ]; then
         if [ "$next" -lt ${#ladder_floors[@]} ]; then
           rung_max=$((${ladder_floors[$next]} - 1))
           rung_mask="quilt_mask_${floor}"
+          [ "$zone_table" = "1" ] && rung_mask=$(zone_rung_mask "$table" "$floor")
         else
           # The top copy runs to the tiling maxzoom and past it through
           # overzoom, so it is cut against ALL finer coverage: its deepest tile
@@ -754,6 +831,7 @@ if [ -n "$coverage" ] && [ -f "$coverage" ] && [ -n "$quilt_floor" ]; then
           # cumulative query happening to reach the end.
           rung_max="NULL"
           rung_mask="quilt_mask"
+          [ "$zone_table" = "1" ] && rung_mask=$(zone_rung_mask "$table" all)
         fi
         quilt_copy "$table" "$columns" "$floor" "$rung_max" "NULL" \
           "$rung_mask" "_QZMIN = ${floor}"
@@ -866,7 +944,7 @@ fi
 # which under `set -e` ended the run right here with no message at all -- the
 # one failure mode of this script that told the caller nothing. An empty list
 # is a real answer; it is reported by the feature-count check below.
-layers=$(ogrinfo -q "$gpkg" 2>/dev/null | grep "^[0-9]" | awk '{print $2}' | grep -v '^DSID$' | grep -v '^quilting$' | grep -v '^quilt_mask' || true)
+layers=$(ogrinfo -q "$gpkg" 2>/dev/null | grep "^[0-9]" | awk '{print $2}' | grep -v '^DSID$' | grep -v '^quilting$' | grep -v '^quilt_mask' | grep -v '^zone_evidence$' || true)
 
 geojson_files=()
 for layer in $layers; do

@@ -8,13 +8,14 @@
 if [ -n "$STUB_NODE_LOG" ]; then
   echo "$*" >> "$STUB_NODE_LOG"
 fi
-# `--list-classes` and `--write-evidence` are extraction operations, not tile
-# derived-layer runs: the shell scripts consume their stdout and (for evidence)
-# output file, so both are answered by the real node. Swallowing either would
-# silently empty the fragment or wiring in every test. The real binary is
-# whichever node on PATH is not this stub.
+# `--list-classes`, `--list-zone-classes` and `--write-evidence` are extraction
+# operations, not tile derived-layer runs: the shell scripts consume their
+# stdout and (for evidence) output file, so all of them are answered by the real
+# node. Swallowing any would silently empty the fragment or the wiring in every
+# test. The real binary is whichever node on PATH is not this stub.
 for arg in "$@"; do
-  if [ "$arg" = "--list-classes" ] || [ "$arg" = "--write-evidence" ]; then
+  if [ "$arg" = "--list-classes" ] || [ "$arg" = "--list-zone-classes" ] ||
+    [ "$arg" = "--write-evidence" ]; then
     self_dir=$(cd "$(dirname "$0")" && pwd)
     while IFS= read -r candidate; do
       candidate_dir=$(cd "$(dirname "$candidate")" && pwd)

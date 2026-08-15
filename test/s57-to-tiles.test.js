@@ -430,6 +430,108 @@ describe("the copy ladder", () => {
 });
 
 /**
+ * The same three-rung cell carrying one ZONE table beside an ordinary one.
+ *
+ * A maritime zone's extent is a jurisdiction, not a per-chart compilation, so a
+ * finer chart that covers the ground without compiling the class must not cut
+ * the zone away for its rung -- that is what gapped the US/Russia convention
+ * line inside US1GLBDS, four degrees from any chart border.
+ */
+const ZONE_CELL = { ...THREE_RUNG_CELL, STUB_TABLES: "ADMARE DEPARE M_COVR" };
+
+describe("zone-aware quilt masks", () => {
+  test("the presence roster reaches the chart GPKG", () => {
+    const { sql } = run(ZONE_CELL);
+
+    // DSNM and CLASS only: the mask asks whether that chart compiles the zone
+    // at all, never what it says.
+    const exported = statements(sql).find((statement) =>
+      statement.includes("zone_presence.geojson"),
+    );
+    expect(exported).toBeDefined();
+    expect(exported).toContain("area_evidence");
+    expect(exported).toContain("-select DSNM,CLASS");
+    expect(sql).toMatch(/zone_presence\.geojson -append -nln zone_evidence/);
+
+    // The join is by chart name, so the coverage rows have to carry it.
+    expect(sql).toContain("-select DSNM,INTU,CSCALE,QFLOOR");
+  });
+
+  test("a zone table cuts only against charts carrying the same class", () => {
+    const { sql } = run(ZONE_CELL);
+
+    const rung = statements(sql).find((statement) =>
+      statement.includes("CREATE TABLE quilt_mask_zone_ADMARE_9"),
+    );
+    expect(rung).toBeDefined();
+    // The shared mask's rung predicate, plus the presence join and nothing else.
+    expect(rung).toContain("q.QFLOOR > 7 AND q.QFLOOR <= 9");
+    expect(rung).toMatch(
+      /EXISTS \(SELECT 1 FROM zone_evidence z\s+WHERE z\.DSNM = q\.DSNM AND z\.CLASS = 'ADMARE'\)/,
+    );
+
+    // The top copy is cut against the whole finer union, restricted the same
+    // way -- it is the copy tile-join --overzoom lifts over every finer chart.
+    const top = statements(sql).find((statement) =>
+      statement.includes("CREATE TABLE quilt_mask_zone_ADMARE_all"),
+    );
+    expect(top).toBeDefined();
+    expect(top).toContain("q.QFLOOR > 7");
+    expect(top).not.toContain("q.QFLOOR <=");
+
+    expect(sql).toMatch(
+      /UPDATE "ADMARE" SET geom = ST_Difference\("ADMARE"\.geom, \(SELECT geom FROM quilt_mask_zone_ADMARE_9\)\)/,
+    );
+    expect(sql).toMatch(
+      /UPDATE "ADMARE" SET geom = ST_Difference\("ADMARE"\.geom, \(SELECT geom FROM quilt_mask_zone_ADMARE_all\)\)/,
+    );
+    // Never the shared masks, in either direction of the ladder.
+    expect(sql).not.toMatch(
+      /"ADMARE"\.geom, \(SELECT geom FROM quilt_mask_9\)/,
+    );
+    expect(sql).not.toMatch(/"ADMARE"\.geom, \(SELECT geom FROM quilt_mask\)/);
+  });
+
+  test("an ordinary table still cuts against the shared masks", () => {
+    const { sql } = run(ZONE_CELL);
+
+    expect(sql).toMatch(
+      /UPDATE "DEPARE" SET geom = ST_Difference\("DEPARE"\.geom, \(SELECT geom FROM quilt_mask_9\)\)/,
+    );
+    expect(sql).toMatch(
+      /UPDATE "DEPARE" SET geom = ST_Difference\("DEPARE"\.geom, \(SELECT geom FROM quilt_mask\)\)/,
+    );
+    expect(sql).not.toContain("quilt_mask_zone_DEPARE");
+
+    // The fallback direction is untouched for every table, zone or not.
+    expect(sql).toMatch(
+      /UPDATE "ADMARE" SET geom = ST_Difference\("ADMARE"\.geom, \(SELECT geom FROM quilt_mask_coarser\)\)/,
+    );
+  });
+
+  test("the zone set comes from the derivation, not a second list", () => {
+    const { node } = run(ZONE_CELL);
+
+    expect(node).toMatch(/generate-area-edges --list-zone-classes/);
+  });
+
+  test("the mask tables never reach the tiles", () => {
+    const { sql } = run(ZONE_CELL);
+
+    // The layer export filters `quilt_mask*` and zone_evidence out; a mask
+    // exported as a layer would tile a chart's coverage union as chart data.
+    const exports = statements(sql).filter(
+      (statement) =>
+        statement.includes("-f GeoJSON") && statement.includes("chart.gpkg"),
+    );
+    for (const statement of exports) {
+      expect(statement).not.toContain("quilt_mask_zone");
+      expect(statement).not.toContain("zone_evidence");
+    }
+  });
+});
+
+/**
  * A 1:90k cell of band 4, whose BAND alone would tile it to z10. Its own floor
  * is 9 (offset-3 ladder), and it is overlapped by 1:22k (floor 11) and 1:12k
  * (floor 12) charts -- both of which floor deeper than that band maxzoom.

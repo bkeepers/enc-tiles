@@ -225,6 +225,41 @@ export const AREA_EDGE_CLASSES = [
 ];
 
 /**
+ * The maritime-jurisdiction ladder: the classes whose extent is a JURISDICTION,
+ * not a per-chart compilation (user directive 2026-08-15).
+ *
+ * A zone's boundary drawn at a CHART border is a compilation artifact whenever
+ * ANY chart serves the far side. Same-scale neighbours disagree on the Coast
+ * Pilot INFORM boilerplate, stop the polygon a hair short of the shared border,
+ * or omit the class entirely -- US4AK2CE carries no ADMARE at all while
+ * US4AK2DE's is clipped at their shared border, and exact-identity plus
+ * proved-absence manufactured a line across land and water between them. So for
+ * these classes ANY serving owner suppresses, whatever the band and whatever
+ * the content. Only a genuine charted end of all data (no serving owner at all)
+ * keeps the line, and a zone's REAL limit lies interior to a chart, where no
+ * seam test ever reaches it.
+ *
+ * The same jurisdictional reading governs the QUILT: bin/s57-to-tiles reads this
+ * set through `--list-zone-classes` (one source of truth, as `--list-classes`
+ * is for the participating classes) and cuts a zone table only against finer
+ * charts that carry the SAME class. A finer chart covering the ground without
+ * compiling the zone used to cut the zone -- and its interior boundary line --
+ * away for that rung, which is what gapped the US/Russia convention line inside
+ * US1GLBDS four degrees from any chart border.
+ */
+export const ZONE_CLASSES = [
+  "ADMARE",
+  "CONZNE",
+  "COSARE",
+  "CUSZNE",
+  "EXEZNE",
+  "FSHZNE",
+  "TESARE",
+];
+
+const ZONE_CLASS_SET = new Set(ZONE_CLASSES);
+
+/**
  * The attributes that identify the RECORD, not the content -- excluded from
  * the identity hash AND from the emitted edge's attributes.
  *
@@ -323,6 +358,13 @@ const args = process.argv.slice(2);
 
 if (args.includes("--list-classes")) {
   process.stdout.write(AREA_EDGE_CLASSES.join("\n") + "\n");
+  process.exit(0);
+}
+
+// The zone subset, for the quilt's zone-aware masks. Same contract as
+// --list-classes: the caller never restates the set.
+if (args.includes("--list-zone-classes")) {
+  process.stdout.write(ZONE_CLASSES.join("\n") + "\n");
   process.exit(0);
 }
 
@@ -452,31 +494,6 @@ const neighborEvidence = coveragePolygons(neighborAreaEvidencePaths);
 // recognise it here.
 const ownCellCoverage = coveragePolygons(cellCoveragePaths);
 
-/**
- * The maritime-jurisdiction ladder: the classes whose extent is a JURISDICTION,
- * not a per-chart compilation (user directive 2026-08-15).
- *
- * A zone's boundary drawn at a CHART border is a compilation artifact whenever
- * ANY chart serves the far side. Same-scale neighbours disagree on the Coast
- * Pilot INFORM boilerplate, stop the polygon a hair short of the shared border,
- * or omit the class entirely -- US4AK2CE carries no ADMARE at all while
- * US4AK2DE's is clipped at their shared border, and exact-identity plus
- * proved-absence manufactured a line across land and water between them. So for
- * these classes ANY serving owner suppresses, whatever the band and whatever
- * the content. Only a genuine charted end of all data (no serving owner at all)
- * keeps the line, and a zone's REAL limit lies interior to a chart, where no
- * seam test ever reaches it.
- */
-const ZONE_CLASSES = new Set([
-  "ADMARE",
-  "CONZNE",
-  "COSARE",
-  "CUSZNE",
-  "EXEZNE",
-  "TESARE",
-  "FSHZNE",
-]);
-
 function representativeZoom(range) {
   const stamp = (value) => {
     // OGR exports a nullable integer as JSON null. Number(null) and Number("")
@@ -549,7 +566,7 @@ function semanticSeamDecision(name, a, b, walk, sides, range) {
   // ZONE CLASSES (user directive 2026-08-15): with any chart serving the far
   // side, a jurisdiction's boundary at a CHART border is a compilation
   // artifact -- see ZONE_CLASSES. No band test, no content proof.
-  if (ZONE_CLASSES.has(name)) {
+  if (ZONE_CLASS_SET.has(name)) {
     return {
       suppressSides: sides.flatMap((side, index) =>
         side !== NO_AREA ? [index] : [],
