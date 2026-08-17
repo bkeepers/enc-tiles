@@ -274,6 +274,84 @@ describe("long legs repeat their arrow", () => {
   });
 });
 
+describe("the recommended traffic lane", () => {
+  /**
+   * RCTLPT rode the generic per-(CLASS, LNAM, interval) anchor path, which
+   * emits one arrow per CELL COPY of a lane: eight arrows, measured, on one
+   * continuous recommended lane through the Strait of Juan de Fuca, one of them
+   * on a 4.8e-06 deg^2 offcut. It is a directed leg like any other and belongs
+   * on this mechanism. Only its ORIENT-carrying features -- the rest have no
+   * leg to stitch and keep their plain SY(RTLDEF51) mark from
+   * bin/generate-area-anchors. See ORIENT_LEG_CLASSES in bin/quilt-anchors.mjs.
+   */
+  test("its split parts are stitched back into ONE leg", () => {
+    const features = run({
+      RCTLPT: [
+        box({ ORIENT: 0 }, 0, 0, 0.01, 0.04),
+        box({ ORIENT: 0 }, 0, 0.04, 0.01, 0.1),
+      ],
+    });
+
+    expect(features).toHaveLength(1);
+    expect(features[0].properties.CLASS).toBe("RCTLPT");
+    expect(features[0].properties.ORIENT).toBe(0);
+    expect(features[0].properties.AREA).toBeCloseTo(0.001, 6);
+  });
+
+  test("a long lane repeats its arrow at the same 8 nm spacing", () => {
+    // 0.5 degrees of latitude is 30 nm: the same rule TSSLPT gets, unchanged.
+    const features = run({
+      RCTLPT: [box({ ORIENT: 0 }, 0, 0, 0.005, 0.5)],
+    });
+
+    expect(features).toHaveLength(4);
+    for (const feature of features) {
+      expect(feature.properties.STATIONS).toBe(4);
+      expect(feature.properties.CLASS).toBe("RCTLPT");
+    }
+  });
+
+  test("a lane and a separation lane beside it stay two legs", () => {
+    // CLASS is part of the bucket key, so an RCTLPT touching a TSSLPT of the
+    // same ORIENT is not welded onto it.
+    const features = run({
+      RCTLPT: [box({ ORIENT: 90 }, 0, 0, 0.1, 0.01)],
+      TSSLPT: [box({ ORIENT: 90 }, 0.1, 0, 0.2, 0.01)],
+    });
+
+    expect(features.map((f) => f.properties.CLASS).sort()).toEqual([
+      "RCTLPT",
+      "TSSLPT",
+    ]);
+  });
+
+  test("a clip sliver of one is dropped like any other", () => {
+    const features = run({
+      RCTLPT: [box({ ORIENT: 0 }, 0, 0, 0.0001, 0.0001)],
+    });
+
+    expect(features).toEqual([]);
+  });
+
+  test("without ORIENT it is not a leg at all: no anchor here", () => {
+    // The plain SY(RTLDEF51) presentation is bin/generate-area-anchors'. An
+    // anchor here as well would draw both marks on one feature.
+    const features = run({
+      RCTLPT: [box({}, 0, 0, 0.1, 0.1), box({ ORIENT: null }, 1, 1, 1.1, 1.1)],
+    });
+
+    expect(features).toEqual([]);
+  });
+
+  test("a class that is NOT a directed-leg class keeps its no-ORIENT anchor", () => {
+    // The skip is scoped to ORIENT_LEG_CLASSES: TSSRON has no traffic
+    // direction by nature and still gets its one anchor.
+    const features = run({ TSSRON: [box({}, 0, 0, 0.5, 0.5)] });
+
+    expect(features).toHaveLength(1);
+  });
+});
+
 describe("ORIENT is compared, not bucketed", () => {
   test("a 285/285/286/285 chain is ONE evenly-spaced leg", () => {
     // The deployed defect: bucketing on the rounded integer put 286 in its own

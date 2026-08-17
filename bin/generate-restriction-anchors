@@ -8,7 +8,8 @@
 // Usage:
 //   bin/generate-restriction-anchors <output.geojson> \
 //     --class RESARE:RESARE.geojson [--class CBLARE:CBLARE.geojson ...] \
-//     [--land LNDARE.geojson]
+//     [--land LNDARE.geojson] [--area-evidence area_evidence.geojson] \
+//     [--dsnm US5OR2JC] [--cell-floor <N>]
 //
 // Why this layer exists:
 //
@@ -36,6 +37,16 @@
 // group. The interval is on the key for the reason it is on every other
 // anchor generator: the copy ladder's copies of one feature OVERLAP, and
 // merged they would emit one anchor stamped for no interval at all.
+//
+// ACROSS CELLS, LNAM is not enough. It is issued PER CELL, so a dumping ground
+// digitised across US5OR2JC/US5OR2KC/US4OR1IF is three features with three
+// LNAMs and drew three stacks of crossed anchors on one physical area (a PIPARE
+// at a four-cell corner: eight). --area-evidence, --dsnm and --cell-floor turn
+// on the cross-cell ELECTION that removes the rest: the contiguous same-class,
+// same-content component across cells elects the smallest DSNM in it, only the
+// elected cell emits, and the surviving anchor carries the whole component's
+// AREA. See bin/quilt-election.mjs; without those inputs -- an unpartitioned
+// cell, an older cache -- every group keeps its own anchor exactly as before.
 //
 // WATER-SIDE PLACEMENT -- the approach, since it is deliberately NOT an exact
 // polygon difference:
@@ -75,9 +86,12 @@
 //   INTU     the chart band, likewise
 //   CSCALE   the cell's compilation scale, when the export already carries it
 //            (bin/stamp-quilt-zooms stamps it regardless, at step 3j)
-//   AREA     the group's summed area in square degrees, longitude scaled by
+//   AREA     the summed area in square degrees, longitude scaled by
 //            cos(latitude) (bin/quilt-anchors.mjs featureArea) -- the style's
-//            screen-size density floor filters on it
+//            screen-size density floor filters on it. Summed over the whole
+//            ELECTED COMPONENT where an election ran, so the floor measures the
+//            feature rather than this cell's share of it; over the group alone
+//            where none did
 //
 // plus the copy ladder's _QZMIN/_QZMAX/_QFALL, converted to per-feature
 // tippecanoe zoom bounds later by bin/stamp-quilt-zooms.
@@ -91,6 +105,8 @@ import {
   ringArea,
   ringCentroid,
 } from "./quilt-anchors.mjs";
+import { contentOf } from "./quilt-content.mjs";
+import { anchorElection } from "./quilt-election.mjs";
 import {
   polygons,
   quiltKey,
@@ -101,7 +117,10 @@ import {
 const args = process.argv.slice(2);
 const inputs = [];
 const landPaths = [];
+const evidencePaths = [];
 const positional = [];
+let dsnm = "";
+let cellFloor = null;
 
 for (let i = 0; i < args.length; i++) {
   if (args[i] === "--class" && args[i + 1]) {
@@ -113,17 +132,27 @@ for (let i = 0; i < args.length; i++) {
     });
   } else if (args[i] === "--land" && args[i + 1]) {
     landPaths.push(args[++i]);
-  } else positional.push(args[i]);
+  } else if (args[i] === "--area-evidence" && args[i + 1]) {
+    evidencePaths.push(args[++i]);
+  } else if (args[i] === "--dsnm" && args[i + 1]) dsnm = args[++i];
+  else if (args[i] === "--cell-floor" && args[i + 1])
+    cellFloor = Number(args[++i]);
+  else positional.push(args[i]);
 }
 
 const outputPath = positional[0];
 if (!outputPath || inputs.length === 0) {
   console.error(
     "Usage: generate-restriction-anchors <output.geojson> " +
-      "--class <CLASS>:<file.geojson> [--class ...] [--land <LNDARE.geojson>]",
+      "--class <CLASS>:<file.geojson> [--class ...] [--land <LNDARE.geojson>] " +
+      "[--area-evidence <file.geojson>] [--dsnm <NAME>] [--cell-floor <N>]",
   );
   process.exit(1);
 }
+
+// The cross-cell election, over the other cells' semantic roster; inert without
+// one. See bin/quilt-election.mjs.
+const election = anchorElection({ paths: evidencePaths, dsnm, cellFloor });
 
 /**
  * Horizontal lines each part is measured on.
@@ -338,7 +367,17 @@ for (const { className, path } of inputs) {
 
     let group = groups.get(id);
     if (!group) {
-      group = { className, range, parts: [], area: 0, carried: {} };
+      group = {
+        className,
+        range,
+        parts: [],
+        area: 0,
+        carried: {},
+        // The identity the election compares across cells, from the FIRST
+        // fragment: the fragments of one LNAM are one feature and carry one
+        // content.
+        content: contentOf(properties),
+      };
       groups.set(id, group);
     }
     group.parts.push(...parts);
@@ -355,8 +394,21 @@ for (const { className, path } of inputs) {
 // ---- 2. one anchor per group -----------------------------------------------
 
 const features = [];
+let elsewhere = 0;
 
 for (const group of groups.values()) {
+  // The cross-cell election: one anchor for the whole physical area, emitted by
+  // the cell the component elected. A group with no same-band, same-content
+  // neighbour elects itself and nothing changes.
+  const verdict = election.verdict(
+    group.className,
+    group.content,
+    group.parts.map((part) => part.polygon),
+  );
+  if (!verdict.emit) {
+    elsewhere++;
+    continue;
+  }
   const anchor = anchorOf(group.parts);
   if (!anchor) continue;
   features.push({
@@ -367,7 +419,10 @@ for (const group of groups.values()) {
     properties: {
       CLASS: group.className,
       ...group.carried,
-      AREA: group.area,
+      // The whole component's area, not this cell's share of it: the style's
+      // screen-size floor has to measure the FEATURE, and the elected cell's
+      // share can be a corner offcut a few metres across.
+      AREA: group.area + verdict.area,
       // The interval the group's members serve, converted to tippecanoe
       // bounds later by bin/stamp-quilt-zooms.
       ...group.range,
@@ -379,4 +434,7 @@ writeFileSync(
   outputPath,
   JSON.stringify({ type: "FeatureCollection", features }),
 );
-console.error(`Generated ${features.length} restriction anchors`);
+console.error(
+  `Generated ${features.length} restriction anchors` +
+    (elsewhere > 0 ? `, ${elsewhere} elected to another chart` : ""),
+);

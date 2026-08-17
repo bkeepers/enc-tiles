@@ -10,9 +10,53 @@
 // The answer both bin/generate-labels and bin/generate-mqual-labels give is the
 // same: group the fragments, then emit a single anchor per group at a point
 // guaranteed to be INSIDE the group's largest member. What the groups are is
-// theirs; the geometry is here.
+// theirs; the geometry is here -- and, below it, the one class rule the anchor
+// generators have to agree on rather than each state for itself.
 
 import { polygons } from "./quilt-geojson.mjs";
+
+/**
+ * The classes whose features are anchored by the TRAFFIC-LANE mechanism when
+ * they carry ORIENT, and by the plain area anchor when they do not.
+ *
+ * RCTLPT is a recommended traffic lane: with ORIENT it is a directed leg and
+ * S-52 draws the lane arrow along it, and it was riding the generic area-anchor
+ * path, which groups by (CLASS, LNAM, interval) and so emits one arrow per CELL
+ * COPY of a lane -- measured at EIGHT arrows on one continuous recommended lane
+ * through the Strait of Juan de Fuca, one of them on a 4.8e-06 deg^2 offcut. The
+ * leg stitching in bin/generate-tss-anchors is the mechanism that already
+ * answers this for TSSLPT: parts are re-joined across their splits by contiguity
+ * and ORIENT agreement, arrows repeat every ANCHOR_SPACING_NM along the leg, and
+ * slivers are dropped. Without ORIENT there is no leg and no arrow -- the
+ * feature draws the plain SY(RTLDEF51) mark, which is the generic anchor's job.
+ *
+ * So the two generators SPLIT these classes on ORIENT rather than sharing them:
+ * bin/generate-tss-anchors takes the features that have it,
+ * bin/generate-area-anchors the features that do not, and neither emits an
+ * anchor the other one also emits. The rule is here because it is one rule, and
+ * a class listed on one side but not skipped on the other doubles or drops the
+ * symbol.
+ *
+ * NOT the same thing as TSSLPT/TSSRON/DWRTPT, which are in both generators'
+ * class sets on purpose: their arrow and their own centred symbol (TSLDEF51,
+ * TSSRON51) are two different presentations of one feature, and each needs its
+ * own anchor.
+ */
+export const ORIENT_LEG_CLASSES = new Set(["RCTLPT"]);
+
+/**
+ * Whether a feature's ORIENT is a usable traffic direction.
+ *
+ * GDAL spells an unset column as JSON null and Number(null) is 0 -- a lane
+ * pointing due north -- so the empty spellings are rejected before the number
+ * is read. Both sides of the split test the same way, or a feature falls
+ * through both generators or lands in both.
+ */
+export function hasOrient(properties) {
+  const value = properties?.ORIENT;
+  if (value === null || value === undefined || value === "") return false;
+  return Number.isFinite(Number(value));
+}
 
 export function ringArea(ring) {
   let sum = 0;

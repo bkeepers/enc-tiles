@@ -79,6 +79,47 @@ function anchors(features, { className = "CTNARE" } = {}) {
   return run("--class", `${className}:${path}`);
 }
 
+/**
+ * The OTHER cells' semantic roster, exactly as bin/extract-coverage caches it
+ * and bin/s57-to-tiles exports it back out: one polygon per area, carrying the
+ * producing chart, its rung and the canonical CONTENT identity.
+ */
+function roster(entries) {
+  return writeCollection(
+    "area_evidence.geojson",
+    entries.map(
+      ({ className = "CTNARE", content = {}, dsnm, floor = 8, ring }) =>
+        polygon(
+          {
+            CLASS: className,
+            CONTENT: JSON.stringify(content),
+            DSNM: dsnm,
+            QFLOOR: floor,
+          },
+          ring,
+        ),
+    ),
+  );
+}
+
+/** One class file plus the election inputs, the way s57-to-tiles calls it. */
+function elect(
+  features,
+  { className = "CTNARE", dsnm, cellFloor = 8, evidence = [] } = {},
+) {
+  const path = writeCollection(`${className}.geojson`, features);
+  return run(
+    "--class",
+    `${className}:${path}`,
+    "--area-evidence",
+    roster(evidence),
+    "--dsnm",
+    dsnm,
+    "--cell-floor",
+    String(cellFloor),
+  );
+}
+
 /** Ray-casting point-in-ring, written here so the test proves it independently. */
 function inRing(point, ring) {
   let inside = false;
@@ -283,6 +324,147 @@ describe("what the anchor carries", () => {
     const features = anchors([polygon({ LNAM: "AA" }, box(0, 0, 1, 1))]);
 
     expect(features[0].tippecanoe).toEqual({ minzoom: 0 });
+  });
+});
+
+describe("the cross-cell election", () => {
+  /**
+   * LNAM is issued PER CELL, so an area split by a chart border is several
+   * features with several LNAMs and drew a stack of centred symbols per cell it
+   * reaches -- a PIPARE at the US5OR2JC/JD/KC/KD corner came out as eight. The
+   * cached roster is what lets each cell see the other parts; the smallest DSNM
+   * in the component emits and the rest stand down. See bin/quilt-election.mjs.
+   */
+  const CAUTION = { INFORM: "Caution: submarine exercise area" };
+
+  /** This cell's own half of one area, east of the shared border. */
+  const east = [polygon({ LNAM: "AA", ...CAUTION }, box(1, 0, 2, 1))];
+
+  test("the smallest DSNM in the component emits its anchor", () => {
+    const features = elect(east, {
+      dsnm: "US5OR2AA",
+      evidence: [{ content: CAUTION, dsnm: "US5OR2KC", ring: box(0, 0, 1, 1) }],
+    });
+
+    expect(features).toHaveLength(1);
+  });
+
+  test("...and the cells it beat emit nothing", () => {
+    const features = elect(east, {
+      dsnm: "US5OR2KC",
+      evidence: [{ content: CAUTION, dsnm: "US5OR2AA", ring: box(0, 0, 1, 1) }],
+    });
+
+    expect(features).toEqual([]);
+  });
+
+  test("the elected anchor carries the WHOLE component's area", () => {
+    // AREA is what the style's screen-size floor reads, and the elected cell's
+    // own share can be a corner offcut a few metres across.
+    const alone = elect(east, { dsnm: "US5OR2AA" })[0].properties.AREA;
+    const whole = elect(east, {
+      dsnm: "US5OR2AA",
+      evidence: [
+        { content: CAUTION, dsnm: "US5OR2KC", ring: box(0, 0, 1, 1) },
+        { content: CAUTION, dsnm: "US5OR2ZZ", ring: box(2, 0, 3, 1) },
+      ],
+    })[0].properties.AREA;
+
+    expect(whole).toBeCloseTo(alone * 3, 6);
+  });
+
+  test("disjoint components elect independently", () => {
+    const features = elect(
+      [
+        polygon({ LNAM: "AA", ...CAUTION }, box(1, 0, 2, 1)),
+        polygon({ LNAM: "BB", ...CAUTION }, box(10, 0, 11, 1)),
+      ],
+      {
+        dsnm: "US5OR2KC",
+        evidence: [
+          { content: CAUTION, dsnm: "US5OR2AA", ring: box(0, 0, 1, 1) },
+        ],
+      },
+    );
+
+    expect(features).toHaveLength(1);
+    expect(features[0].properties.LNAM).toBe("BB");
+  });
+
+  test("a neighbour with different content, class or rung is another area", () => {
+    for (const entry of [
+      { content: { INFORM: "Something else" }, dsnm: "US5OR2AA" },
+      { className: "PILBOP", content: CAUTION, dsnm: "US5OR2AA" },
+      { content: CAUTION, dsnm: "US4OR1AA", floor: 6 },
+    ]) {
+      const features = elect(east, {
+        dsnm: "US5OR2KC",
+        evidence: [{ ...entry, ring: box(0, 0, 1, 1) }],
+      });
+
+      expect(features, JSON.stringify(entry)).toHaveLength(1);
+    }
+  });
+
+  test("with no roster at all every group keeps its own anchor", () => {
+    expect(anchors(east)).toHaveLength(1);
+  });
+});
+
+describe("the directed-leg split", () => {
+  /**
+   * RCTLPT with ORIENT is a traffic leg: bin/generate-tss-anchors stitches its
+   * parts back into one lane and repeats an arrow along it, where this
+   * generator's per-(CLASS, LNAM, interval) grouping drew one arrow per CELL
+   * COPY -- eight, measured, on one lane through the Strait of Juan de Fuca.
+   * Without ORIENT there is no leg and the plain SY(RTLDEF51) mark is this
+   * generator's. See ORIENT_LEG_CLASSES in bin/quilt-anchors.mjs.
+   */
+  test("an ORIENT-carrying RCTLPT is left to the TSS anchors", () => {
+    const features = anchors(
+      [polygon({ LNAM: "AA", ORIENT: 285 }, box(0, 0, 1, 1))],
+      {
+        className: "RCTLPT",
+      },
+    );
+
+    expect(features).toEqual([]);
+  });
+
+  test("an RCTLPT with no ORIENT keeps its centred mark here", () => {
+    const features = anchors([polygon({ LNAM: "AA" }, box(0, 0, 1, 1))], {
+      className: "RCTLPT",
+    });
+
+    expect(features).toHaveLength(1);
+    expect(features[0].properties.CLASS).toBe("RCTLPT");
+  });
+
+  test("a NULL ORIENT is no direction at all, not north", () => {
+    // GDAL spells an unset column as JSON null and Number(null) is 0 -- a lane
+    // pointing due north. Both generators reject the empty spellings the same
+    // way, or the feature falls through both of them.
+    const features = anchors(
+      [polygon({ LNAM: "AA", ORIENT: null }, box(0, 0, 1, 1))],
+      {
+        className: "RCTLPT",
+      },
+    );
+
+    expect(features).toHaveLength(1);
+  });
+
+  test("the lane classes that draw BOTH keep their anchor here", () => {
+    // TSSLPT is in both generators on purpose: its arrow and its own centred
+    // symbol (TSLDEF51) are two presentations of one feature.
+    const features = anchors(
+      [polygon({ LNAM: "AA", ORIENT: 285 }, box(0, 0, 1, 1))],
+      {
+        className: "TSSLPT",
+      },
+    );
+
+    expect(features).toHaveLength(1);
   });
 });
 

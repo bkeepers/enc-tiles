@@ -7,7 +7,9 @@
 //
 // Usage:
 //   bin/generate-area-anchors <output.geojson> \
-//     --class CTNARE:CTNARE.geojson [--class PILBOP:PILBOP.geojson ...]
+//     --class CTNARE:CTNARE.geojson [--class PILBOP:PILBOP.geojson ...] \
+//     [--area-evidence area_evidence.geojson] [--dsnm US5OR2JC] \
+//     [--cell-floor <N>]
 //
 //   bin/generate-area-anchors --list-classes
 //     prints the participating classes, one per line -- the same one-source
@@ -41,6 +43,18 @@
 // interval keeps the copy ladder's overlapping copies of one feature from
 // merging into a single anchor stamped for no interval at all.
 //
+// ACROSS CELLS, LNAM is not enough -- it is issued per cell, so one area split
+// by a chart border is several features with several LNAMs and drew a stack of
+// symbols per cell it reaches. --area-evidence, --dsnm and --cell-floor turn on
+// the cross-cell ELECTION that removes the rest: the contiguous same-class,
+// same-content component across cells elects the smallest DSNM in it, only the
+// elected cell emits, and the anchor carries the whole component's AREA. See
+// bin/quilt-election.mjs; without those inputs every group keeps its own anchor.
+//
+// ORIENT-CARRYING features of ORIENT_LEG_CLASSES (RCTLPT) are skipped here:
+// they are directed legs and bin/generate-tss-anchors stitches them back into
+// lanes. Their undirected siblings, which draw the plain centred mark, stay.
+//
 // Each output feature carries EVERY non-underscore property of the group's
 // LARGEST fragment: the retargeted layers' filters branch on CATPIL, CATBRG,
 // WATLEV, CONRAD, CONVIS and the rest of each class's own attributes, and an
@@ -52,19 +66,25 @@
 //
 //   CLASS    the S-57 class the feature came from, stamped over any source
 //            property of that name
-//   AREA     the group's summed area in square degrees, longitude scaled by
+//   AREA     the summed area in square degrees, longitude scaled by
 //            cos(latitude) (bin/quilt-anchors.mjs featureArea), computed here
 //            so the style can reuse the restriction anchors' screen-size
-//            density floor
+//            density floor. Summed over the whole ELECTED COMPONENT where an
+//            election ran, so the floor measures the feature rather than this
+//            cell's share of it; over the group alone where none did
 
 import { writeFileSync } from "fs";
 
 import {
   ANCHOR_TIPPECANOE,
+  ORIENT_LEG_CLASSES,
   featureArea,
+  hasOrient,
   pointOnSurface,
   ringArea,
 } from "./quilt-anchors.mjs";
+import { contentOf } from "./quilt-content.mjs";
+import { anchorElection } from "./quilt-election.mjs";
 import {
   polygons,
   quiltKey,
@@ -134,6 +154,9 @@ const AREA_ANCHOR_CLASSES = [
   "MAGVAR",
   "NEWOBJ",
   "PRDARE",
+  // Its ORIENT-carrying features are directed legs and belong to
+  // bin/generate-tss-anchors; only the undirected ones anchor here. See
+  // ORIENT_LEG_CLASSES in bin/quilt-anchors.mjs.
   "RCTLPT",
   "RECTRC",
   "SMCFAC",
@@ -150,7 +173,10 @@ if (args.includes("--list-classes")) {
 }
 
 const inputs = [];
+const evidencePaths = [];
 const positional = [];
+let dsnm = "";
+let cellFloor = null;
 
 for (let i = 0; i < args.length; i++) {
   if (args[i] === "--class" && args[i + 1]) {
@@ -160,14 +186,20 @@ for (let i = 0; i < args.length; i++) {
       className: value.slice(0, separator),
       path: value.slice(separator + 1),
     });
-  } else positional.push(args[i]);
+  } else if (args[i] === "--area-evidence" && args[i + 1])
+    evidencePaths.push(args[++i]);
+  else if (args[i] === "--dsnm" && args[i + 1]) dsnm = args[++i];
+  else if (args[i] === "--cell-floor" && args[i + 1])
+    cellFloor = Number(args[++i]);
+  else positional.push(args[i]);
 }
 
 const outputPath = positional[0];
 if (!outputPath || inputs.length === 0) {
   console.error(
     "Usage: generate-area-anchors <output.geojson> " +
-      "--class <CLASS>:<file.geojson> [--class ...]\n" +
+      "--class <CLASS>:<file.geojson> [--class ...] " +
+      "[--area-evidence <file.geojson>] [--dsnm <NAME>] [--cell-floor <N>]\n" +
       "       generate-area-anchors --list-classes",
   );
   process.exit(1);
@@ -184,6 +216,10 @@ for (const { className } of inputs) {
   }
 }
 
+// The cross-cell election, over the other cells' semantic roster; inert without
+// one. See bin/quilt-election.mjs.
+const election = anchorElection({ paths: evidencePaths, dsnm, cellFloor });
+
 // ---- 1. group every feature by (CLASS, LNAM, interval) ---------------------
 
 const groups = new Map();
@@ -191,12 +227,19 @@ let anonymous = 0;
 
 for (const { className, path } of inputs) {
   for (const feature of readFeatures(path)) {
+    const properties = feature.properties ?? {};
+    // A directed leg is bin/generate-tss-anchors' -- it stitches the parts back
+    // into one lane and repeats an arrow along it, where this generator's
+    // per-cell-copy grouping drew one arrow per part. Only the undirected
+    // features of those classes keep their plain centred mark here. See
+    // ORIENT_LEG_CLASSES.
+    if (ORIENT_LEG_CLASSES.has(className) && hasOrient(properties)) continue;
+
     const parts = polygons(feature.geometry).filter(
       (polygon) => polygon[0] && polygon[0].length >= 4,
     );
     if (parts.length === 0) continue;
 
-    const properties = feature.properties ?? {};
     const range = quiltRange(properties);
     // A feature with no LNAM has no identity to group on and is its own group
     // -- `#n` cannot collide with a real LNAM, which is hex.
@@ -205,9 +248,21 @@ for (const { className, path } of inputs) {
 
     let group = groups.get(id);
     if (!group) {
-      group = { className, range, area: 0, largest: null };
+      group = {
+        className,
+        range,
+        area: 0,
+        largest: null,
+        // The identity the election compares across cells, and every part of
+        // this cell's share of the feature to test adjacency with. Taken from
+        // the FIRST fragment: the fragments of one LNAM are one feature and
+        // carry one content, where `largest` is a placement decision.
+        content: contentOf(properties),
+        parts: [],
+      };
       groups.set(id, group);
     }
+    group.parts.push(...parts);
     group.area += featureArea(feature.geometry);
     // The largest FRAGMENT of the group -- outer-ring area, the same measure
     // bin/generate-labels ranks a multipolygon's parts by -- supplies both
@@ -224,8 +279,18 @@ for (const { className, path } of inputs) {
 // ---- 2. one anchor per group, inside its largest fragment ------------------
 
 const features = [];
+let elsewhere = 0;
 
 for (const group of groups.values()) {
+  // The cross-cell election: one anchor for the whole physical area, emitted by
+  // the cell the component elected. A group with no same-band, same-content
+  // neighbour elects itself and nothing changes.
+  const verdict = election.verdict(group.className, group.content, group.parts);
+  if (!verdict.emit) {
+    elsewhere++;
+    continue;
+  }
+
   // The whole bag of the largest fragment, so the retargeted filters branch
   // exactly as they did on the polygon. Nulls are GDAL's unset columns and
   // carry nothing; underscore properties are the pipeline's own.
@@ -248,7 +313,10 @@ for (const group of groups.values()) {
       // Stamped AFTER the bag: the computed values win over any source
       // property of the same name.
       CLASS: group.className,
-      AREA: group.area,
+      // The whole component's area, not this cell's share of it: the style's
+      // screen-size floor has to measure the FEATURE, and the elected cell's
+      // share can be a corner offcut a few metres across.
+      AREA: group.area + verdict.area,
       // The interval the group's members serve, converted to tippecanoe
       // bounds later by bin/stamp-quilt-zooms.
       ...group.range,
@@ -260,4 +328,7 @@ writeFileSync(
   outputPath,
   JSON.stringify({ type: "FeatureCollection", features }),
 );
-console.error(`Generated ${features.length} area anchors`);
+console.error(
+  `Generated ${features.length} area anchors` +
+    (elsewhere > 0 ? `, ${elsewhere} elected to another chart` : ""),
+);

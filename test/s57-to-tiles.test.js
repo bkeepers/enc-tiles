@@ -1070,6 +1070,56 @@ describe("the M_QUAL letter generator", () => {
   });
 });
 
+describe("the TSS anchor generator", () => {
+  const LANE_CELL = {
+    ...THREE_RUNG_CELL,
+    STUB_TABLES: "DEPARE M_COVR TSSLPT TSSRON DWRTPT RCTLPT",
+  };
+
+  test("it is handed every lane class the cell carries, RCTLPT included", () => {
+    // RCTLPT is a directed leg like the rest: on the generic anchor path it
+    // drew one arrow per CELL COPY of a lane (eight, measured, through the
+    // Strait of Juan de Fuca), where the leg stitching here re-joins the parts
+    // and spaces the arrows along the whole lane.
+    const { node } = run(LANE_CELL);
+
+    for (const table of ["TSSLPT", "TSSRON", "DWRTPT", "RCTLPT"]) {
+      expect(node).toMatch(
+        new RegExp(
+          `generate-tss-anchors .*--class ${table}:\\S+${table}\\.geojson`,
+        ),
+      );
+    }
+  });
+
+  test("RCTLPT reaches BOTH anchor generators; each keeps its own half", () => {
+    // The split is on ORIENT and lives in the generators (ORIENT_LEG_CLASSES in
+    // bin/quilt-anchors.mjs), not in this script: the directed features are
+    // legs and the undirected ones draw the plain SY(RTLDEF51) mark, and
+    // handing the table to only one of them would drop one presentation.
+    const { node } = run(LANE_CELL);
+
+    expect(node).toMatch(/generate-tss-anchors .*--class RCTLPT:/);
+    expect(node).toMatch(/generate-area-anchors .*--class RCTLPT:/);
+  });
+
+  test("it runs BEFORE the zoom stamping, so its ranges are converted", () => {
+    const { node } = run(LANE_CELL);
+
+    const lines = node.trim().split("\n");
+    const anchors = lines.findIndex((l) => l.includes("generate-tss-anchors"));
+    const stamp = lines.findIndex((l) => l.includes("stamp-quilt-zooms"));
+    expect(anchors).toBeGreaterThanOrEqual(0);
+    expect(stamp).toBeGreaterThan(anchors);
+  });
+
+  test("a cell with no lane classes does not run it", () => {
+    const { node } = run(THREE_RUNG_CELL);
+
+    expect(node).not.toContain("generate-tss-anchors");
+  });
+});
+
 describe("the restriction anchor generator", () => {
   const RESTRICTED_CELL = {
     ...THREE_RUNG_CELL,
@@ -1143,6 +1193,38 @@ describe("the restriction anchor generator", () => {
       .find((entry) => entry.includes("generate-restriction-anchors"));
     expect(line).toBeDefined();
     expect(line).not.toContain("--land");
+  });
+
+  test("a partitioned cell hands it the election inputs", () => {
+    // LNAM is issued PER CELL, so one dumping ground split across three charts
+    // drew three stacks of crossed anchors. The roster, this cell's own name
+    // and its rung are what let it see the other parts and stand down for the
+    // chart the component elected. See bin/quilt-election.mjs.
+    const { node } = run(RESTRICTED_CELL);
+
+    const line = node
+      .trim()
+      .split("\n")
+      .find((entry) => entry.includes("generate-restriction-anchors"));
+    expect(line).toBeDefined();
+    expect(line).toMatch(/--area-evidence \S+area_evidence\.geojson/);
+    expect(line).toContain("--dsnm US5WA22M");
+    expect(line).toContain("--cell-floor 8");
+  });
+
+  test("an unpartitioned cell hands it none of them", () => {
+    // No roster to elect against: every group keeps its own anchor, which is
+    // the behaviour that shipped before the election existed.
+    const { node } = run(RESTRICTED_CELL, { coverage: false });
+
+    const line = node
+      .trim()
+      .split("\n")
+      .find((entry) => entry.includes("generate-restriction-anchors"));
+    expect(line).toBeDefined();
+    expect(line).not.toContain("--area-evidence");
+    expect(line).not.toContain("--dsnm");
+    expect(line).not.toContain("--cell-floor");
   });
 
   test("it runs BEFORE the zoom stamping, so its ranges are converted", () => {
@@ -1244,6 +1326,34 @@ describe("the area anchor generator", () => {
     expect(loop).toBeTruthy();
     const looped = loop[1].trim().split(/\s+/);
     expect([...looped].sort()).toEqual([...listed].sort());
+  });
+
+  test("a partitioned cell hands it the election inputs too", () => {
+    // The same cross-cell election the restriction anchors run: both group by
+    // (CLASS, LNAM, interval) and LNAM is per cell.
+    const { node } = run(NARROW_CELL);
+
+    const line = node
+      .trim()
+      .split("\n")
+      .find((entry) => entry.includes("generate-area-anchors"));
+    expect(line).toBeDefined();
+    expect(line).toMatch(/--area-evidence \S+area_evidence\.geojson/);
+    expect(line).toContain("--dsnm US5WA22M");
+    expect(line).toContain("--cell-floor 8");
+  });
+
+  test("an unpartitioned cell hands it none of them", () => {
+    const { node } = run(NARROW_CELL, { coverage: false });
+
+    const line = node
+      .trim()
+      .split("\n")
+      .find((entry) => entry.includes("generate-area-anchors"));
+    expect(line).toBeDefined();
+    expect(line).not.toContain("--area-evidence");
+    expect(line).not.toContain("--dsnm");
+    expect(line).not.toContain("--cell-floor");
   });
 
   test("it runs BEFORE the zoom stamping, so its ranges are converted", () => {

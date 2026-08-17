@@ -1206,8 +1206,16 @@ fi
 # the arrow from TSSLPT directly repeats it and nothing at runtime can collapse
 # the copies. Run after the quilt clip, like the edges, so the anchors sit on
 # the geometry that actually reaches the tiles. See bin/generate-tss-anchors.
+#
+# RCTLPT rides it too: a recommended traffic lane is a directed leg like any
+# other, and on the generic per-(CLASS, LNAM, interval) anchor path it drew one
+# arrow per CELL COPY — eight, measured, on one continuous lane through the
+# Strait of Juan de Fuca. Only its ORIENT-carrying features are legs; the rest
+# keep their plain centred mark from generate-area-anchors, which skips the
+# directed ones. The split is stated once, in ORIENT_LEG_CLASSES
+# (bin/quilt-anchors.mjs), and both generators read it from there.
 tss_args=()
-for tss_table in TSSLPT TSSRON DWRTPT; do
+for tss_table in TSSLPT TSSRON DWRTPT RCTLPT; do
   if [ -f "$tmpdir/${tss_table}.geojson" ]; then
     tss_args+=(--class "${tss_table}:$tmpdir/${tss_table}.geojson")
   fi
@@ -1218,6 +1226,26 @@ if [ ${#tss_args[@]} -gt 0 ]; then
   if [ -s "$tss_geojson" ]; then
     geojson_files+=("$tss_geojson")
   fi
+fi
+
+# The CROSS-CELL ANCHOR ELECTION inputs, shared by the two centred-symbol anchor
+# generators below. Both group by (CLASS, LNAM, interval), and LNAM is issued PER
+# CELL — so one dumping ground digitised across three charts drew three stacks of
+# symbols, and a pipeline area at a four-cell corner eight. The same semantic
+# roster the boundary merge rule reads (step 2b) says which of those parts are
+# one area: the contiguous same-class, same-content component across cells elects
+# the smallest DSNM in it and only that cell emits. This cell's own name and rung
+# go with it — the name because a chart is never evidence about itself and has to
+# know which candidate it is, the rung because the election is same-band only.
+# All three together or none: without any one of them the generators keep one
+# anchor per cell copy, which is what shipped before. See bin/quilt-election.mjs.
+anchor_election_args=()
+if [ -f "$tmpdir/area_evidence.geojson" ] && [ -n "$dsnm" ] && [ -n "$quilt_floor" ]; then
+  anchor_election_args=(
+    --area-evidence "$tmpdir/area_evidence.geojson"
+    --dsnm "$dsnm"
+    --cell-floor "$quilt_floor"
+  )
 fi
 
 # Step 3f (cont.): Derive _RESTR_ANCHORS — one centred-symbol anchor per
@@ -1246,6 +1274,7 @@ if [ ${#restr_args[@]} -gt 0 ]; then
   if [ -f "$tmpdir/LNDARE.geojson" ]; then
     restr_args+=(--land "$tmpdir/LNDARE.geojson")
   fi
+  restr_args+=("${anchor_election_args[@]}")
   restr_geojson="$tmpdir/_RESTR_ANCHORS.geojson"
   node "$SCRIPT_DIR/generate-restriction-anchors" "$restr_geojson" "${restr_args[@]}"
   if [ -s "$restr_geojson" ]; then
@@ -1264,9 +1293,11 @@ fi
 # AREA_ANCHOR_CLASSES in bin/generate-area-anchors — the ship-narrow ten plus
 # the widening round's own-symbol classes; the rationale and the deliberate
 # exclusions (######, ACHARE, OBSTRN) are documented there. Widen both lists
-# together. Run after the quilt clip, like the other anchor generators, so the
-# anchors sit on the geometry that actually reaches the tiles. See
-# bin/generate-area-anchors.
+# together. RCTLPT is handed over whole and the generator itself keeps only the
+# features WITHOUT ORIENT: the directed ones are traffic legs and were anchored
+# above, by the TSS mechanism. Run after the quilt clip, like the other anchor
+# generators, so the anchors sit on the geometry that actually reaches the
+# tiles. See bin/generate-area-anchors.
 area_anchor_args=()
 for area_anchor_table in CTNARE PILBOP CBLARE RESARE DWRTPT ISTZNE PRCARE \
   TSSCRS TSSLPT TSSRON \
@@ -1278,6 +1309,7 @@ for area_anchor_table in CTNARE PILBOP CBLARE RESARE DWRTPT ISTZNE PRCARE \
   fi
 done
 if [ ${#area_anchor_args[@]} -gt 0 ]; then
+  area_anchor_args+=("${anchor_election_args[@]}")
   area_anchors_geojson="$tmpdir/_AREA_ANCHORS.geojson"
   node "$SCRIPT_DIR/generate-area-anchors" "$area_anchors_geojson" "${area_anchor_args[@]}"
   if [ -s "$area_anchors_geojson" ]; then

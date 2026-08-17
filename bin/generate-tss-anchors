@@ -5,7 +5,17 @@
 //
 // Usage:
 //   bin/generate-tss-anchors <output.geojson> --class TSSLPT:TSSLPT.geojson \
-//     [--class TSSRON:TSSRON.geojson] [--class DWRTPT:DWRTPT.geojson]
+//     [--class TSSRON:TSSRON.geojson] [--class DWRTPT:DWRTPT.geojson] \
+//     [--class RCTLPT:RCTLPT.geojson]
+//
+// RCTLPT -- the recommended traffic lane -- joined the class set because it is
+// a directed leg like any other and was being anchored by the generic
+// per-(CLASS, LNAM, interval) path, which draws one arrow per CELL COPY of a
+// lane: eight arrows, measured, on one continuous recommended lane through the
+// Strait of Juan de Fuca. Only its features that CARRY ORIENT belong here; the
+// rest have no leg to stitch and keep their plain centred mark from
+// bin/generate-area-anchors. See ORIENT_LEG_CLASSES in bin/quilt-anchors.mjs,
+// which is where that split is stated for both generators at once.
 //
 // Why this layer exists:
 //
@@ -50,7 +60,8 @@
 //
 // Each output feature carries:
 //
-//   CLASS    the S-57 class the group came from (TSSLPT, TSSRON, DWRTPT)
+//   CLASS    the S-57 class the group came from (TSSLPT, TSSRON, DWRTPT,
+//            RCTLPT)
 //   INTU     the chart band the group came from, absent if the source had none
 //   ORIENT   the group's traffic direction, degrees true, integer
 //   AREA     the group's summed area in square degrees, longitude scaled by
@@ -109,6 +120,8 @@
 // spacing rule produces anyway.
 
 import { readFileSync, writeFileSync } from "fs";
+
+import { ORIENT_LEG_CLASSES, hasOrient } from "./quilt-anchors.mjs";
 
 const args = process.argv.slice(2);
 const inputs = [];
@@ -689,12 +702,17 @@ const buckets = new Map();
 
 for (const { className, path } of inputs) {
   for (const feature of readFeatures(path)) {
-    const raw = Number(feature.properties?.ORIENT);
     // Kept as the REAL that S-57 carries. Rounding HERE is what split a lane
     // whose parts read 285/285/286/285 into three groups; the tolerance
     // comparison in the grouping absorbs that jitter instead, and only the
     // group's mean is ever rounded.
-    const orient = Number.isFinite(raw) ? ((raw % 360) + 360) % 360 : undefined;
+    const orient = hasOrient(feature.properties)
+      ? ((Number(feature.properties.ORIENT) % 360) + 360) % 360
+      : undefined;
+    // A directed-leg class with no direction is not a leg. RCTLPT without
+    // ORIENT draws the plain SY(RTLDEF51) mark, which bin/generate-area-anchors
+    // anchors; see ORIENT_LEG_CLASSES for the split.
+    if (orient === undefined && ORIENT_LEG_CLASSES.has(className)) continue;
     const intu = feature.properties?.INTU ?? null;
     const range = quiltRange(feature.properties);
     const id = `${className}\u0000${intu}\u0000${quiltKey(range)}`;

@@ -82,6 +82,47 @@ function anchors(features, { className = "RESARE", land = null } = {}) {
   return run(...args);
 }
 
+/**
+ * The OTHER cells' semantic roster, exactly as bin/extract-coverage caches it
+ * and bin/s57-to-tiles exports it back out: one polygon per area, carrying the
+ * producing chart, its rung and the canonical CONTENT identity.
+ */
+function roster(entries) {
+  return writeCollection(
+    "area_evidence.geojson",
+    entries.map(
+      ({ className = "DMPGRD", content = {}, dsnm, floor = 8, ring }) =>
+        polygon(
+          {
+            CLASS: className,
+            CONTENT: JSON.stringify(content),
+            DSNM: dsnm,
+            QFLOOR: floor,
+          },
+          ring,
+        ),
+    ),
+  );
+}
+
+/** One class file plus the election inputs, the way s57-to-tiles calls it. */
+function elect(
+  features,
+  { className = "DMPGRD", dsnm, cellFloor = 8, evidence = [] } = {},
+) {
+  const path = writeCollection(`${className}.geojson`, features);
+  return run(
+    "--class",
+    `${className}:${path}`,
+    "--area-evidence",
+    roster(evidence),
+    "--dsnm",
+    dsnm,
+    "--cell-floor",
+    String(cellFloor),
+  );
+}
+
 /** Ray-casting point-in-ring, written here so the test proves it independently. */
 function inRing(point, ring) {
   let inside = false;
@@ -279,6 +320,230 @@ describe("what the anchor carries", () => {
     const features = anchors([polygon({ LNAM: "AA" }, box(0, 0, 1, 1))]);
 
     expect(features[0].tippecanoe).toEqual({ minzoom: 0 });
+  });
+});
+
+describe("the cross-cell election", () => {
+  /**
+   * The measured defect: LNAM is issued PER CELL, so one dumping ground
+   * digitised across US5OR2JC/US5OR2KC/US4OR1IF is three features with three
+   * LNAMs and drew three stacks of crossed anchors on one physical area. The
+   * cached roster is what lets each cell see the other parts; the smallest
+   * DSNM in the component emits and the rest stand down.
+   */
+  const SPOIL = { CATDPG: "1", INFORM: "Spoil ground" };
+
+  /** This cell's own half of one dumping ground, east of the shared border. */
+  const east = [
+    polygon(
+      // LNAM and the per-cell TXTDSC differ between the halves by construction
+      // and are excluded from the identity, which is the whole reason the two
+      // cells recognise each other's part at all.
+      { LNAM: "AA", TXTDSC: "US5OR2KC.TXT", ...SPOIL },
+      box(1, 0, 2, 1),
+    ),
+  ];
+
+  test("the smallest DSNM in the component emits its anchor", () => {
+    const features = elect(east, {
+      dsnm: "US5OR2AA",
+      evidence: [{ content: SPOIL, dsnm: "US5OR2KC", ring: box(0, 0, 1, 1) }],
+    });
+
+    expect(features).toHaveLength(1);
+  });
+
+  test("...and the cells it beat emit nothing", () => {
+    const features = elect(east, {
+      dsnm: "US5OR2KC",
+      evidence: [{ content: SPOIL, dsnm: "US5OR2AA", ring: box(0, 0, 1, 1) }],
+    });
+
+    expect(features).toEqual([]);
+  });
+
+  test("the elected anchor carries the WHOLE component's area", () => {
+    // AREA is what the style's screen-size floor reads. The elected cell's own
+    // share can be a corner offcut a few metres across, and the surviving
+    // anchor stands for the whole feature.
+    const alone = elect(east, { dsnm: "US5OR2AA" })[0].properties.AREA;
+    const whole = elect(east, {
+      dsnm: "US5OR2AA",
+      evidence: [
+        { content: SPOIL, dsnm: "US5OR2KC", ring: box(0, 0, 1, 1) },
+        { content: SPOIL, dsnm: "US5OR2ZZ", ring: box(2, 0, 3, 1) },
+      ],
+    })[0].properties.AREA;
+
+    expect(whole).toBeCloseTo(alone * 3, 6);
+  });
+
+  test("a component is followed THROUGH the cells that bridge it", () => {
+    // This cell touches only US5OR2KC, but US5OR2KC touches US4OR1AA, so all
+    // four parts are one area and the smallest name of the four wins. Every
+    // cell is handed the same roster, so every cell reaches this same verdict
+    // from its own viewpoint -- which is what an election with no
+    // communication needs.
+    const features = elect(east, {
+      dsnm: "US5OR2KC",
+      evidence: [
+        { content: SPOIL, dsnm: "US5OR2ZZ", ring: box(0, 0, 1, 1) },
+        { content: SPOIL, dsnm: "US4OR1AA", ring: box(-1, 0, 0, 1) },
+      ],
+    });
+
+    expect(features).toEqual([]);
+  });
+
+  test("disjoint components elect independently", () => {
+    // Two separate physical areas that happen to state the same thing: the one
+    // continued by a smaller-named chart stands down, the one that continues
+    // nowhere keeps its anchor.
+    const features = elect(
+      [
+        polygon({ LNAM: "AA", ...SPOIL }, box(1, 0, 2, 1)),
+        polygon({ LNAM: "BB", ...SPOIL }, box(10, 0, 11, 1)),
+      ],
+      {
+        dsnm: "US5OR2KC",
+        evidence: [{ content: SPOIL, dsnm: "US5OR2AA", ring: box(0, 0, 1, 1) }],
+      },
+    );
+
+    expect(features).toHaveLength(1);
+    expect(features[0].geometry.coordinates[0]).toBeGreaterThan(9);
+  });
+
+  test("a neighbour with DIFFERENT content is a different area", () => {
+    // Any surviving attribute difference and they are two areas, whatever the
+    // topology did -- the same rule the boundary merge applies to a seam.
+    const features = elect(east, {
+      dsnm: "US5OR2KC",
+      evidence: [
+        {
+          content: { ...SPOIL, INFORM: "Disused" },
+          dsnm: "US5OR2AA",
+          ring: box(0, 0, 1, 1),
+        },
+      ],
+    });
+
+    expect(features).toHaveLength(1);
+  });
+
+  test("a neighbour of another CLASS is a different area", () => {
+    const features = elect(east, {
+      dsnm: "US5OR2KC",
+      evidence: [
+        {
+          className: "PIPARE",
+          content: SPOIL,
+          dsnm: "US5OR2AA",
+          ring: box(0, 0, 1, 1),
+        },
+      ],
+    });
+
+    expect(features).toHaveLength(1);
+  });
+
+  test("a neighbour on another RUNG is a different compilation", () => {
+    // Same band only: a coarser edition's copy of an area is not a part of the
+    // finer one's, and the copy ladder already keeps their zooms apart.
+    const features = elect(east, {
+      dsnm: "US5OR2KC",
+      evidence: [
+        { content: SPOIL, dsnm: "US4OR1AA", ring: box(0, 0, 1, 1), floor: 6 },
+      ],
+    });
+
+    expect(features).toHaveLength(1);
+  });
+
+  test("a neighbour nowhere near this cell's parts is not its component", () => {
+    const features = elect(east, {
+      dsnm: "US5OR2KC",
+      evidence: [{ content: SPOIL, dsnm: "US5OR2AA", ring: box(20, 0, 21, 1) }],
+    });
+
+    expect(features).toHaveLength(1);
+    expect(features[0].properties.AREA).toBeCloseTo(
+      elect(east, { dsnm: "US5OR2KC" })[0].properties.AREA,
+      6,
+    );
+  });
+
+  test("a neighbour OVERLAPPING this cell's part counts as one area", () => {
+    // The roster holds each cell's UNCLIPPED geometry while this cell's parts
+    // have been through the quilt clip, and cell coverages are not a perfect
+    // tiling: a part swallowed inside a neighbour's copy has no vertex
+    // anywhere near an edge of it, so touching alone would miss it.
+    const features = elect(
+      [polygon({ LNAM: "AA", ...SPOIL }, box(1, 0, 2, 1))],
+      {
+        dsnm: "US5OR2KC",
+        evidence: [{ content: SPOIL, dsnm: "US5OR2AA", ring: box(0, 0, 3, 2) }],
+      },
+    );
+
+    expect(features).toEqual([]);
+  });
+
+  test("with no roster at all every group keeps its own anchor", () => {
+    // An unpartitioned cell, or an older cache: the election is inert and the
+    // behaviour is exactly what shipped before it existed.
+    expect(anchors(east, { className: "DMPGRD" })).toHaveLength(1);
+  });
+
+  test("a roster with no name or no rung to compare on is inert", () => {
+    const path = writeCollection("DMPGRD.geojson", east);
+    const evidence = roster([
+      { content: SPOIL, dsnm: "US5OR2AA", ring: box(0, 0, 1, 1) },
+    ]);
+
+    // Without --dsnm this cell cannot know which candidate it is; without
+    // --cell-floor it cannot tell a same-band neighbour from another edition.
+    expect(
+      run(
+        "--class",
+        `DMPGRD:${path}`,
+        "--area-evidence",
+        evidence,
+        "--cell-floor",
+        "8",
+      ),
+    ).toHaveLength(1);
+    expect(
+      run(
+        "--class",
+        `DMPGRD:${path}`,
+        "--area-evidence",
+        evidence,
+        "--dsnm",
+        "US5OR2KC",
+      ),
+    ).toHaveLength(1);
+  });
+
+  test("each interval is elected on its own, and all of them the same way", () => {
+    // The roster is interval-agnostic, so the copy ladder's copies of one
+    // suppressed feature are suppressed together: a copy that survived would
+    // draw the duplicate symbol at its own zooms only.
+    const features = elect(
+      [
+        polygon(
+          { LNAM: "AA", _QZMIN: 8, _QZMAX: 9, ...SPOIL },
+          box(1, 0, 2, 1),
+        ),
+        polygon({ LNAM: "AA", _QZMIN: 10, ...SPOIL }, box(1, 0, 2, 1)),
+      ],
+      {
+        dsnm: "US5OR2KC",
+        evidence: [{ content: SPOIL, dsnm: "US5OR2AA", ring: box(0, 0, 1, 1) }],
+      },
+    );
+
+    expect(features).toEqual([]);
   });
 });
 

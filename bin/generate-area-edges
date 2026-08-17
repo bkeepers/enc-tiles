@@ -31,7 +31,9 @@
 // WHAT COUNTS AS THE SAME CONTENT
 //
 //   The feature's full attribute set, minus the bookkeeping that identifies
-//   the RECORD rather than the thing in the water (see IDENTITY_EXCLUSIONS).
+//   the RECORD rather than the thing in the water (see IDENTITY_EXCLUSIONS in
+//   bin/quilt-content.mjs, which the anchor generators' cross-cell election
+//   compares exactly the same way).
 //   Two RESARE fragments carrying the same RESTRN, the same INFORM and the
 //   same everything else are one regulated area however the topology split
 //   them; two differing in ANY surviving attribute -- a name, a restriction
@@ -96,6 +98,7 @@
 
 import { writeFileSync } from "fs";
 
+import { canonicalContent, contentOf } from "./quilt-content.mjs";
 import {
   chartBorderTest,
   coveragePolygons,
@@ -258,101 +261,6 @@ export const ZONE_CLASSES = [
 ];
 
 const ZONE_CLASS_SET = new Set(ZONE_CLASSES);
-
-/**
- * The attributes that identify the RECORD, not the content -- excluded from
- * the identity hash AND from the emitted edge's attributes.
- *
- * The first group is per-feature bookkeeping: LNAM is the feature identifier
- * (every fragment pair across a boundary differs in it by construction), the
- * source/record dates and indicators describe the survey record, and
- * SCAMIN/SCAMAX/INTU/CSCALE are scale gating the partition owns. The second
- * group is the tile-side exclusion list bin/s57-to-tiles already passes to
- * tippecanoe (--exclude): attributes that never reach a tile cannot be
- * content, and FIDN alone would otherwise keep any two distinct features from
- * ever merging. Every _-prefixed stamp (the copy ladder's and any other of
- * ours) is excluded by prefix.
- */
-const IDENTITY_EXCLUSIONS = new Set([
-  "LNAM",
-  "SORIND",
-  "SORDAT",
-  "RECIND",
-  "RECDAT",
-  "SCAMIN",
-  "SCAMAX",
-  "INTU",
-  "CSCALE",
-  // Per-cell FILE REFERENCES: the value embeds the producing chart's own name
-  // (US4AK2DD's ADMARE carries TXTDSC "US101DDB.TXT", its neighbour's the
-  // DE-named twin), so two cells' halves of one area can never match on them.
-  // They point at sidecar files that never ship with the tiles at all.
-  "TXTDSC",
-  "NTXTDS",
-  "PICREP",
-  // The tippecanoe --exclude list from bin/s57-to-tiles, step 4.
-  "LNAM_REFS",
-  "FFPT_RIND",
-  "PRIM",
-  "GRUP",
-  "OBJL",
-  "RVER",
-  "AGEN",
-  "FIDN",
-  "FIDS",
-  "RCID",
-]);
-
-/**
- * The content attributes of a feature: everything that survives the
- * exclusions, nulls dropped (GeoJSON exports spell "no value" both ways, and
- * an attribute a producer left null is the same content as one it left out).
- */
-/**
- * One canonical string for an evidence CONTENT value, whatever shape the
- * transport gave it. bin/generate-area-edges --write-evidence stores CONTENT
- * as a JSON STRING, but the GeoJSON writer that exports the cached roster back
- * out of the coverage GeoPackage (bin/s57-to-tiles step 2b) auto-detects
- * JSON-shaped strings and re-emits them as raw JSON OBJECTS
- * (AUTODETECT_JSON_STRINGS, default YES) -- and an object never string-equals
- * a side's serialized identity, which silently retained EVERY chart-border
- * edge in the fleet (found 2026-08-14, the Adak swept-area seam). The export
- * now pins the option off, and this canonicalizer makes the comparison immune
- * to the transport either way: strings that parse as objects and objects
- * alike reduce to the same sorted-key serialization contentOf produces.
- */
-function canonicalContent(value) {
-  let content = value;
-  if (typeof content === "string") {
-    // The common, intended case: already the exact serialization.
-    if (!content.startsWith("{")) return content;
-    try {
-      content = JSON.parse(content);
-    } catch {
-      return value;
-    }
-  }
-  if (content === null || typeof content !== "object" || Array.isArray(content))
-    return typeof value === "string" ? value : JSON.stringify(value);
-  return JSON.stringify(
-    Object.fromEntries(
-      Object.entries(content)
-        .filter(([, v]) => v !== null && v !== undefined)
-        .sort(([ka], [kb]) => (ka < kb ? -1 : ka > kb ? 1 : 0)),
-    ),
-  );
-}
-
-function contentOf(properties) {
-  const content = {};
-  for (const key of Object.keys(properties ?? {}).sort()) {
-    if (key.startsWith("_") || IDENTITY_EXCLUSIONS.has(key)) continue;
-    const value = properties[key];
-    if (value === null || value === undefined) continue;
-    content[key] = value;
-  }
-  return content;
-}
 
 const args = process.argv.slice(2);
 

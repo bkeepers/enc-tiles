@@ -19,6 +19,12 @@ import { afterEach, beforeEach, describe, expect, test } from "vitest";
 
 import createStyle from "@enc-tiles/styles";
 
+import {
+  IDENTITY_EXCLUSIONS,
+  canonicalContent,
+  contentOf,
+} from "../bin/quilt-content.mjs";
+
 const SCRIPT = fileURLToPath(
   new URL("../bin/generate-area-edges", import.meta.url),
 );
@@ -453,6 +459,50 @@ describe("the identity exclusions", () => {
     ]);
 
     expect(hasMeridian(run("--area", `RESARE:${areas}`))).toBe(true);
+  });
+
+  test("the identity is the SHARED module's, not a copy of it", () => {
+    // The anchor generators' cross-cell election compares the same cached
+    // roster this generator writes, so the exclusions and the canonical
+    // serialization have to be ONE function rather than two that agree today.
+    // A drift there is an area that merges as one boundary and elects as two
+    // anchors, or the reverse. See bin/quilt-content.mjs.
+    const properties = {
+      RESTRN: "7",
+      OBJNAM: "Alpha",
+      LNAM: "record-id",
+      TXTDSC: "US101DDB.TXT",
+      SCAMIN: 90000,
+      FIDN: 42,
+      _QZMIN: 9,
+      INFORM: null,
+    };
+    const areas = writeCollection("RESARE.geojson", [
+      polygon(properties, WEST_HALF),
+    ]);
+    const evidence = writeEvidence(
+      "--evidence-dsnm",
+      "US5LEFT1",
+      "--evidence-qfloor",
+      "9",
+      "--area",
+      `RESARE:${areas}`,
+    );
+
+    expect(evidence.features[0].properties.CONTENT).toBe(
+      JSON.stringify(contentOf(properties)),
+    );
+    // ...and the roster's spelling of it reduces to what an anchor group's own
+    // bag reduces to, whatever the GeoJSON transport did to it on the way.
+    expect(canonicalContent(evidence.features[0].properties.CONTENT)).toBe(
+      canonicalContent(contentOf(properties)),
+    );
+    for (const excluded of ["LNAM", "TXTDSC", "SCAMIN", "FIDN", "_QZMIN"]) {
+      expect(
+        IDENTITY_EXCLUSIONS.has(excluded) || excluded.startsWith("_"),
+      ).toBe(true);
+      expect(Object.keys(contentOf(properties))).not.toContain(excluded);
+    }
   });
 });
 
