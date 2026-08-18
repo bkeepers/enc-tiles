@@ -8,7 +8,7 @@
 // Usage:
 //   bin/generate-area-anchors <output.geojson> \
 //     --class CTNARE:CTNARE.geojson [--class PILBOP:PILBOP.geojson ...] \
-//     [--area-evidence area_evidence.geojson] [--dsnm US5OR2JC] \
+//     [--area-evidence area_evidence_all.geojson] [--dsnm US5OR2JC] \
 //     [--cell-floor <N>]
 //
 //   bin/generate-area-anchors --list-classes
@@ -43,20 +43,24 @@
 // interval keeps the copy ladder's overlapping copies of one feature from
 // merging into a single anchor stamped for no interval at all.
 //
-// ACROSS CELLS, LNAM is not enough -- it is issued per cell, so one area split
-// by a chart border is several features with several LNAMs and drew a stack of
-// symbols per cell it reaches. --area-evidence, --dsnm and --cell-floor turn on
-// the cross-cell ELECTION that removes the rest: the contiguous same-class,
-// same-content component across cells elects the smallest DSNM in it, and only
-// the elected cell emits. The one surviving anchor stands for the whole
-// physical area, so it is both MEASURED as the whole component (AREA) and
-// PLACED over it -- the largest fragment is chosen among this cell's own parts
-// AND the component's parts in the other cells, because the elected cell is
-// frequently the one holding a corner offcut a few square metres across, where
-// the symbol would sit at the extreme edge of the area. The property BAG stays
-// this cell's (see below): only the placement polygon may be a neighbour's.
-// See bin/quilt-election.mjs; without those inputs every group keeps its own
-// anchor.
+// LNAM IS NOT ENOUGH, in either direction -- it is issued per cell, so one area
+// split by a chart border is several features with several LNAMs and drew a
+// stack of symbols per cell it reaches, and one cell holds several LNAMs of one
+// area just as readily. --area-evidence, --dsnm and --cell-floor turn on the
+// ELECTION that removes both: the contiguous same-class, same-content
+// component, WITHIN a cell as much as across a seam, elects the smallest DSNM
+// in it and, inside that cell, the smallest group id standing on it. Every
+// group is registered first and asked for its verdict second, since the
+// within-cell half cannot be decided until every group has been seen.
+//
+// The one surviving anchor stands for the whole physical area, so it is both
+// MEASURED as the whole component (AREA) and PLACED over it -- the largest
+// fragment is chosen among this cell's own clipped parts AND the component's
+// polygons, because the elected cell is frequently the one holding a corner
+// offcut a few square metres across, where the symbol would sit at the extreme
+// edge of the area. The property BAG stays this cell's (see below): only the
+// placement polygon may be a neighbour's. See bin/quilt-election.mjs; without
+// those inputs every group keeps its own anchor.
 //
 // ORIENT-CARRYING features of ORIENT_LEG_CLASSES (RCTLPT) are skipped here:
 // they are directed legs and bin/generate-tss-anchors stitches them back into
@@ -77,9 +81,11 @@
 //   AREA     the summed area in square degrees, longitude scaled by
 //            cos(latitude) (bin/quilt-anchors.mjs featureArea), computed here
 //            so the style can reuse the restriction anchors' screen-size
-//            density floor. Summed over the whole ELECTED COMPONENT where an
-//            election ran, so the floor measures the feature rather than this
-//            cell's share of it; over the group alone where none did
+//            density floor. The whole ELECTED COMPONENT's area where an
+//            election ran (its cells' unclipped polygons, this one's
+//            included), so the floor measures the feature rather than this
+//            cell's share of it; the group's own summed area where the group
+//            stands on no component
 
 import { writeFileSync } from "fs";
 
@@ -284,24 +290,35 @@ for (const { className, path } of inputs) {
   }
 }
 
-// ---- 2. one anchor per group, inside the component's largest fragment ------
+// ---- 2. register every group with the election -----------------------------
+
+// PASS 1, before any verdict is asked for. The election elects among ALL the
+// groups standing on one component -- the several LNAMs this cell holds of one
+// physical area as much as the other cells' parts of it -- so it cannot answer
+// for any of them until it has been shown every one. See bin/quilt-election.mjs.
+for (const [id, group] of groups) {
+  election.register(id, group.className, group.content, group.parts);
+}
+
+// ---- 3. one anchor per elected component, in its largest fragment ----------
 
 const features = [];
 let elsewhere = 0;
 
-for (const group of groups.values()) {
-  // The cross-cell election: one anchor for the whole physical area, emitted by
-  // the cell the component elected. A group with no same-band, same-content
-  // neighbour elects itself and nothing changes.
-  const verdict = election.verdict(group.className, group.content, group.parts);
+for (const [id, group] of groups) {
+  // The election: one anchor for the whole physical area, emitted by the cell
+  // the component elected and, inside that cell, by the first of the groups
+  // standing on it. A group alone in its component elects itself and nothing
+  // changes.
+  const verdict = election.verdict(id);
   if (!verdict.emit) {
     elsewhere++;
     continue;
   }
 
   // The placement polygon: the largest part of the WHOLE physical area -- this
-  // cell's own fragments and the elected component's parts in the other cells,
-  // ranked together. The elected cell's own share can be a corner offcut a few
+  // cell's own clipped fragments and the elected component's polygons, ranked
+  // together. The elected cell's own share can be a corner offcut a few
   // metres across, and a point inside it sits at the extreme edge of the area
   // (at overzoom visibly outside it). Strictly larger wins, so a tie stays with
   // this cell's own geometry.
@@ -342,8 +359,11 @@ for (const group of groups.values()) {
       CLASS: group.className,
       // The whole component's area, not this cell's share of it: the style's
       // screen-size floor has to measure the FEATURE, and the elected cell's
-      // share can be a corner offcut a few metres across.
-      AREA: group.area + verdict.area,
+      // share can be a corner offcut a few metres across. The verdict's area
+      // is the component's polygons INCLUDING this cell's own unclipped row,
+      // so it replaces the local sum rather than adding to it; the local sum
+      // is what a group standing on no component keeps.
+      AREA: verdict.parts.length > 0 ? verdict.area : group.area,
       // The interval the group's members serve, converted to tippecanoe
       // bounds later by bin/stamp-quilt-zooms.
       ...group.range,
@@ -357,5 +377,5 @@ writeFileSync(
 );
 console.error(
   `Generated ${features.length} area anchors` +
-    (elsewhere > 0 ? `, ${elsewhere} elected to another chart` : ""),
+    (elsewhere > 0 ? `, ${elsewhere} elected elsewhere` : ""),
 );

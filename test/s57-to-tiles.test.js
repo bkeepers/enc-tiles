@@ -1199,7 +1199,10 @@ describe("the restriction anchor generator", () => {
     // LNAM is issued PER CELL, so one dumping ground split across three charts
     // drew three stacks of crossed anchors. The roster, this cell's own name
     // and its rung are what let it see the other parts and stand down for the
-    // chart the component elected. See bin/quilt-election.mjs.
+    // chart the component elected. The roster it gets is the UNFILTERED export
+    // -- this cell's own rows included, unlike the edge generator's -- because
+    // every cell has to derive the SAME components or two of them can both
+    // believe they won. See bin/quilt-election.mjs.
     const { node } = run(RESTRICTED_CELL);
 
     const line = node
@@ -1207,7 +1210,7 @@ describe("the restriction anchor generator", () => {
       .split("\n")
       .find((entry) => entry.includes("generate-restriction-anchors"));
     expect(line).toBeDefined();
-    expect(line).toMatch(/--area-evidence \S+area_evidence\.geojson/);
+    expect(line).toMatch(/--area-evidence \S+area_evidence_all\.geojson/);
     expect(line).toContain("--dsnm US5WA22M");
     expect(line).toContain("--cell-floor 8");
   });
@@ -1329,8 +1332,8 @@ describe("the area anchor generator", () => {
   });
 
   test("a partitioned cell hands it the election inputs too", () => {
-    // The same cross-cell election the restriction anchors run: both group by
-    // (CLASS, LNAM, interval) and LNAM is per cell.
+    // The same election the restriction anchors run, off the same unfiltered
+    // roster: both group by (CLASS, LNAM, interval) and LNAM is per cell.
     const { node } = run(NARROW_CELL);
 
     const line = node
@@ -1338,7 +1341,7 @@ describe("the area anchor generator", () => {
       .split("\n")
       .find((entry) => entry.includes("generate-area-anchors"));
     expect(line).toBeDefined();
-    expect(line).toMatch(/--area-evidence \S+area_evidence\.geojson/);
+    expect(line).toMatch(/--area-evidence \S+area_evidence_all\.geojson/);
     expect(line).toContain("--dsnm US5WA22M");
     expect(line).toContain("--cell-floor 8");
   });
@@ -1486,6 +1489,26 @@ describe("the area edge generator", () => {
     expect(evidenceLine).toContain("area_evidence");
     expect(evidenceLine).toContain("DSNM <> 'US5WA22M'");
     expect(evidenceLine).toContain("CLASS,CONTENT,DSNM,QFLOOR");
+  });
+
+  test("the anchor election gets the same roster with NO name filter", () => {
+    // Two exports of one table, and the difference between them is the whole
+    // point. The edge generator's excludes this cell: a chart is not evidence
+    // about what lies beyond its own border. The election's includes it,
+    // because every cell has to join the region's areas into the SAME
+    // components -- comparing this cell's QUILT-CLIPPED parts against the
+    // neighbours' UNCLIPPED ones let both sides of a four-cell corner elect
+    // themselves. Same table, same columns, same JSON transport.
+    const { sql } = run(RULED_CELL);
+
+    const line = statements(sql).find((entry) =>
+      entry.includes("area_evidence_all.geojson"),
+    );
+    expect(line).toBeDefined();
+    expect(line).toContain("area_evidence");
+    expect(line).not.toContain("DSNM <>");
+    expect(line).toContain("CLASS,CONTENT,DSNM,QFLOOR");
+    expect(line).toContain("AUTODETECT_JSON_STRINGS=NO");
   });
 
   test("an unpartitioned cell passes no roster: the legacy drop stands", () => {

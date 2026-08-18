@@ -652,8 +652,10 @@ if [ -n "$coverage" ] && [ -f "$coverage" ] && [ -n "$quilt_floor" ]; then
   # fragments as their coverage. Coverage selects the serving floor/owners at
   # each copy interval; these polygons then prove whether EVERY serving owner
   # continues the same class and content across this cell border. Excluding the
-  # current DSNM is essential: its own matching polygon is not evidence about
-  # what lies on the far side.
+  # current DSNM is essential HERE, for the boundary merge rule: its own
+  # matching polygon is not evidence about what lies on the far side. (The
+  # anchor election reads the UNFILTERED twin below instead — a different
+  # question, with the opposite answer. Keep the two exports apart.)
   # AUTODETECT_JSON_STRINGS=NO: CONTENT is a JSON *string* and the semantic
   # merge compares it byte-for-byte against the local side's serialization.
   # Left to its default the GeoJSON writer re-emits the string as a raw JSON
@@ -665,6 +667,23 @@ if [ -n "$coverage" ] && [ -f "$coverage" ] && [ -n "$quilt_floor" ]; then
   ogr2ogr -f GeoJSON "$area_evidence_geojson" "$coverage" area_evidence \
     -lco AUTODETECT_JSON_STRINGS=NO \
     -where "DSNM <> '${dsnm}'" -select "CLASS,CONTENT,DSNM,QFLOOR" 2>/dev/null
+
+  # The SAME roster unfiltered — this cell's own rows included — for the anchor
+  # election at step 3f. The election joins the region's areas into contiguous
+  # same-class, same-content components and every cell has to derive the SAME
+  # components from them, so every cell must be handed the same rows. Fed the
+  # neighbour-only file, each cell compared its own QUILT-CLIPPED parts against
+  # the neighbours' UNCLIPPED ones and the component came out a function of who
+  # was asking: at the US5OR2JC/JD/KC/KD corner US5OR2JC saw itself joined to
+  # US5OR2KD's big polygon and emitted for the pair, while US5OR2KD — whose
+  # clipped copy stops at the border and never reaches JC — saw no such
+  # component and emitted too, two anchors on one point. Same table, same
+  # columns, same AUTODETECT_JSON_STRINGS=NO transport; only the DSNM filter
+  # goes. See bin/quilt-election.mjs (SYMMETRY).
+  area_evidence_all_geojson="$tmpdir/area_evidence_all.geojson"
+  ogr2ogr -f GeoJSON "$area_evidence_all_geojson" "$coverage" area_evidence \
+    -lco AUTODETECT_JSON_STRINGS=NO \
+    -select "CLASS,CONTENT,DSNM,QFLOOR" 2>/dev/null
 
   # The same roster reduced to PRESENCE -- which chart carries which class --
   # for the zone-aware quilt masks below. Content is irrelevant here: the
@@ -1228,21 +1247,31 @@ if [ ${#tss_args[@]} -gt 0 ]; then
   fi
 fi
 
-# The CROSS-CELL ANCHOR ELECTION inputs, shared by the two centred-symbol anchor
-# generators below. Both group by (CLASS, LNAM, interval), and LNAM is issued PER
-# CELL — so one dumping ground digitised across three charts drew three stacks of
-# symbols, and a pipeline area at a four-cell corner eight. The same semantic
-# roster the boundary merge rule reads (step 2b) says which of those parts are
-# one area: the contiguous same-class, same-content component across cells elects
-# the smallest DSNM in it and only that cell emits. This cell's own name and rung
-# go with it — the name because a chart is never evidence about itself and has to
-# know which candidate it is, the rung because the election is same-band only.
-# All three together or none: without any one of them the generators keep one
-# anchor per cell copy, which is what shipped before. See bin/quilt-election.mjs.
+# The ANCHOR ELECTION inputs, shared by the two centred-symbol anchor generators
+# below. Both group by (CLASS, LNAM, interval), and LNAM is issued PER CELL — so
+# one dumping ground digitised across three charts drew three stacks of symbols,
+# a pipeline area at a four-cell corner eight, and the several LNAMs ONE cell
+# holds of one area a stack of their own. The semantic roster the boundary merge
+# rule reads (step 2b) says which of those parts are one area: the contiguous
+# same-class, same-content component — within a cell as much as across a seam —
+# elects the smallest DSNM in it, and inside that cell the smallest group id
+# standing on it.
+#
+# The roster handed over is the UNFILTERED export, this cell's own rows
+# INCLUDED. The election is decided with no cell talking to any other, so every
+# cell must see the same rows and derive the same components; with the
+# neighbour-only file each cell compared its clipped parts against the others'
+# unclipped ones and two cells of one corner could both believe they had won.
+# (The edge generator above keeps the neighbour-only file, deliberately: a chart
+# is not evidence about what lies beyond its own border.) This cell's own name
+# and rung go with the roster — the name so it knows which candidate it is, the
+# rung because the election is same-band only. All three together or none:
+# without any one of them the generators keep one anchor per cell copy, which is
+# what shipped before. See bin/quilt-election.mjs.
 anchor_election_args=()
-if [ -f "$tmpdir/area_evidence.geojson" ] && [ -n "$dsnm" ] && [ -n "$quilt_floor" ]; then
+if [ -f "$tmpdir/area_evidence_all.geojson" ] && [ -n "$dsnm" ] && [ -n "$quilt_floor" ]; then
   anchor_election_args=(
-    --area-evidence "$tmpdir/area_evidence.geojson"
+    --area-evidence "$tmpdir/area_evidence_all.geojson"
     --dsnm "$dsnm"
     --cell-floor "$quilt_floor"
   )

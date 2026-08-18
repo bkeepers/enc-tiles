@@ -16,40 +16,88 @@
 //   Which is exactly what the cached semantic roster exists to say. Every cell's
 //   areas are cached with their canonical CONTENT identity (bin/generate-area-edges
 //   --write-evidence, stored by bin/extract-coverage), and bin/s57-to-tiles hands
-//   each cell every OTHER cell's rows -- the same evidence the boundary merge
-//   rule reads to tell a continuing area from a real change at a cell border.
+//   each cell the region's roster -- the same evidence the boundary merge rule
+//   reads to tell a continuing area from a real change at a cell border.
 //
 // THE RULE
 //
-//   Build the contiguous same-(CLASS, content) COMPONENT across cells: this
-//   cell's own parts, plus the other cells' evidence polygons of the same class
-//   and the same canonical content, joined wherever they touch or overlap. The
-//   component ELECTS the lexicographically smallest DSNM in it, and only the
-//   elected cell emits its anchor.
+//   ONE anchor per contiguous same-(CLASS, content) COMPONENT. That is the
+//   identity bin/generate-area-edges already derives a boundary from (its
+//   header, "THE BOUNDARY MERGE RULE": same-content fragments are one area
+//   however the topology split them), and it reaches exactly as far -- WITHIN
+//   one cell as much as ACROSS a seam.
 //
-//   Determinism is what makes an election work with no cell talking to any
-//   other: every cell is handed the same roster and the same content
-//   comparison, so every cell computes the same component and reads the same
-//   winner out of it -- the loser suppresses precisely because it can see who
-//   won. Smallest DSNM rather than largest area because it has to be decidable
-//   from a name alone: areas differ by a clip, names do not.
+//   The component is built over the cached roster: every polygon of that class
+//   and that canonical content, in every cell of the region INCLUDING THIS ONE,
+//   joined wherever they touch or overlap. The component elects the
+//   lexicographically smallest DSNM in it; inside the elected cell the smallest
+//   GROUP KEY among the groups standing on that component emits, and every
+//   other group standing on it stands down.
 //
-//   The elected anchor carries the COMPONENT's area, not the local offcut's.
-//   AREA is what the style's screen-size density floor reads, and the one
-//   surviving anchor stands for the whole feature -- a 4 m^2 corner offcut that
-//   has just won the election for a 30 km^2 pipeline area must not be measured
-//   as the offcut.
+//   Smallest DSNM rather than largest area because it has to be decidable from
+//   a name alone: areas differ by a clip, names do not.
 //
-//   And it is PLACED over the component, not over the elected cell's share of
-//   it. `verdict` hands the joined components' polygons back, and both
-//   generators rank their own parts and those TOGETHER to choose the part the
-//   point goes in -- because the elected cell is often the one holding the
-//   offcut (US5OR2KC's sliver of a PIPARE that mostly lies on US5OR2KD), and an
-//   anchor placed inside the sliver sits at the extreme edge of the physical
-//   area, at overzoom visibly outside it. The roster's polygons are the
-//   neighbours' UNCLIPPED geometry and may overlap this cell's parts; no union
-//   is needed, since "the largest part" is exactly the rule a single-cell
-//   multipolygon already gets.
+// SYMMETRY -- why the roster carries this cell's own rows
+//
+//   The election works only because no cell talks to any other: each derives
+//   the same components from the same roster and reads the same winner out of
+//   them. The first cut broke that by comparing DIFFERENT geometry on the two
+//   sides -- this cell's parts were its QUILT-CLIPPED polygons, while the
+//   roster (own rows excluded) held the neighbours' UNCLIPPED ones -- so the
+//   components came out a function of who was asking.
+//
+//   Measured at the US5OR2JC/JD/KC/KD corner, on a PIPARE corridor of eight
+//   features all carrying {"RESTRN":"2,6,24"}: US5OR2KD's big polygon reaches
+//   US5OR2JC's sliver only in its UNCLIPPED form. JC therefore saw itself
+//   joined to KD, found itself the smaller name and emitted for the pair --
+//   while KD, testing its own CLIPPED copy, which stops at the border and never
+//   reaches JC, saw no such component at all, found itself the smallest name of
+//   what it could see, and emitted too. Two anchors on one point (AREA 2.835e-05
+//   and 2.842e-05). Neither cell was wrong about its own inputs; the inputs
+//   disagreed.
+//
+//   So the roster handed to the election is UNFILTERED (bin/s57-to-tiles
+//   exports it a second time without the `DSNM <>` clause, as
+//   area_evidence_all.geojson). Every cell buckets the same rows, derives the
+//   same components and reads the same verdict out of them; this cell's clipped
+//   parts are then used for ONE thing only, telling which component its own
+//   groups stand on. The edge generator's --neighbor-area-evidence stays
+//   neighbour-only, and for its own good reason: a chart is not evidence about
+//   what lies beyond its own border. Here the question is the opposite one --
+//   which of these polygons are one area -- and every cell has to answer it the
+//   same way.
+//
+// WITHIN A CELL
+//
+//   Groups are per LNAM, and one cell routinely holds several LNAMs of one
+//   physical area: the same corner has THREE US5OR2KD pieces of that corridor,
+//   contiguous and byte-identical in content. With the cell's own rows excluded
+//   from the roster nothing could ever join them, so each emitted its own
+//   anchor -- four at that corner even once the cross-cell half worked.
+//
+//   Contiguous same-content fragments are one area however the topology split
+//   them, so they stand on ONE component and the smallest group key emits for
+//   all of them. The key is the generators' own group id (`CLASS LNAM
+//   interval`): stable across runs, and compared only against the other keys of
+//   the cell that owns them, so no other cell's naming can move it.
+//
+// AREA AND PLACEMENT
+//
+//   The surviving anchor stands for the whole component, so it is MEASURED and
+//   PLACED as the whole component. `area` is the sum of the component's
+//   polygons -- the roster's unclipped geometry, this cell's own row included;
+//   never the local clipped offcut ADDED to the neighbours' polygons, which
+//   double-counted this cell's share of the area. `parts` is all of those
+//   polygons, which both generators rank alongside their own clipped parts to
+//   choose the part the point goes in.
+//
+//   A 4 m^2 corner offcut that has just won the election for a 30 km^2 pipeline
+//   area must be measured as the pipeline and drawn inside it: AREA is what the
+//   style's screen-size density floor reads, and a point placed in the sliver
+//   sits at the extreme edge of the physical area, at overzoom visibly outside
+//   it. The roster's polygons are the cells' own unclipped geometry and may
+//   overlap one another; no union is taken, since "the largest part" is exactly
+//   the rule a single-cell multipolygon already gets.
 //
 // SAME BAND ONLY
 //
@@ -65,9 +113,9 @@
 //
 // WHAT IS DELIBERATELY NOT ELECTED
 //
-//   * A part with no same-band, same-content neighbour across any border is
-//     alone in its component and elects itself: the behaviour is exactly what it
-//     was before this existed.
+//   * A part alone in its component -- no same-band, same-content neighbour
+//     across any border and no sibling fragment at home -- elects itself: the
+//     behaviour is exactly what it was before this existed.
 //   * Two disjoint components of the same content elect independently, so two
 //     separate physical areas that happen to state the same thing keep one
 //     anchor each.
@@ -77,17 +125,33 @@
 //     TSSCRS, RCTLPT, BERTHS, CHKPNT, HRBFAC, MAGVAR) keep one anchor per cell
 //     copy until the roster widens.
 //
+// THE DEGRADED PATH
+//
+//   A roster carrying no row of this cell's own -- an older cache, or a cell
+//   whose build precedes its own first evidence -- cannot map a group by
+//   containment. `register` then falls back to the original test: the group's
+//   CLIPPED parts against the component's entries, by the same adjacency. That
+//   is the asymmetric comparison above and it carries the asymmetric risk with
+//   it: the cross-cell half of the rule is then only as good as it was before.
+//   The within-cell half reaches only as far as the NEIGHBOURS' polygons do --
+//   two fragments of this cell that both meet one neighbouring component are
+//   still elected between, but two that meet nothing in the roster meet nothing
+//   at all. The AREA is repaired locally: the fallen-back group's own clipped
+//   area is added to the component, which holds no polygon of this cell's, so
+//   the anchor still measures the whole physical area rather than the
+//   neighbours' share of it.
+//
 // Without a roster, without this cell's own DSNM, or without a rung to compare
 // on -- an unpartitioned cell, a nameless chart, an older cache -- the election
 // is inert and every group keeps its own anchor.
 
-import { featureArea } from "./quilt-anchors.mjs";
+import { featureArea, pointOnSurface } from "./quilt-anchors.mjs";
 import { canonicalContent } from "./quilt-content.mjs";
 import { NEIGHBOR_PROBE_EPSILON, polygonsContaining } from "./quilt-edges.mjs";
 import { polygons, readFeatures } from "./quilt-geojson.mjs";
 
 /**
- * How close two cells' parts have to come to count as one area, in degrees.
+ * How close two parts have to come to count as one area, in degrees.
  *
  * The same step the edge derivation probes a chart border with (~10 m of
  * ground): "a charted neighbour abutting OR overlapping the border" is the
@@ -99,6 +163,9 @@ import { polygons, readFeatures } from "./quilt-geojson.mjs";
  * see a border at all.
  */
 const ADJACENCY_TOLERANCE = NEIGHBOR_PROBE_EPSILON;
+
+/** The verdict of a group standing on no component at all. */
+const ALONE = { emit: true, area: 0, parts: [] };
 
 /** The bucket key: only same class AND same content are ever one area. */
 function bucketKey(className, content) {
@@ -120,6 +187,11 @@ function entryOf(polygon, dsnm) {
   // `polygon`, `minX`..`maxY` and `properties` are the shape polygonsContaining
   // reads, so an entry can be handed to it as a one-polygon index.
   return { polygon, minX, minY, maxX, maxY, properties: {}, dsnm };
+}
+
+/** One polygon's area, holes and all, on the pipeline's one measure. */
+function polygonArea(polygon) {
+  return featureArea({ type: "Polygon", coordinates: polygon });
 }
 
 function distanceToSegment(point, a, b) {
@@ -155,15 +227,15 @@ function vertexNear(from, to) {
 }
 
 /**
- * Whether two parts of one area meet: touching along the cell border, or
- * overlapping across it.
+ * Whether two parts of one area meet: touching along a border, or overlapping
+ * across it.
  *
  * Touching is the ordinary case -- neighbouring cells are digitised to a shared
- * border and their halves of an area abut along it. Overlap is the case the
- * touch test misses: cells' coverages are not a perfect tiling, the roster's
- * polygons are the cells' own UNCLIPPED geometry while this cell's parts have
- * been through the quilt clip, and a part swallowed inside a neighbour's copy
- * has no vertex anywhere near an edge of it.
+ * border and their halves of an area abut along it, and so do two fragments of
+ * one area inside a single cell. Overlap is the case the touch test misses:
+ * cells' coverages are not a perfect tiling and the roster's polygons are the
+ * cells' own UNCLIPPED geometry, so one cell's copy of an area can lie wholly
+ * inside a neighbour's copy with no vertex anywhere near an edge of it.
  */
 function adjacent(a, b) {
   if (a.maxX + ADJACENCY_TOLERANCE < b.minX) return false;
@@ -178,8 +250,15 @@ function adjacent(a, b) {
   );
 }
 
-/** Connected components of one bucket's roster polygons, by adjacency. */
-function componentsOf(members) {
+/**
+ * Connected components of one bucket's roster polygons, by adjacency.
+ *
+ * The roster is the whole region's, this cell's rows included, so these
+ * components come out the same in every cell that derives them -- which is the
+ * whole mechanism (see SYMMETRY). `own` is a convenience index over the entries
+ * this cell contributed, for mapping its clipped groups onto them.
+ */
+function componentsOf(members, dsnm) {
   const parent = members.map((_, index) => index);
   const find = (index) => {
     let root = index;
@@ -206,28 +285,42 @@ function componentsOf(members) {
   }
   return [...groups.values()].map((entries) => ({
     entries,
+    own: entries.filter((entry) => entry.dsnm === dsnm),
     owners: new Set(entries.map((entry) => entry.dsnm)),
     area: entries.reduce(
-      (total, entry) =>
-        total + featureArea({ type: "Polygon", coordinates: entry.polygon }),
+      (total, entry) => total + polygonArea(entry.polygon),
       0,
     ),
+    // Filled in by `register`: this cell's group keys standing on this
+    // component, and the clipped area of those that could only reach it down
+    // the degraded path (see THE DEGRADED PATH).
+    keys: new Set(),
+    fallbackArea: 0,
   }));
 }
 
 /**
- * The election, over the other cells' semantic roster.
+ * The election, over the region's semantic roster.
  *
- *   paths      the roster GeoJSON files (CLASS, CONTENT, DSNM, QFLOOR), this
- *              cell's own rows already excluded by bin/s57-to-tiles: a chart is
- *              never evidence about what lies beyond its own border
+ *   paths      the roster GeoJSON files (CLASS, CONTENT, DSNM, QFLOOR),
+ *              UNFILTERED: this cell's own rows are in it, and have to be, or
+ *              the two sides of the comparison are different geometry and both
+ *              of them can emit (see SYMMETRY)
  *   dsnm       this cell's chart name, the candidate every component weighs
  *   cellFloor  this cell's rung, which is the band the comparison is confined to
  *
- * `verdict` answers for one anchor group and is the whole interface: components
- * are derived per bucket the first time one is asked for, because a region's
- * roster carries every class of every neighbouring chart and almost none of it
- * is ever consulted.
+ * Two passes, in this order:
+ *
+ *   1. `register(groupKey, className, content, parts)` for EVERY group, which
+ *      maps it onto the component(s) it stands on;
+ *   2. `verdict(groupKey)` for each, which answers whether this cell emits it,
+ *      and with what area and placement candidates.
+ *
+ * Both passes are needed because the within-cell tie-break reads the OTHER
+ * groups standing on the same component, so no verdict is decidable until every
+ * group has been seen. Components are derived per bucket the first time one is
+ * asked for, because a region's roster carries every class of every chart in it
+ * and almost none of it is ever consulted.
  */
 export function anchorElection({
   paths = [],
@@ -242,7 +335,8 @@ export function anchorElection({
       for (const feature of readFeatures(path)) {
         const properties = feature.properties ?? {};
         const owner = properties.DSNM;
-        if (typeof owner !== "string" || !owner || owner === dsnm) continue;
+        // This cell's own rows are KEPT, deliberately: see SYMMETRY.
+        if (typeof owner !== "string" || !owner) continue;
         if (typeof properties.CLASS !== "string") continue;
         // SAME BAND ONLY: a coarser or finer edition's copy of this area is a
         // different compilation of it, not a part of it.
@@ -263,59 +357,122 @@ export function anchorElection({
   const componentsFor = (key) => {
     let components = derived.get(key);
     if (!components) {
-      components = componentsOf(buckets.get(key) ?? []);
+      components = componentsOf(buckets.get(key) ?? [], dsnm);
       derived.set(key, components);
     }
     return components;
   };
+
+  /** group key -> the components it stands on, from pass 1. */
+  const standing = new Map();
 
   return {
     /** Whether an election is running at all; false leaves every group alone. */
     active,
 
     /**
-     * One group's verdict: whether THIS cell emits its anchor, how much area
-     * the rest of the component adds to it when it does, and the component's
-     * OTHER polygons -- the placement candidates the caller ranks alongside
-     * its own parts, so the surviving symbol sits over the whole physical area
-     * rather than over this cell's share of it.
+     * PASS 1. Map one anchor group onto its component(s), so that pass 2 can
+     * answer for it -- and so that the other groups of this cell standing on
+     * the same component know it is there.
      *
      * `content` is the group's own `contentOf` bag (or any value the
      * canonicalizer reduces to the roster's spelling of it); `parts` are the
-     * group's polygons, each an array of rings. The returned `parts` are the
-     * roster entries' OWN arrays -- already in memory, read and never mutated
-     * -- and are empty whenever nothing joined: no component, no election, or
-     * a group whose parts meet none of the roster's.
+     * group's QUILT-CLIPPED polygons, each an array of rings. The mapping is by
+     * CONTAINMENT: a representative interior point of one clipped part, inside
+     * one of the component's polygons of this cell's own -- a clipped part is a
+     * subset of the row this cell contributed to the roster, so that row is the
+     * one thing guaranteed to hold it whatever the clip did to its shape.
+     * Adjacency of the clipped parts against the whole component is the
+     * DEGRADED fallback, for a roster carrying no row of this cell's.
      */
-    verdict(className, content, parts) {
-      if (!active) return { emit: true, area: 0, parts: [] };
-      const components = componentsFor(bucketKey(className, content));
-      if (components.length === 0) return { emit: true, area: 0, parts: [] };
-
+    register(groupKey, className, content, parts) {
+      if (!active || standing.has(groupKey)) return;
       const own = parts
         .filter((polygon) => polygon[0] && polygon[0].length >= 4)
         .map((polygon) => entryOf(polygon, dsnm));
+      if (own.length === 0) {
+        standing.set(groupKey, []);
+        return;
+      }
+      const components = componentsFor(bucketKey(className, content));
+      const inside = own.map((part) => pointOnSurface(part.polygon));
+      const matched = components.filter((component) =>
+        inside.some(
+          (point) => polygonsContaining(component.own, point).length > 0,
+        ),
+      );
+
+      if (matched.length === 0) {
+        // THE DEGRADED PATH: nothing of this cell's in the roster to stand on,
+        // so the clipped parts are compared against the neighbours' unclipped
+        // ones -- the asymmetric test, with the asymmetric risk.
+        const fallback = components.filter((component) =>
+          component.entries.some((entry) =>
+            own.some((part) => adjacent(entry, part)),
+          ),
+        );
+        if (fallback.length > 0) {
+          // The component holds no polygon of this cell's, so its area is the
+          // neighbours' share alone and this group's own clipped parts are the
+          // rest of the physical area. Added to the FIRST matched component,
+          // once: `verdict` unions them, and per-component would count the same
+          // offcut once for every component the group bridges.
+          fallback[0].fallbackArea += own.reduce(
+            (total, part) => total + polygonArea(part.polygon),
+            0,
+          );
+        }
+        for (const component of fallback) component.keys.add(groupKey);
+        standing.set(groupKey, fallback);
+        return;
+      }
+
+      for (const component of matched) component.keys.add(groupKey);
+      standing.set(groupKey, matched);
+    },
+
+    /**
+     * PASS 2. One group's verdict: whether THIS cell emits its anchor, the area
+     * of the whole physical area the anchor would stand for, and the
+     * component's polygons -- the placement candidates the caller ranks
+     * alongside its own parts, so the surviving symbol sits over the whole area
+     * rather than over this cell's share of it.
+     *
+     * `emit` needs both halves of the rule: the component must have elected
+     * this cell (the smallest DSNM in it), and within the cell this group must
+     * be the smallest group key standing on the component (the several LNAMs
+     * one cell holds of one area). A group standing on nothing -- no roster, an
+     * unknown class, an area of its own -- keeps its anchor, and its own area
+     * and placement with it.
+     *
+     * The returned `parts` are the roster entries' OWN arrays -- already in
+     * memory, read and never mutated. A group bridging several components is
+     * standing on one area: they are unioned for all three answers.
+     */
+    verdict(groupKey) {
+      if (!active) return ALONE;
+      const components = standing.get(groupKey);
+      if (!components || components.length === 0) return ALONE;
+
       let elected = dsnm;
+      let first = groupKey;
       let area = 0;
       const joined = [];
       for (const component of components) {
-        // The whole component joins as soon as ONE of its polygons meets one of
-        // ours: two components this cell bridges are one area, and a cell that
-        // bridges nothing sees exactly what its neighbours do.
-        if (
-          !component.entries.some((entry) =>
-            own.some((part) => adjacent(entry, part)),
-          )
-        ) {
-          continue;
-        }
-        area += component.area;
+        area += component.area + component.fallbackArea;
         for (const entry of component.entries) joined.push(entry.polygon);
         for (const owner of component.owners) {
           if (owner < elected) elected = owner;
         }
+        for (const key of component.keys) {
+          if (key < first) first = key;
+        }
       }
-      return { emit: elected === dsnm, area, parts: joined };
+      return {
+        emit: elected === dsnm && first === groupKey,
+        area,
+        parts: joined,
+      };
     },
   };
 }
