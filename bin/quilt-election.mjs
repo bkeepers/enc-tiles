@@ -40,6 +40,17 @@
 //   has just won the election for a 30 km^2 pipeline area must not be measured
 //   as the offcut.
 //
+//   And it is PLACED over the component, not over the elected cell's share of
+//   it. `verdict` hands the joined components' polygons back, and both
+//   generators rank their own parts and those TOGETHER to choose the part the
+//   point goes in -- because the elected cell is often the one holding the
+//   offcut (US5OR2KC's sliver of a PIPARE that mostly lies on US5OR2KD), and an
+//   anchor placed inside the sliver sits at the extreme edge of the physical
+//   area, at overzoom visibly outside it. The roster's polygons are the
+//   neighbours' UNCLIPPED geometry and may overlap this cell's parts; no union
+//   is needed, since "the largest part" is exactly the rule a single-cell
+//   multipolygon already gets.
+//
 // SAME BAND ONLY
 //
 //   The comparison is confined to the cell's own rung (QFLOOR): scale editions
@@ -263,23 +274,30 @@ export function anchorElection({
     active,
 
     /**
-     * One group's verdict: whether THIS cell emits its anchor, and how much
-     * area the rest of the component adds to it when it does.
+     * One group's verdict: whether THIS cell emits its anchor, how much area
+     * the rest of the component adds to it when it does, and the component's
+     * OTHER polygons -- the placement candidates the caller ranks alongside
+     * its own parts, so the surviving symbol sits over the whole physical area
+     * rather than over this cell's share of it.
      *
      * `content` is the group's own `contentOf` bag (or any value the
      * canonicalizer reduces to the roster's spelling of it); `parts` are the
-     * group's polygons, each an array of rings.
+     * group's polygons, each an array of rings. The returned `parts` are the
+     * roster entries' OWN arrays -- already in memory, read and never mutated
+     * -- and are empty whenever nothing joined: no component, no election, or
+     * a group whose parts meet none of the roster's.
      */
     verdict(className, content, parts) {
-      if (!active) return { emit: true, area: 0 };
+      if (!active) return { emit: true, area: 0, parts: [] };
       const components = componentsFor(bucketKey(className, content));
-      if (components.length === 0) return { emit: true, area: 0 };
+      if (components.length === 0) return { emit: true, area: 0, parts: [] };
 
       const own = parts
         .filter((polygon) => polygon[0] && polygon[0].length >= 4)
         .map((polygon) => entryOf(polygon, dsnm));
       let elected = dsnm;
       let area = 0;
+      const joined = [];
       for (const component of components) {
         // The whole component joins as soon as ONE of its polygons meets one of
         // ours: two components this cell bridges are one area, and a cell that
@@ -292,11 +310,12 @@ export function anchorElection({
           continue;
         }
         area += component.area;
+        for (const entry of component.entries) joined.push(entry.polygon);
         for (const owner of component.owners) {
           if (owner < elected) elected = owner;
         }
       }
-      return { emit: elected === dsnm, area };
+      return { emit: elected === dsnm, area, parts: joined };
     },
   };
 }

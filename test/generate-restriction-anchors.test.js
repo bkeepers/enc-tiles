@@ -108,10 +108,16 @@ function roster(entries) {
 /** One class file plus the election inputs, the way s57-to-tiles calls it. */
 function elect(
   features,
-  { className = "DMPGRD", dsnm, cellFloor = 8, evidence = [] } = {},
+  {
+    className = "DMPGRD",
+    dsnm,
+    cellFloor = 8,
+    evidence = [],
+    land = null,
+  } = {},
 ) {
   const path = writeCollection(`${className}.geojson`, features);
-  return run(
+  const args = [
     "--class",
     `${className}:${path}`,
     "--area-evidence",
@@ -120,7 +126,11 @@ function elect(
     dsnm,
     "--cell-floor",
     String(cellFloor),
-  );
+  ];
+  // --land covers THIS cell only, which is the whole of what the water-side
+  // pass can know about a neighbour's part of the component.
+  if (land) args.push("--land", writeCollection("LNDARE.geojson", land));
+  return run(...args);
 }
 
 /** Ray-casting point-in-ring, written here so the test proves it independently. */
@@ -376,6 +386,53 @@ describe("the cross-cell election", () => {
     })[0].properties.AREA;
 
     expect(whole).toBeCloseTo(alone * 3, 6);
+  });
+
+  test("the elected cell places its anchor over the WHOLE component", () => {
+    // The defect this replaced: the elected cell is frequently the one holding
+    // the corner offcut -- US5OR2KC's sliver of a PIPARE that mostly lies on
+    // US5OR2KD -- and the one surviving symbol sat inside that sliver, at the
+    // extreme edge of the physical area and at overzoom visibly outside it.
+    // The anchor is placed over the component, not over this cell's share.
+    const sliver = box(1, 0, 1.02, 1);
+    const rest = box(0, 0, 1, 1);
+    const features = elect([polygon({ LNAM: "AA", ...SPOIL }, sliver)], {
+      dsnm: "US5OR2AA",
+      evidence: [{ content: SPOIL, dsnm: "US5OR2KC", ring: rest }],
+    });
+
+    expect(features).toHaveLength(1);
+    const point = features[0].geometry.coordinates;
+    expect(inRing(point, rest)).toBe(true);
+    expect(inRing(point, sliver)).toBe(false);
+
+    // ...and it is still MEASURED as the whole component, not as the sliver.
+    const sliverAlone = elect([polygon({ LNAM: "AA", ...SPOIL }, sliver)], {
+      dsnm: "US5OR2AA",
+    })[0].properties.AREA;
+    const restAlone = elect([polygon({ LNAM: "AA", ...SPOIL }, rest)], {
+      dsnm: "US5OR2AA",
+    })[0].properties.AREA;
+    expect(features[0].properties.AREA).toBeCloseTo(sliverAlone + restAlone, 6);
+  });
+
+  test("the water-side rule ranks over the component's parts too", () => {
+    // The largest WATER-SIDE part of the whole physical area, not of this
+    // cell's share of it: here the sliver is nine tenths ashore. --land covers
+    // this cell only, so a neighbour's part beyond this cell's LNDARE measures
+    // as all water -- accepted deliberately, since that is exactly what the
+    // neighbour knew when it placed its own anchor before the election existed.
+    const sliver = box(1, 0, 1.02, 1);
+    const rest = box(0, 0, 1, 1);
+    const features = elect([polygon({ LNAM: "AA", ...SPOIL }, sliver)], {
+      dsnm: "US5OR2AA",
+      evidence: [{ content: SPOIL, dsnm: "US5OR2KC", ring: rest }],
+      land: [polygon({}, box(1, 0, 1.02, 0.9))],
+    });
+
+    expect(features).toHaveLength(1);
+    expect(inRing(features[0].geometry.coordinates, rest)).toBe(true);
+    expect(inRing(features[0].geometry.coordinates, sliver)).toBe(false);
   });
 
   test("a component is followed THROUGH the cells that bridge it", () => {

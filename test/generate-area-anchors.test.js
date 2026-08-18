@@ -373,6 +373,62 @@ describe("the cross-cell election", () => {
     expect(whole).toBeCloseTo(alone * 3, 6);
   });
 
+  test("the elected cell places its anchor over the WHOLE component", () => {
+    // The elected cell is frequently the one holding the corner offcut -- a
+    // sliver of an area that mostly lies on the neighbour -- and an anchor
+    // placed inside the sliver sits at the extreme edge of the physical area,
+    // at overzoom visibly outside it. The largest fragment is chosen among this
+    // cell's parts AND the component's parts in the other cells.
+    const sliver = box(1, 0, 1.02, 1);
+    const rest = box(0, 0, 1, 1);
+    const features = elect([polygon({ LNAM: "AA", ...CAUTION }, sliver)], {
+      dsnm: "US5OR2AA",
+      evidence: [{ content: CAUTION, dsnm: "US5OR2KC", ring: rest }],
+    });
+
+    expect(features).toHaveLength(1);
+    const point = features[0].geometry.coordinates;
+    expect(inRing(point, rest)).toBe(true);
+    expect(inRing(point, sliver)).toBe(false);
+
+    // ...and it is still MEASURED as the whole component, not as the sliver.
+    const sliverAlone = elect([polygon({ LNAM: "AA", ...CAUTION }, sliver)], {
+      dsnm: "US5OR2AA",
+    })[0].properties.AREA;
+    const restAlone = elect([polygon({ LNAM: "AA", ...CAUTION }, rest)], {
+      dsnm: "US5OR2AA",
+    })[0].properties.AREA;
+    expect(features[0].properties.AREA).toBeCloseTo(sliverAlone + restAlone, 6);
+  });
+
+  test("...but the property bag stays THIS cell's", () => {
+    // Only the placement polygon may be a neighbour's: the attributes are this
+    // chart's compilation of the area, and the roster carries no bag at all --
+    // its own columns (DSNM, QFLOOR, CONTENT) must never reach an anchor.
+    const sliver = box(1, 0, 1.02, 1);
+    const rest = box(0, 0, 1, 1);
+    const features = elect(
+      [polygon({ LNAM: "AA", CATCTS: 4, ...CAUTION }, sliver)],
+      {
+        dsnm: "US5OR2AA",
+        evidence: [
+          {
+            content: { ...CAUTION, CATCTS: 4 },
+            dsnm: "US5OR2KC",
+            ring: rest,
+          },
+        ],
+      },
+    );
+
+    expect(features).toHaveLength(1);
+    expect(inRing(features[0].geometry.coordinates, rest)).toBe(true);
+    expect(features[0].properties.CATCTS).toBe(4);
+    expect(features[0].properties).not.toHaveProperty("DSNM");
+    expect(features[0].properties).not.toHaveProperty("QFLOOR");
+    expect(features[0].properties).not.toHaveProperty("CONTENT");
+  });
+
   test("disjoint components elect independently", () => {
     const features = elect(
       [

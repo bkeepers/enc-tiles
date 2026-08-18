@@ -47,20 +47,28 @@
 // by a chart border is several features with several LNAMs and drew a stack of
 // symbols per cell it reaches. --area-evidence, --dsnm and --cell-floor turn on
 // the cross-cell ELECTION that removes the rest: the contiguous same-class,
-// same-content component across cells elects the smallest DSNM in it, only the
-// elected cell emits, and the anchor carries the whole component's AREA. See
-// bin/quilt-election.mjs; without those inputs every group keeps its own anchor.
+// same-content component across cells elects the smallest DSNM in it, and only
+// the elected cell emits. The one surviving anchor stands for the whole
+// physical area, so it is both MEASURED as the whole component (AREA) and
+// PLACED over it -- the largest fragment is chosen among this cell's own parts
+// AND the component's parts in the other cells, because the elected cell is
+// frequently the one holding a corner offcut a few square metres across, where
+// the symbol would sit at the extreme edge of the area. The property BAG stays
+// this cell's (see below): only the placement polygon may be a neighbour's.
+// See bin/quilt-election.mjs; without those inputs every group keeps its own
+// anchor.
 //
 // ORIENT-CARRYING features of ORIENT_LEG_CLASSES (RCTLPT) are skipped here:
 // they are directed legs and bin/generate-tss-anchors stitches them back into
 // lanes. Their undirected siblings, which draw the plain centred mark, stay.
 //
-// Each output feature carries EVERY non-underscore property of the group's
-// LARGEST fragment: the retargeted layers' filters branch on CATPIL, CATBRG,
-// WATLEV, CONRAD, CONVIS and the rest of each class's own attributes, and an
-// anchor missing one falls into the wrong branch -- so the whole bag rides
-// along rather than a curated list. Underscore properties are the pipeline's
-// own; of those, the copy ladder's _QZMIN/_QZMAX/_QFALL are re-added
+// Each output feature carries EVERY non-underscore property of this cell's
+// LARGEST fragment -- its own, never a neighbour's, whatever part the election
+// chose to place the point in: the retargeted layers' filters branch on CATPIL,
+// CATBRG, WATLEV, CONRAD, CONVIS and the rest of each class's own attributes,
+// and an anchor missing one falls into the wrong branch -- so the whole bag
+// rides along rather than a curated list. Underscore properties are the
+// pipeline's own; of those, the copy ladder's _QZMIN/_QZMAX/_QFALL are re-added
 // deliberately, converted to per-feature tippecanoe zoom bounds later by
 // bin/stamp-quilt-zooms. On top of the bag:
 //
@@ -276,7 +284,7 @@ for (const { className, path } of inputs) {
   }
 }
 
-// ---- 2. one anchor per group, inside its largest fragment ------------------
+// ---- 2. one anchor per group, inside the component's largest fragment ------
 
 const features = [];
 let elsewhere = 0;
@@ -291,9 +299,28 @@ for (const group of groups.values()) {
     continue;
   }
 
-  // The whole bag of the largest fragment, so the retargeted filters branch
-  // exactly as they did on the polygon. Nulls are GDAL's unset columns and
-  // carry nothing; underscore properties are the pipeline's own.
+  // The placement polygon: the largest part of the WHOLE physical area -- this
+  // cell's own fragments and the elected component's parts in the other cells,
+  // ranked together. The elected cell's own share can be a corner offcut a few
+  // metres across, and a point inside it sits at the extreme edge of the area
+  // (at overzoom visibly outside it). Strictly larger wins, so a tie stays with
+  // this cell's own geometry.
+  let placement = group.largest.polygon;
+  let placementSize = group.largest.size;
+  for (const polygon of verdict.parts) {
+    const size = Math.abs(ringArea(polygon[0]));
+    if (size > placementSize) {
+      placementSize = size;
+      placement = polygon;
+    }
+  }
+
+  // The whole bag of THIS CELL's largest fragment, so the retargeted filters
+  // branch exactly as they did on the polygon -- the bag is always this cell's,
+  // even when the point above landed in a neighbour's part of the component: a
+  // neighbour's attributes are another chart's compilation, not this one's.
+  // Nulls are GDAL's unset columns and carry nothing; underscore properties are
+  // the pipeline's own.
   const bag = {};
   for (const [name, value] of Object.entries(group.largest.properties)) {
     if (name.startsWith("_")) continue;
@@ -306,7 +333,7 @@ for (const group of groups.values()) {
     tippecanoe: ANCHOR_TIPPECANOE,
     geometry: {
       type: "Point",
-      coordinates: pointOnSurface(group.largest.polygon),
+      coordinates: pointOnSurface(placement),
     },
     properties: {
       ...bag,

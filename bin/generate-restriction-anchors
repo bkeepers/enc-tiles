@@ -43,9 +43,13 @@
 // LNAMs and drew three stacks of crossed anchors on one physical area (a PIPARE
 // at a four-cell corner: eight). --area-evidence, --dsnm and --cell-floor turn
 // on the cross-cell ELECTION that removes the rest: the contiguous same-class,
-// same-content component across cells elects the smallest DSNM in it, only the
-// elected cell emits, and the surviving anchor carries the whole component's
-// AREA. See bin/quilt-election.mjs; without those inputs -- an unpartitioned
+// same-content component across cells elects the smallest DSNM in it, and only
+// the elected cell emits. The one surviving anchor stands for the whole
+// physical area, so it is both MEASURED as the whole component (AREA) and
+// PLACED over it -- the component's parts in the other cells join this cell's
+// own as candidates for the water-side placement below, because the elected
+// cell is frequently the one holding a corner offcut a few square metres
+// across. See bin/quilt-election.mjs; without those inputs -- an unpartitioned
 // cell, an older cache -- every group keeps its own anchor exactly as before.
 //
 // WATER-SIDE PLACEMENT -- the approach, since it is deliberately NOT an exact
@@ -77,6 +81,16 @@
 //   landlocked at this cell's resolution) or when --land is absent, is the
 //   plain largest-part interior point -- exactly what bin/generate-labels and
 //   bin/generate-mqual-labels emit.
+//
+//   ACROSS CELLS the parts ranked are this cell's own PLUS the elected
+//   component's parts in the other cells, so the winner is the largest
+//   water-side part of the whole physical area. --land covers only THIS cell,
+//   so a neighbour's part lying beyond this cell's LNDARE measures as all
+//   water and can win the ranking on land it cannot see. Accepted deliberately:
+//   it is precisely the knowledge the neighbour placed its own anchor with
+//   before the election existed, and the alternative -- the symbol pinned
+//   inside a metre-wide offcut because that offcut is all this cell holds -- is
+//   the defect this replaced.
 //
 // Each output feature carries:
 //
@@ -303,6 +317,10 @@ function strictlyOnWater(polygon, nearby, point) {
  * The anchor of one group of parts: an interior point of the largest
  * water-side part, or of the plainly largest part when there is no water to
  * find (see the header for the whole rule).
+ *
+ * `parts` are this cell's own fragments FOLLOWED BY the elected component's
+ * parts in the other cells, ranked together -- the order matters only for a
+ * tie, which this cell's own geometry then keeps.
  */
 function anchorOf(parts) {
   if (land.length > 0) {
@@ -409,7 +427,15 @@ for (const group of groups.values()) {
     elsewhere++;
     continue;
   }
-  const anchor = anchorOf(group.parts);
+  // Placed over the WHOLE component, not over this cell's share of it: the
+  // elected cell's share can be a corner offcut a few metres across, and an
+  // anchor inside it sits at the extreme edge of the physical area (at overzoom
+  // visibly outside it). The component's other parts are the roster's unclipped
+  // polygons; own parts first, so a tie stays in this cell.
+  const anchor = anchorOf([
+    ...group.parts,
+    ...verdict.parts.map((polygon) => ({ polygon })),
+  ]);
   if (!anchor) continue;
   features.push({
     type: "Feature",
