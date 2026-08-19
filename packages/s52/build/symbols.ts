@@ -1193,6 +1193,52 @@ export function sourceSvg(source) {
     : buildLineStyleSvg(source);
 }
 
+/**
+ * Where the DRAWING sits inside a sprite: `[dx, dy, w, h]` in px, `dx`/`dy`
+ * from the sprite's centre to the glyph box's centre and `w`/`h` the glyph
+ * box's size. Undefined for a sprite with no `symbolBox` of its own.
+ *
+ * S-52 draws the cascading area symbols as a cluster around ONE pivot — the
+ * RESTRN cascade hangs INFARE51's "i" 14–22 mm to the RIGHT of the pivot,
+ * ACHRES51's fouled anchor right-and-below, ENTRES51's entry sign left — so a
+ * sprite spans the pivot AND its glyph, and `offset` centres the SPRITE on the
+ * pivot. That is the vendor placement and it stays. A consumer that draws ONE
+ * symbol per area instead wants the GLYPH over its anchor, and `box` is the
+ * only thing that says where inside the sprite the glyph actually is.
+ *
+ * Only a `symbolBox` that is a direct child of the root <svg> counts. The
+ * generated pattern tiles and line marks paste whole symbols inside a
+ * `<g transform>`, so their boxes are in a different frame and describe a
+ * lattice cell rather than this sprite's glyph; those sprites get no `box`.
+ *
+ * Millimetres are scaled by PX_PER_MM rather than through `mmToPx`, whose
+ * whole-pixel rounding sizes a PIXMAP: rounding a corner and an extent
+ * separately would walk the glyph centre by up to a pixel. INFARE51's glyph is
+ * exactly centred vertically in its sprite, and this is what keeps `dy` at 0.
+ */
+function glyphBox(svg, [minX, minY, width, height]) {
+  const rect = [...svg.children].find(
+    (el) =>
+      el.tagName === "rect" &&
+      (el.getAttribute("class") ?? "").split(/\s+/).includes("symbolBox"),
+  );
+  if (!rect) return undefined;
+
+  const mm = (name) => Number(rect.getAttribute(name) ?? 0);
+  const [x, y, w, h] = ["x", "y", "width", "height"].map(mm);
+  // `+ 0` turns -0 into 0, which is what JSON.stringify writes for it anyway:
+  // a box a hair left of centre would otherwise round to a -0 that no longer
+  // survives a round trip through the file.
+  const px = (value) => roundToDecimal(value * PX_PER_MM, 3) + 0;
+
+  return [
+    px(x + w / 2 - (minX + width / 2)),
+    px(y + h / 2 - (minY + height / 2)),
+    px(w),
+    px(h),
+  ];
+}
+
 // Return a vite plugin that generates a symbols.json file and styled SVGs
 export default {
   name: "build-symbols",
@@ -1234,15 +1280,16 @@ export default {
             // This only needs extracted once
             if (symbols[key]) return;
 
-            const [minX, minY, width, height] = svg
+            const viewBox = svg
               .getAttribute("viewBox")
               .split(/ |,/)
-              .map(Number)
-              .map(mmToPx);
+              .map(Number);
+            const [minX, minY, width, height] = viewBox.map(mmToPx);
             const offset = [
               roundToDecimal(width / 2 + minX, 3),
               roundToDecimal(height / 2 + minY, 3),
             ];
+            const box = glyphBox(svg, viewBox);
 
             symbols[key] = {
               description:
@@ -1250,6 +1297,7 @@ export default {
               width,
               height,
               offset,
+              ...(box ? { box } : {}),
             };
           },
         ]);

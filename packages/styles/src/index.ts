@@ -4,6 +4,12 @@ import type {
 } from "maplibre-gl";
 import { build, type LayerConfig } from "./symbolology/index.js";
 export { BoundaryType, SymbolType } from "./symbolology/index.js";
+// The sprite metrics the style is drawn against, re-exported so a consumer of
+// the style can read them from the same entry point: `offset` centres a sprite
+// on its pivot the way S-52 wants the cascade drawn, and `box` says where
+// inside the sprite the glyph actually is, which is what a consumer placing
+// ONE symbol per area needs to centre the glyph on its own anchor.
+export { symbols, type SymbolMetrics } from "@enc-tiles/s52";
 export type {
   DisplayCategory,
   LayerConfig,
