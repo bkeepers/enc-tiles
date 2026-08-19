@@ -204,6 +204,31 @@ export function DEPCNT03(config: LayerConfig): Partial<LayerSpecification>[] {
   ];
 }
 
+/**
+ * FLARE_AT_45_DEG — the local variable LIGHTS06 sets before it draws a
+ * non-sector, non-directional flare (S-52 PresLib 4.0, section 13.2.4).
+ *
+ * The CSP initialises it FALSE ("Set the local variable 'FLARE AT 45 DEGREES'
+ * to 'FALSE'") and only sets it TRUE when two questions in series both answer
+ * yes: "Is there any 'No Sector' lights located at the same point as the
+ * calling object?" and "Does the calling object COLOUR include 1 (white) or
+ * 6 (yellow) or 11 (orange)?". Co-location is pre-computed by the pipeline as
+ * _COLOCATED, so a lone light of any colour leaves the variable FALSE.
+ *
+ * It decides two things — the flare's rotation and where LITDSN02 hangs the
+ * light description — so both read this one predicate.
+ */
+const FLARE_AT_45_DEG = [
+  "all",
+  ["==", ["get", "_COLOCATED"], 1],
+  [
+    "any",
+    listIncludes("COLOUR", "1"),
+    listIncludes("COLOUR", "6"),
+    listIncludes("COLOUR", "11"),
+  ],
+] as ExpressionSpecification;
+
 /** TODO: DEPVAL02 - 13.2.3 Depth value */
 /**
  * LIGHTS06 - 13.2.4 Light flares, light sectors & light coverage
@@ -227,7 +252,7 @@ export function DEPCNT03(config: LayerConfig): Partial<LayerSpecification>[] {
  *
  * Co-located light detection is pre-computed in the pipeline:
  *   - _EXTENDED_ARC: sector lights with overlapping sectors use 25mm arc radius
- *   - _COLOCATED: non-sector lights at the same position offset flare angles
+ *   - _COLOCATED: non-sector lights at the same position; feeds FLARE_AT_45_DEG
  *
  * TODO: Major light circles (VALNMR >= 10)
  */
@@ -336,9 +361,18 @@ export function LIGHTS06(config: LayerConfig): Partial<LayerSpecification>[] {
     },
 
     // --- Non-sector, non-special lights → flare symbol ---
-    // When co-located with other non-sector lights (_COLOCATED=1), the flare
-    // angle is offset: white/yellow/orange → 45°, red/green/other → 135°.
-    // This separates overlapping flare symbols visually.
+    // The CSP branches on FLARE_AT_45_DEG: TRUE → "SY(SELECT,45)", "Draw the
+    // selected symbol with a rotation of 45 degrees from upright at the
+    // position where the object which was calling the procedure is located";
+    // FALSE → "SY(SELECT,135)", "Draw the selected symbol with a rotation of
+    // 135 degrees from upright at the position where the object which was
+    // calling the procedure is located".
+    //
+    // 135° is therefore the resting orientation of every flare, including a
+    // lone one — the body leans down-right with its tip on the light, as
+    // Chart 1 P draws it. The 45° arm only fires for a white/yellow/orange
+    // light sharing a point with other 'No Sector' lights, so the two flares
+    // fan apart instead of overlapping.
     {
       type: "symbol",
       filter: [
@@ -363,18 +397,8 @@ export function LIGHTS06(config: LayerConfig): Partial<LayerSpecification>[] {
         ...flareLayout,
         "icon-rotate": [
           "case",
-          // Not co-located → default orientation (no rotation)
-          ["!=", ["get", "_COLOCATED"], 1],
-          0,
-          // Co-located: white(1), yellow(6), orange(11) → 45°
-          [
-            "any",
-            listIncludes("COLOUR", "1"),
-            listIncludes("COLOUR", "6"),
-            listIncludes("COLOUR", "11"),
-          ],
+          FLARE_AT_45_DEG,
           45,
-          // Co-located: red, green, other → 135°
           135,
         ] as ExpressionSpecification,
       },
@@ -712,8 +736,24 @@ function LITDSN02(config: LayerConfig): Partial<LayerSpecification>[] {
         "text-field": textField,
         "text-font": ["Metropolis Regular"],
         "text-size": 10,
-        "text-offset": [2, 0],
-        "text-anchor": "left",
+        // The CSP places the description by the same FLARE_AT_45_DEG the flare
+        // rotates by. FALSE (the 135° flare, leaning away down-right) →
+        // "TX('LITDSN', 3,2,3, '15110', 2,0, CHBLK, 23)", CENTRE justified
+        // beside the light. TRUE (the 45° flare, reaching up-right into where
+        // that text would sit) → "TX('LITDSN', 3,1,3, '15110', 2,-1, CHBLK,
+        // 23)", BOTTOM justified so the string lifts clear above the point.
+        "text-offset": [
+          "case",
+          FLARE_AT_45_DEG,
+          ["literal", [2, -1]],
+          ["literal", [2, 0]],
+        ] as unknown as ExpressionSpecification,
+        "text-anchor": [
+          "case",
+          FLARE_AT_45_DEG,
+          "bottom-left",
+          "left",
+        ] as ExpressionSpecification,
         "text-allow-overlap": false,
       },
       paint: {
