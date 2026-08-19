@@ -389,13 +389,19 @@ for (const { className, path } of inputs) {
     // A feature with no LNAM has no identity to group on and is its own group
     // -- `#n` cannot collide with a real LNAM, which is hex.
     const lnam = properties.LNAM ?? `#${anonymous++}`;
-    const id = `${className} ${lnam} ${quiltKey(range)}`;
+    const interval = quiltKey(range);
+    const id = `${className} ${lnam} ${interval}`;
 
     let group = groups.get(id);
     if (!group) {
       group = {
         className,
         range,
+        // The rung of the copy ladder this group draws at, which the
+        // election scopes its within-cell tie-break by: the copies of one
+        // feature at different intervals cover disjoint zooms and all of them
+        // emit.
+        interval,
         parts: [],
         area: 0,
         carried: {},
@@ -429,6 +435,7 @@ for (const [id, group] of groups) {
     group.className,
     group.content,
     group.parts.map((part) => part.polygon),
+    group.interval,
   );
 }
 

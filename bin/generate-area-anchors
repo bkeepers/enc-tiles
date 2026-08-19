@@ -258,13 +258,19 @@ for (const { className, path } of inputs) {
     // A feature with no LNAM has no identity to group on and is its own group
     // -- `#n` cannot collide with a real LNAM, which is hex.
     const lnam = properties.LNAM ?? `#${anonymous++}`;
-    const id = `${className} ${lnam} ${quiltKey(range)}`;
+    const interval = quiltKey(range);
+    const id = `${className} ${lnam} ${interval}`;
 
     let group = groups.get(id);
     if (!group) {
       group = {
         className,
         range,
+        // The rung of the copy ladder this group draws at, which the
+        // election scopes its within-cell tie-break by: the copies of one
+        // feature at different intervals cover disjoint zooms and all of them
+        // emit.
+        interval,
         area: 0,
         largest: null,
         // The identity the election compares across cells, and every part of
@@ -297,7 +303,13 @@ for (const { className, path } of inputs) {
 // physical area as much as the other cells' parts of it -- so it cannot answer
 // for any of them until it has been shown every one. See bin/quilt-election.mjs.
 for (const [id, group] of groups) {
-  election.register(id, group.className, group.content, group.parts);
+  election.register(
+    id,
+    group.className,
+    group.content,
+    group.parts,
+    group.interval,
+  );
 }
 
 // ---- 3. one anchor per elected component, in its largest fragment ----------

@@ -16,6 +16,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
 
 import { anchorElection } from "../bin/quilt-election.mjs";
+import { quiltKey } from "../bin/quilt-geojson.mjs";
 
 let work;
 let written = 0;
@@ -83,6 +84,26 @@ function roster(entries) {
 
 const SPOIL = { CATDPG: "1", INFORM: "Spoil ground" };
 
+/**
+ * The interval key of an unpartitioned cell: one interval for everything it
+ * holds, whatever the generators spell it as. Built with the generators' own
+ * `quiltKey` rather than written out, since the election only ever compares
+ * these keys with each other.
+ */
+const UNPARTITIONED = quiltKey({});
+
+/**
+ * The copy ladder of one partitioned cell, in the shape a group id carries:
+ * US4OR1IF's measured K=2 ladder, whose band-4 whole copy draws at z11, whose
+ * ladder copy draws at z12 where the 1:22,000 cell takes over, and whose top
+ * copy runs from z13 up. Disjoint zooms, so no copy can stand another down.
+ */
+const LADDER = [
+  quiltKey({ _QZMIN: 11, _QZMAX: 11 }),
+  quiltKey({ _QZMIN: 12, _QZMAX: 12 }),
+  quiltKey({ _QZMIN: 13 }),
+];
+
 /** The generators' group id shape: `CLASS LNAM interval`. */
 const SOLE = "DMPGRD AA 8";
 
@@ -100,8 +121,10 @@ const eastRow = box(1, 0, 2.1, 1);
  * One cell's whole pass over the election -- register every group, then read
  * every verdict back, in the order the generators call them.
  *
- * `groups` is [key, parts] pairs, so a cell holding several fragments of one
- * area is written the way one arrives: several ids, one content.
+ * `groups` is [key, parts, interval] triples -- the interval optional, since
+ * most of these cases are one unpartitioned cell -- so a cell holding several
+ * fragments of one area, or several copies of one feature, is written the way
+ * they arrive: several ids, one content.
  */
 function cell({
   paths,
@@ -112,8 +135,8 @@ function cell({
   groups,
 }) {
   const election = anchorElection({ paths, dsnm, cellFloor });
-  for (const [key, parts] of groups) {
-    election.register(key, className, content, parts);
+  for (const [key, parts, interval = UNPARTITIONED] of groups) {
+    election.register(key, className, content, parts, interval);
   }
   const verdicts = new Map();
   for (const [key] of groups) verdicts.set(key, election.verdict(key));
@@ -225,7 +248,7 @@ describe("the component polygons a verdict hands back", () => {
       { dsnm: "US5OR2AA", cellFloor: 8 },
     ]) {
       const election = anchorElection(options);
-      election.register(SOLE, "DMPGRD", SPOIL, east);
+      election.register(SOLE, "DMPGRD", SPOIL, east, UNPARTITIONED);
 
       expect(election.active).toBe(false);
       expect(election.verdict(SOLE)).toEqual({
@@ -332,20 +355,35 @@ describe("the four-cell corner", () => {
       })),
     );
 
-  /** Every cell's verdict on every group of its own, over ONE roster. */
-  function corner(path) {
+  /**
+   * Every cell's verdict on every group of its own, over ONE roster.
+   *
+   * `intervals` is the copy ladder each cell's pieces arrive as: one interval
+   * is the unpartitioned corner as it was measured, and several is the same
+   * corner with every piece exported once per rung.
+   */
+  function corner(path, intervals = [UNPARTITIONED]) {
     const all = [];
     for (const dsnm of CELLS) {
-      const mine = CORNER.filter((entry) => entry.dsnm === dsnm);
+      const groups = [];
+      for (const entry of CORNER.filter((piece) => piece.dsnm === dsnm)) {
+        for (const interval of intervals) {
+          groups.push([
+            `${entry.key} ${interval}`,
+            [[box(...partRect(entry))]],
+            interval,
+          ]);
+        }
+      }
       const verdicts = cell({
         paths: [path],
         dsnm,
         className: "PIPARE",
         content: CORRIDOR,
-        groups: mine.map((entry) => [entry.key, [[box(...partRect(entry))]]]),
+        groups,
       });
-      for (const entry of mine) {
-        all.push({ dsnm, key: entry.key, ...verdicts.get(entry.key) });
+      for (const [key, , interval] of groups) {
+        all.push({ dsnm, key, interval, ...verdicts.get(key) });
       }
     }
     return all;
@@ -387,6 +425,23 @@ describe("the four-cell corner", () => {
       expect(verdict.area).toBeCloseTo(emitted.area, 12);
       expect(verdict.parts).toEqual(emitted.parts);
     }
+  });
+
+  test("partitioned, the corner keeps one emitter PER INTERVAL", () => {
+    // Every piece exported once per rung of the ladder: still one anchor on
+    // the corridor, but one at each range of zoom, and still in US5OR2JC. A
+    // tie-break blind to the interval keeps the first copy only, and the
+    // corridor loses its symbol everywhere that copy does not draw.
+    const all = corner(corridorRoster(), LADDER);
+
+    expect(all).toHaveLength(CORNER.length * LADDER.length);
+    const emitted = all.filter((verdict) => verdict.emit);
+    expect(emitted.map((verdict) => verdict.interval).sort()).toEqual(
+      [...LADDER].sort(),
+    );
+    expect(emitted.map((verdict) => verdict.dsnm)).toEqual(
+      LADDER.map(() => "US5OR2JC"),
+    );
   });
 
   test("with its own rows filtered out, US5OR2KD emits too -- the defect", () => {
@@ -440,6 +495,64 @@ describe("within one cell", () => {
     expect(verdicts.get("DMPGRD AA 8").area).toBeCloseTo(
       boxArea([0, 0, 1, 1]) + boxArea([1, 0, 2, 1]),
       12,
+    );
+  });
+
+  test("the copy ladder's intervals do NOT stand each other down", () => {
+    // The regression this rule exists for: one LNAM of a partitioned cell
+    // arrives as one group per rung, ids differing only in the interval, and
+    // a tie-break that kept ONE group per component kept the lowest rung
+    // alone -- measured on US4OR1IF, whose band-4 anchors went 19 -> 0 at z12
+    // while the polygons stayed. The copies draw at disjoint zooms, so every
+    // one of them emits.
+    const verdicts = cell({
+      paths: [roster([{ content: SPOIL, dsnm: "US5OR2AA", ring: eastRow }])],
+      dsnm: "US5OR2AA",
+      groups: LADDER.map((interval) => [
+        `DMPGRD AA ${interval}`,
+        east,
+        interval,
+      ]),
+    });
+
+    expect([...verdicts.values()].map((verdict) => verdict.emit)).toEqual(
+      LADDER.map(() => true),
+    );
+    // ...and each of them still answers for the whole area: they are one
+    // feature at three ranges of zoom, not three features.
+    for (const verdict of verdicts.values()) {
+      expect(verdict.parts).toEqual([[eastRow]]);
+    }
+  });
+
+  test("inside ONE interval the smallest key still emits for all of them", () => {
+    // Both halves at once: two LNAMs of one area, each exported at two rungs.
+    // The LNAMs compete, the rungs do not, so exactly one anchor survives per
+    // rung and it is the smaller LNAM's.
+    const rows = [box(0, 0, 1, 1), box(1, 0, 2, 1)];
+    const parts = [[[box(0.1, 0.1, 0.9, 0.9)]], [[box(1.1, 0.1, 1.9, 0.9)]]];
+    const verdicts = cell({
+      paths: [
+        roster(
+          rows.map((ring) => ({ content: SPOIL, dsnm: "US5OR2AA", ring })),
+        ),
+      ],
+      dsnm: "US5OR2AA",
+      groups: LADDER.slice(0, 2).flatMap((interval) => [
+        [`DMPGRD BB ${interval}`, parts[1], interval],
+        [`DMPGRD AA ${interval}`, parts[0], interval],
+      ]),
+    });
+
+    expect(
+      [...verdicts]
+        .filter(([, verdict]) => verdict.emit)
+        .map(([key]) => key)
+        .sort(),
+    ).toEqual(
+      LADDER.slice(0, 2)
+        .map((interval) => `DMPGRD AA ${interval}`)
+        .sort(),
     );
   });
 

@@ -582,6 +582,52 @@ describe("the cross-cell election", () => {
     ).toHaveLength(1);
   });
 
+  test("an elected component keeps ONE anchor PER INTERVAL", () => {
+    // A partitioned cell exports each feature as zoom-range COPIES, one per
+    // rung of the copy ladder, and they draw at zooms none of the others
+    // cover. The election is per interval for exactly that reason: a rule
+    // keeping one group per component kept the lowest rung alone, and the
+    // area lost its symbol above it -- measured on US4OR1IF, whose band-4
+    // anchors went 19 -> 0 at z12 with the polygons still there.
+    const features = elect(
+      [
+        polygon(
+          { LNAM: "AA", _QZMIN: 11, _QZMAX: 11, ...SPOIL },
+          box(1, 0, 2, 1),
+        ),
+        polygon({ LNAM: "AA", _QZMIN: 12, ...SPOIL }, box(1, 0, 2, 1)),
+      ],
+      {
+        // This cell wins the component, so what it emits is all there is.
+        dsnm: "US5OR2AA",
+        evidence: [
+          { content: SPOIL, dsnm: "US5OR2AA", ring: box(1, 0, 2.1, 1) },
+          { content: SPOIL, dsnm: "US5OR2KC", ring: box(0, 0, 1, 1) },
+        ],
+      },
+    );
+
+    expect(features).toHaveLength(2);
+    // Each carries its own range, so bin/stamp-quilt-zooms gives the two
+    // anchors the disjoint zoom bounds their source copies had.
+    expect(
+      features.map((f) => f.properties._QZMIN).sort((a, b) => a - b),
+    ).toEqual([11, 12]);
+    expect(
+      features.find((f) => f.properties._QZMIN === 11).properties._QZMAX,
+    ).toBe(11);
+    expect(
+      features.find((f) => f.properties._QZMIN === 12).properties,
+    ).not.toHaveProperty("_QZMAX");
+    // Both are the same elected anchor: one area, measured and placed as the
+    // whole component at each of its ranges.
+    expect(features[0].geometry).toEqual(features[1].geometry);
+    expect(features[0].properties.AREA).toBeCloseTo(
+      features[1].properties.AREA,
+      12,
+    );
+  });
+
   test("each interval is elected on its own, and all of them the same way", () => {
     // The roster is interval-agnostic, so the copy ladder's copies of one
     // suppressed feature are suppressed together: a copy that survived would

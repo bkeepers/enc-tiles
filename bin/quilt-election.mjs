@@ -31,8 +31,11 @@
 //   and that canonical content, in every cell of the region INCLUDING THIS ONE,
 //   joined wherever they touch or overlap. The component elects the
 //   lexicographically smallest DSNM in it; inside the elected cell the smallest
-//   GROUP KEY among the groups standing on that component emits, and every
-//   other group standing on it stands down.
+//   GROUP KEY among the groups standing on that component IN THE SAME INTERVAL
+//   emits, and every other group standing on it in that interval stands down.
+//   Per interval because a partitioned cell holds one group per rung of the
+//   copy ladder and they draw at zooms none of the others cover -- see WITHIN
+//   A CELL.
 //
 //   Smallest DSNM rather than largest area because it has to be decidable from
 //   a name alone: areas differ by a clip, names do not.
@@ -69,17 +72,62 @@
 //
 // WITHIN A CELL
 //
-//   Groups are per LNAM, and one cell routinely holds several LNAMs of one
-//   physical area: the same corner has THREE US5OR2KD pieces of that corridor,
+//   Groups are per (CLASS, LNAM, INTERVAL), and one cell routinely holds
+//   several groups of one physical area -- for two unrelated reasons, which the
+//   tie-break has to tell apart.
+//
+//   SEVERAL LNAMs, one area. LNAM is issued per cell and the topology splits an
+//   area freely: the same corner has THREE US5OR2KD pieces of that corridor,
 //   contiguous and byte-identical in content. With the cell's own rows excluded
 //   from the roster nothing could ever join them, so each emitted its own
 //   anchor -- four at that corner even once the cross-cell half worked.
-//
 //   Contiguous same-content fragments are one area however the topology split
-//   them, so they stand on ONE component and the smallest group key emits for
-//   all of them. The key is the generators' own group id (`CLASS LNAM
-//   interval`): stable across runs, and compared only against the other keys of
-//   the cell that owns them, so no other cell's naming can move it.
+//   them, so they stand on ONE component and one of them emits for all.
+//
+//   SEVERAL INTERVALS, one feature. A partitioned cell exports each source
+//   feature as zoom-range COPIES, one per rung of the copy ladder (the whole
+//   copy `[f0..f1-1]`, a ladder copy `[fi..f(i+1)-1]`, the top copy `[fK..]`,
+//   the fallback continuation), each carrying its own `_QZMIN`/`_QZMAX`/
+//   `_QFALL`; both generators key on the range, so one LNAM arrives as several
+//   groups whose ids differ only in `quiltKey(range)`. Those copies are the
+//   SAME feature drawn at DISJOINT zooms, not duplicates of one another:
+//   suppressing all but one leaves the area unanchored at every zoom the
+//   survivor does not cover.
+//
+//   Which is what a rule electing ONE group per component did. Measured on
+//   US4OR1IF, a 1:45,000 band-4 cell overlapping a 1:22,000 rung-12 cell and
+//   1:12,000 rung-13 cells: one LNAM under that K=2 ladder grouped as
+//   `...11\0 11\0`, `...12\0 12\0` and `...13\0...`, only the first survived,
+//   and the cell's band-4 `_RESTR_ANCHORS`/`_AREA_ANCHORS` vanished at z12 (19
+//   anchors -> 0 in the Oregon coast box) with the polygons still there -- the
+//   "i" mark visible at z11 and z13 but not between them.
+//
+//   So the tie-break is per (COMPONENT, INTERVAL): among this cell's groups
+//   standing on one component AND carrying the same interval key, the smallest
+//   group key emits and the rest stand down; groups of that component carrying
+//   DIFFERENT interval keys ALL emit, each stamped with its own zoom bounds by
+//   bin/stamp-quilt-zooms and each drawing where no other one does. The key is
+//   the generators' own group id: stable across runs, and compared only against
+//   the other keys of the cell that owns them, so no other cell's naming can
+//   move it. The interval is passed in rather than parsed back out of the id --
+//   the generators computed it to build the id in the first place.
+//
+// KNOWN LIMIT -- an interval the elected cell has no copy for
+//
+//   The interval scoping reaches only as far as this cell. The CROSS-cell half
+//   of the rule cannot see the neighbours' intervals at all: the evidence
+//   roster carries QFLOOR and nothing finer, so a component elects a cell
+//   knowing only its name. If the elected cell has NO copy for an interval that
+//   a losing cell does have one for, that interval ends up with no anchor
+//   anywhere -- the loser stands down for a winner that never emits there.
+//
+//   Same-band cells share the ladder's floor f0, so their whole and ladder
+//   copies line up and only the ends can differ: a losing cell's TOP or
+//   FALLBACK copy over ground outside the finer coverage, while the winner's
+//   part lies wholly under it and stops at the rung the finer cell takes over.
+//   A coverage-edge case on the copies furthest from the cell's own band;
+//   recorded, not fixed, since repairing it needs the roster to carry each
+//   row's intervals.
 //
 // AREA AND PLACEMENT
 //
@@ -291,10 +339,12 @@ function componentsOf(members, dsnm) {
       (total, entry) => total + polygonArea(entry.polygon),
       0,
     ),
-    // Filled in by `register`: this cell's group keys standing on this
-    // component, and the clipped area of those that could only reach it down
-    // the degraded path (see THE DEGRADED PATH).
-    keys: new Set(),
+    // Filled in by `register`: INTERVAL KEY -> the smallest of this cell's
+    // group keys standing on this component in that interval, since the
+    // within-cell tie-break is per interval (see WITHIN A CELL). Plus the
+    // clipped area of the groups that could only reach the component down the
+    // degraded path (see THE DEGRADED PATH).
+    keys: new Map(),
     fallbackArea: 0,
   }));
 }
@@ -311,8 +361,9 @@ function componentsOf(members, dsnm) {
  *
  * Two passes, in this order:
  *
- *   1. `register(groupKey, className, content, parts)` for EVERY group, which
- *      maps it onto the component(s) it stands on;
+ *   1. `register(groupKey, className, content, parts, intervalKey)` for EVERY
+ *      group, which maps it onto the component(s) it stands on and records the
+ *      interval it competes in;
  *   2. `verdict(groupKey)` for each, which answers whether this cell emits it,
  *      and with what area and placement candidates.
  *
@@ -384,14 +435,30 @@ export function anchorElection({
      * one thing guaranteed to hold it whatever the clip did to its shape.
      * Adjacency of the clipped parts against the whole component is the
      * DEGRADED fallback, for a roster carrying no row of this cell's.
+     *
+     * `intervalKey` is the group's rung of the copy ladder -- the generators'
+     * own `quiltKey(range)` -- and it scopes the within-cell tie-break: the
+     * copies of one feature at different intervals draw at disjoint zooms, so
+     * they do not compete and all of them emit (see WITHIN A CELL). An
+     * unpartitioned cell has one interval, however it is spelled, and its
+     * groups compete exactly as they did before the partition existed.
      */
-    register(groupKey, className, content, parts) {
+    register(groupKey, className, content, parts, intervalKey = "") {
       if (!active || standing.has(groupKey)) return;
+      /** Pass 1's record, plus this group's claim on its interval. */
+      const stand = (components) => {
+        for (const component of components) {
+          const first = component.keys.get(intervalKey);
+          if (first === undefined || groupKey < first)
+            component.keys.set(intervalKey, groupKey);
+        }
+        standing.set(groupKey, { interval: intervalKey, components });
+      };
       const own = parts
         .filter((polygon) => polygon[0] && polygon[0].length >= 4)
         .map((polygon) => entryOf(polygon, dsnm));
       if (own.length === 0) {
-        standing.set(groupKey, []);
+        stand([]);
         return;
       }
       const components = componentsFor(bucketKey(className, content));
@@ -422,13 +489,11 @@ export function anchorElection({
             0,
           );
         }
-        for (const component of fallback) component.keys.add(groupKey);
-        standing.set(groupKey, fallback);
+        stand(fallback);
         return;
       }
 
-      for (const component of matched) component.keys.add(groupKey);
-      standing.set(groupKey, matched);
+      stand(matched);
     },
 
     /**
@@ -440,10 +505,11 @@ export function anchorElection({
      *
      * `emit` needs both halves of the rule: the component must have elected
      * this cell (the smallest DSNM in it), and within the cell this group must
-     * be the smallest group key standing on the component (the several LNAMs
-     * one cell holds of one area). A group standing on nothing -- no roster, an
-     * unknown class, an area of its own -- keeps its anchor, and its own area
-     * and placement with it.
+     * be the smallest group key standing on the component IN ITS OWN INTERVAL
+     * (the several LNAMs one cell holds of one area compete with each other;
+     * the copy ladder's copies of one feature do not -- see WITHIN A CELL). A
+     * group standing on nothing -- no roster, an unknown class, an area of its
+     * own -- keeps its anchor, and its own area and placement with it.
      *
      * The returned `parts` are the roster entries' OWN arrays -- already in
      * memory, read and never mutated. A group bridging several components is
@@ -451,22 +517,24 @@ export function anchorElection({
      */
     verdict(groupKey) {
       if (!active) return ALONE;
-      const components = standing.get(groupKey);
-      if (!components || components.length === 0) return ALONE;
+      const stood = standing.get(groupKey);
+      if (!stood || stood.components.length === 0) return ALONE;
 
       let elected = dsnm;
       let first = groupKey;
       let area = 0;
       const joined = [];
-      for (const component of components) {
+      for (const component of stood.components) {
         area += component.area + component.fallbackArea;
         for (const entry of component.entries) joined.push(entry.polygon);
         for (const owner of component.owners) {
           if (owner < elected) elected = owner;
         }
-        for (const key of component.keys) {
-          if (key < first) first = key;
-        }
+        // Only against the groups of THIS interval: the other intervals' copies
+        // of the area draw at zooms this one does not cover, so they are not
+        // duplicates of it and do not stand it down.
+        const sibling = component.keys.get(stood.interval);
+        if (sibling !== undefined && sibling < first) first = sibling;
       }
       return {
         emit: elected === dsnm && first === groupKey,
