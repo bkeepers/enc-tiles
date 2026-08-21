@@ -746,6 +746,18 @@ if [ -n "$coverage" ] && [ -f "$coverage" ] && [ -n "$quilt_floor" ]; then
       if ogr2ogr -f GPKG "$gpkg" "$zone_presence_geojson" \
         -append -nln zone_evidence 2>/dev/null; then
         zone_evidence_ready=1
+
+        # The roster lands UNINDEXED and REGION-WIDE -- every chart in the
+        # region, tens of thousands of rows, each dragging along the
+        # area_evidence geometry that the presence probe never reads. Without
+        # this index zone_rung_mask's correlated EXISTS is a full scan of that
+        # table for every `quilting` row, re-run once per zone class per rung:
+        # measured at ~16 s per mask on US4ME1CI (5 zone classes x 3 rungs),
+        # ~240 s of a ~370 s cell, on a probe whose answer involves 3-6 rows.
+        # (CLASS, DSNM) is exactly the probe's key AND covers it, so the lookup
+        # is resolved in the index and never touches a heavy row at all.
+        ogrinfo --quiet "$gpkg" -dialect sqlite -sql \
+          "CREATE INDEX IF NOT EXISTS zone_evidence_class_dsnm ON zone_evidence(CLASS, DSNM)"
       fi
     fi
 
