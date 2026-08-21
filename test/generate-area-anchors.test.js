@@ -120,6 +120,37 @@ function elect(
   );
 }
 
+/**
+ * The lattice step the emitted grid stands on, read back off the anchors.
+ *
+ * The nodes are integer multiples of the step counted from (0, 0), so the
+ * smallest gap between distinct coordinates IS the step. The guaranteed
+ * pointOnSurface anchor is always the FIRST feature of a group and is not on
+ * the lattice, so it is dropped before measuring.
+ */
+function latticeStep(features) {
+  const smallestGap = (values) => {
+    const unique = [...new Set(values)].sort((a, b) => a - b);
+    let smallest = Infinity;
+    for (let i = 1; i < unique.length; i++) {
+      smallest = Math.min(smallest, unique[i] - unique[i - 1]);
+    }
+    return smallest;
+  };
+  const nodes = features
+    .slice(1)
+    .map((feature) => feature.geometry.coordinates);
+  return {
+    lon: smallestGap(nodes.map(([x]) => x)),
+    lat: smallestGap(nodes.map(([, y]) => y)),
+  };
+}
+
+/** GRID_SPACING_PIXELS' worth of longitude at `zoom`, the generator's step. */
+function stepAt(zoom) {
+  return (512 * 360) / (512 * 2 ** zoom);
+}
+
 /** Ray-casting point-in-ring, written here so the test proves it independently. */
 function inRing(point, ring) {
   let inside = false;
@@ -204,11 +235,16 @@ describe("one anchor per feature, per interval", () => {
   test("each interval is its own group, and carries its range", () => {
     // Two copies of one feature, one per interval of the copy ladder. Merged
     // into a single group they would produce one anchor stamped for no
-    // interval at all, which draws at every zoom.
-    const features = anchors([
-      polygon({ LNAM: "AA", _QZMIN: 8, _QZMAX: 9 }, box(0, 0, 1, 1)),
-      polygon({ LNAM: "AA", _QZMIN: 10 }, box(0, 0, 1, 1)),
-    ]);
+    // interval at all, which draws at every zoom. RESARE, a FILLED class, so
+    // each interval keeps exactly ONE anchor -- a no-fill class would grid
+    // (see "the no-fill grid repeat" below).
+    const features = anchors(
+      [
+        polygon({ LNAM: "AA", _QZMIN: 8, _QZMAX: 9 }, box(0, 0, 1, 1)),
+        polygon({ LNAM: "AA", _QZMIN: 10 }, box(0, 0, 1, 1)),
+      ],
+      { className: "RESARE" },
+    );
 
     expect(features).toHaveLength(2);
     expect(
@@ -237,7 +273,9 @@ describe("what the anchor carries", () => {
   test("the WHOLE property bag of the fragment, verbatim", () => {
     // The retargeted layers' filters branch on each class's own attributes
     // (CATPIL here, CATBRG/WATLEV/CONRAD elsewhere), so nothing short of the
-    // whole bag keeps every branch fed.
+    // whole bag keeps every branch fed. SCAMIN/SCAMAX are the one deliberate
+    // exception: PILBOP is a no-fill grid class, and for those the interval
+    // floor owns scale gating -- see "the no-fill grid repeat" below.
     const features = anchors(
       [
         polygon(
@@ -261,10 +299,10 @@ describe("what the anchor carries", () => {
       LNAM: "AA",
       CATPIL: 1,
       OBJNAM: "Port Angeles pilot boarding",
-      SCAMIN: 119999,
       INTU: 4,
       CSCALE: 45000,
     });
+    expect(features[0].properties).not.toHaveProperty("SCAMIN");
   });
 
   test("the bag comes from the LARGEST fragment", () => {
@@ -281,13 +319,17 @@ describe("what the anchor carries", () => {
 
   test("underscore properties do not ride the bag; the interval does", () => {
     // _QZMIN/_QZMAX/_QFALL are re-added deliberately as the group's range;
-    // any other pipeline-internal property stays off the anchor.
-    const features = anchors([
-      polygon(
-        { LNAM: "AA", CATREA: "9", _QZMIN: 8, _MARK: 1 },
-        box(0, 0, 1, 1),
-      ),
-    ]);
+    // any other pipeline-internal property stays off the anchor. RESARE, a
+    // filled class, so the interval stamp does not also turn on the grid.
+    const features = anchors(
+      [
+        polygon(
+          { LNAM: "AA", CATREA: "9", _QZMIN: 8, _MARK: 1 },
+          box(0, 0, 1, 1),
+        ),
+      ],
+      { className: "RESARE" },
+    );
 
     expect(features).toHaveLength(1);
     expect(features[0].properties).toMatchObject({ CATREA: "9", _QZMIN: 8 });
@@ -468,7 +510,9 @@ describe("the cross-cell election", () => {
     // cover. The election is per interval for exactly that reason: a rule
     // keeping one group per component kept the lowest rung alone, and the
     // area lost its symbol above it -- measured on US4OR1IF, whose band-4
-    // anchors went 19 -> 0 at z12 with the polygons still there.
+    // anchors went 19 -> 0 at z12 with the polygons still there. RESARE, a
+    // FILLED class, so each interval is exactly one anchor and the geometry
+    // comparison below holds; a no-fill class grids per interval instead.
     const features = elect(
       [
         polygon(
@@ -478,11 +522,22 @@ describe("the cross-cell election", () => {
         polygon({ LNAM: "AA", _QZMIN: 12, ...CAUTION }, box(1, 0, 2, 1)),
       ],
       {
+        className: "RESARE",
         // This cell wins the component, so what it emits is all there is.
         dsnm: "US5OR2AA",
         evidence: [
-          { content: CAUTION, dsnm: "US5OR2AA", ring: box(1, 0, 2.1, 1) },
-          { content: CAUTION, dsnm: "US5OR2KC", ring: box(0, 0, 1, 1) },
+          {
+            className: "RESARE",
+            content: CAUTION,
+            dsnm: "US5OR2AA",
+            ring: box(1, 0, 2.1, 1),
+          },
+          {
+            className: "RESARE",
+            content: CAUTION,
+            dsnm: "US5OR2KC",
+            ring: box(0, 0, 1, 1),
+          },
         ],
       },
     );
@@ -510,6 +565,271 @@ describe("the cross-cell election", () => {
 
   test("with no roster at all every group keeps its own anchor", () => {
     expect(anchors(east)).toHaveLength(1);
+  });
+});
+
+describe("the no-fill grid repeat", () => {
+  /**
+   * The classes nothing paints -- no AC()/AP() fill in either vendored
+   * boundary table, no plotroom-owned ground -- have only their centred
+   * symbol to say the area exists, and ONE point per elected component left
+   * it tens of km off-screen on a multi-cell swept area at high zoom. Those
+   * classes (GRID_REPEAT_CLASSES) emit a lattice of anchors instead: global
+   * (multiples of the step from lon/lat 0, so every cell derives the same
+   * grid), spaced ~512 px of screen at the DEEPEST zoom the copy serves,
+   * capped, and always joined by the guaranteed pointOnSurface anchor.
+   * SWPARE -- the motivating class, `SY(SWPARE51);TE('swept to %5.1lf',...)`,
+   * no fill -- plays the grid side; RESARE (plotroom's restricted-area tint)
+   * the filled side.
+   */
+
+  test("a large component grids: many points, all inside, order-blind", () => {
+    // 512 px at the z11 floor is ~0.176 deg of longitude; two fragments of
+    // one LNAM spanning 2.5 x 1 deg hold dozens of lattice nodes.
+    const west = box(0, 0, 1, 1);
+    const east = box(1, 0, 2.5, 1);
+    const parts = [
+      polygon({ LNAM: "AA", DRVAL1: 18.2, _QZMIN: 11 }, west),
+      polygon({ LNAM: "AA", DRVAL1: 18.2, _QZMIN: 11 }, east),
+    ];
+    const forward = anchors(parts, { className: "SWPARE" });
+    const reversed = anchors([...parts].reverse(), { className: "SWPARE" });
+
+    expect(forward.length).toBeGreaterThan(1);
+    for (const feature of forward) {
+      const point = feature.geometry.coordinates;
+      expect(inRing(point, west) || inRing(point, east)).toBe(true);
+      // The whole bag rides on EVERY point: the "swept to X" text companion
+      // binds per anchor client-side.
+      expect(feature.properties.CLASS).toBe("SWPARE");
+      expect(feature.properties.DRVAL1).toBe(18.2);
+      expect(feature.properties._QZMIN).toBe(11);
+      expect(feature.tippecanoe).toEqual({ minzoom: 0 });
+    }
+    // The lattice is GLOBAL -- integer multiples of the step -- so the node
+    // set survives any input order.
+    const keys = (features) =>
+      features.map((f) => f.geometry.coordinates.join(",")).sort();
+    expect(keys(reversed)).toEqual(keys(forward));
+  });
+
+  test("a small component keeps exactly ONE symbol: the guaranteed point", () => {
+    // Far smaller than the z12 step (~0.088 deg), so the lattice puts no
+    // node inside and the pointOnSurface fallback is the whole answer.
+    const small = box(0.4, 0.4, 0.41, 0.41);
+    const features = anchors([polygon({ LNAM: "AA", _QZMIN: 12 }, small)], {
+      className: "SWPARE",
+    });
+
+    expect(features).toHaveLength(1);
+    expect(inRing(features[0].geometry.coordinates, small)).toBe(true);
+  });
+
+  test("grid classes drop SCAMIN/SCAMAX; filled classes keep them", () => {
+    // The interval floor owns scale gating for the no-fill classes:
+    // rescheme-era cells stamp SCAMIN ~1.1x CSCALE, which gates ~1.6 zooms
+    // later than the floor the copy serves -- a band where the copy is in
+    // the tile and its only symbol is hidden. Class-scoped, so it holds on
+    // the single-anchor path too. Filled classes inherit exactly as before.
+    const bag = { LNAM: "AA", SCAMIN: 119999, SCAMAX: 21999 };
+    const swept = anchors([polygon(bag, box(0, 0, 1, 1))], {
+      className: "SWPARE",
+    });
+    expect(swept).toHaveLength(1);
+    expect(swept[0].properties).not.toHaveProperty("SCAMIN");
+    expect(swept[0].properties).not.toHaveProperty("SCAMAX");
+
+    const restricted = anchors([polygon(bag, box(0, 0, 1, 1))], {
+      className: "RESARE",
+    });
+    expect(restricted).toHaveLength(1);
+    expect(restricted[0].properties).toMatchObject({
+      SCAMIN: 119999,
+      SCAMAX: 21999,
+    });
+  });
+
+  test("a runaway component is coarsened to the point cap", () => {
+    // The z14 step is ~0.022 deg, so 2 x 2 deg is ~8000 lattice nodes; the
+    // step doubles (still a global lattice, so coverage stays even) until
+    // the total -- guaranteed point included -- fits the 256 cap.
+    const big = box(0, 0, 2, 2);
+    const features = anchors([polygon({ LNAM: "AA", _QZMIN: 14 }, big)], {
+      className: "SWPARE",
+    });
+
+    expect(features.length).toBeGreaterThan(1);
+    expect(features.length).toBeLessThanOrEqual(256);
+    for (const feature of features) {
+      expect(inRing(feature.geometry.coordinates, big)).toBe(true);
+    }
+  });
+
+  test("a BOUNDED interval is sized at its ceiling, not its floor", () => {
+    // A ground step spans MORE screen pixels the deeper the zoom, so the
+    // sparsest the lattice ever looks is at the interval's CEILING -- that is
+    // where the ~512 px target has to be met, and sizing at the floor met it
+    // only at the one zoom where the copy looked its best.
+    const ring = box(0, 44, 2, 45);
+    const whole = latticeStep(
+      anchors([polygon({ LNAM: "AA", _QZMIN: 10, _QZMAX: 11 }, ring)], {
+        className: "SWPARE",
+      }),
+    );
+    const ceiling = latticeStep(
+      anchors([polygon({ LNAM: "AA", _QZMIN: 11, _QZMAX: 11 }, ring)], {
+        className: "SWPARE",
+      }),
+    );
+    const floor = latticeStep(
+      anchors([polygon({ LNAM: "AA", _QZMIN: 10, _QZMAX: 10 }, ring)], {
+        className: "SWPARE",
+      }),
+    );
+
+    // [10..11] is sized exactly as [11..11] -- one zoom finer than the floor
+    // sizing it used to get, which is 2x the points along each axis.
+    expect(whole.lon).toBeCloseTo(ceiling.lon, 9);
+    expect(whole.lon).toBeCloseTo(stepAt(11), 9);
+    expect(floor.lon).toBeCloseTo(whole.lon * 2, 9);
+  });
+
+  test("an open-ended top copy is sized two zooms below its floor", () => {
+    // The top copy has no ceiling: it runs to the tiling maxzoom and past it
+    // through overzoom. Two zooms down is the representative deep zoom --
+    // past that the spacing passes ~2048 px, which the pyramid cap below
+    // makes moot.
+    const ring = box(0, 44, 2, 45);
+    const open = latticeStep(
+      anchors([polygon({ LNAM: "AA", _QZMIN: 9 }, ring)], {
+        className: "SWPARE",
+      }),
+    );
+
+    expect(open.lon).toBeCloseTo(stepAt(11), 9);
+  });
+
+  test("no interval is sized past the top of the tile pyramid", () => {
+    // Deeper than z13 there is no tile to be sparse in: the client overzooms
+    // the deepest one, which stretches the anchors already inside it. A copy
+    // floored at 12 or 13 therefore sizes at 13, not 14 or 15.
+    const ring = box(0, 0, 0.5, 0.3);
+    const deep = latticeStep(
+      anchors([polygon({ LNAM: "AA", _QZMIN: 12 }, ring)], {
+        className: "SWPARE",
+      }),
+    );
+    const deeper = latticeStep(
+      anchors([polygon({ LNAM: "AA", _QZMIN: 13 }, ring)], {
+        className: "SWPARE",
+      }),
+    );
+    // ...and a bounded copy whose ceiling is above the pyramid is capped the
+    // same way, rather than minting four times the points for tiles that do
+    // not exist.
+    const bounded = latticeStep(
+      anchors([polygon({ LNAM: "AA", _QZMIN: 12, _QZMAX: 15 }, ring)], {
+        className: "SWPARE",
+      }),
+    );
+
+    expect(deep.lon).toBeCloseTo(stepAt(13), 9);
+    expect(deeper.lon).toBeCloseTo(stepAt(13), 9);
+    expect(bounded.lon).toBeCloseTo(stepAt(13), 9);
+  });
+
+  test("the latitude step is quantized to a 5-degree cos band", () => {
+    // The lattice is exactly global in LONGITUDE -- the step is a function of
+    // the sizing zoom alone -- but the latitude step carries a cos(latitude)
+    // factor, and the latitude it was taken at was the joint bbox of this
+    // cell's parts PLUS the component roster. Five classes are never in that
+    // roster (BERTHS, CHKPNT, HRBFAC, MAGVAR, RCTLPT) and every ALONE or
+    // degraded group has an empty one, so the mid-latitude was per CELL and
+    // the rows drifted across the seam (47.0274 against 47.0564, measured).
+    // Rounded to a 5-degree band, two cells of one component agree unless
+    // they fall either side of a band edge.
+    const range = { LNAM: "AA", _QZMIN: 11, _QZMAX: 11 };
+    const south = anchors([polygon(range, box(0, 43.5, 2, 44.5))], {
+      className: "HRBFAC",
+    });
+    const north = anchors([polygon(range, box(2, 46.0, 4, 47.0))], {
+      className: "HRBFAC",
+    });
+
+    // Same band (45), so the same step...
+    const step = latticeStep(south).lat;
+    expect(step).toBeCloseTo(latticeStep(north).lat, 12);
+    expect(step).toBeCloseTo(stepAt(11) * Math.cos((45 * Math.PI) / 180), 9);
+    // ...and, being multiples of it from zero, the same ROWS: the two halves
+    // of a component sit on one lattice however the bboxes differ.
+    for (const features of [south, north]) {
+      for (const feature of features.slice(1)) {
+        const rows = feature.geometry.coordinates[1] / step;
+        expect(Math.abs(rows - Math.round(rows))).toBeLessThan(1e-9);
+      }
+    }
+  });
+
+  test("a lattice node UNDER the guaranteed anchor is dropped, not stacked", () => {
+    // The guaranteed pointOnSurface anchor rides on top of the lattice, and a
+    // node a symbol's width away from it is one symbol drawn twice, not two
+    // statements about the area. The old test was 1e-9 degrees -- a tenth of
+    // a millimetre, which only ever caught the exact hit.
+    const step = stepAt(11);
+    // The centre of the box, and so its pointOnSurface, offset from the node
+    // at 5 steps by a twentieth of a step: far outside 1e-9, well inside the
+    // quarter-step tolerance.
+    const centre = 5 * step + step / 20;
+    const ring = box(centre - 0.4, centre - 0.4, centre + 0.4, centre + 0.4);
+    const features = anchors(
+      [polygon({ LNAM: "AA", _QZMIN: 11, _QZMAX: 11 }, ring)],
+      { className: "SWPARE" },
+    );
+
+    const [guaranteed, ...lattice] = features.map(
+      (feature) => feature.geometry.coordinates,
+    );
+    expect(guaranteed[0]).toBeCloseTo(centre, 9);
+    // The bbox holds a 5 x 5 block of nodes; 24 of them survive.
+    expect(lattice).toHaveLength(24);
+    for (const [x, y] of lattice) {
+      const near =
+        Math.abs(x - guaranteed[0]) < step / 4 &&
+        Math.abs(y - guaranteed[1]) < step / 4;
+      expect(near).toBe(false);
+    }
+  });
+
+  test("a fallback continuation grids at the quilt floor minus one", () => {
+    // The _QFALL copy serves the open-ended band BELOW the cell's quilt
+    // floor; the deepest zoom it actually serves -- floor - 1 -- keys the
+    // spacing. cellFloor 12 -> effective floor 11 -> step ~0.176 deg.
+    const features = elect(
+      [polygon({ LNAM: "AA", _QFALL: 1, _QZMAX: 11 }, box(0, 0, 1, 1))],
+      { className: "SWPARE", dsnm: "US5WA2AA", cellFloor: 12 },
+    );
+    expect(features.length).toBeGreaterThan(1);
+    // The same step a bounded copy sized at 11 gets: the fallback's deep end
+    // IS the quilt floor minus one, so this arm needs no cap and no change.
+    expect(latticeStep(features).lon).toBeCloseTo(
+      latticeStep(
+        anchors(
+          [polygon({ LNAM: "AA", _QZMIN: 11, _QZMAX: 11 }, box(0, 0, 1, 1))],
+          {
+            className: "SWPARE",
+          },
+        ),
+      ).lon,
+      9,
+    );
+
+    // ...but WITHOUT --cell-floor (an unpartitioned legacy run) there is no
+    // floor to size a screenful by, and the single anchor stands.
+    const legacy = anchors(
+      [polygon({ LNAM: "AA", _QFALL: 1, _QZMAX: 11 }, box(0, 0, 1, 1))],
+      { className: "SWPARE" },
+    );
+    expect(legacy).toHaveLength(1);
   });
 });
 
@@ -660,6 +980,47 @@ describe("the class set", () => {
     for (const excluded of ["ACHARE", "OBSTRN", "######", "MIPARE"]) {
       expect(listed).not.toContain(excluded);
     }
+  });
+
+  test("every anchor class is classified: grid or fill, never neither", () => {
+    // GRID_REPEAT_CLASSES is written out POSITIVELY. Derived as the anchor set
+    // minus the filled one it FAILED OPEN: a class added to AREA_ANCHOR_CLASSES
+    // landed in the grid set by default and silently took the riskier
+    // treatment -- a repeated symbol and a stripped vendor SCAMIN -- with
+    // nobody having asked whether its interior is painted. Positive, the drift
+    // fails HERE instead, with the unclassified class named.
+    //
+    // The two Sets are not on the command line, so they are read off the
+    // source; the roster the parser returns for AREA_ANCHOR_CLASSES is checked
+    // against --list-classes first, so a parser that quietly matched nothing
+    // cannot pass this test.
+    const source = readFileSync(SCRIPT, "utf8");
+    const classesOf = (name) => {
+      const start = source.indexOf(`const ${name} = `);
+      expect(start).toBeGreaterThan(-1);
+      const body = source.slice(start, source.indexOf("\n]", start));
+      return [...body.matchAll(/"([A-Z0-9#]+)"/g)].map(([, entry]) => entry);
+    };
+    const listed = execFileSync(process.execPath, [SCRIPT, "--list-classes"], {
+      encoding: "utf8",
+    })
+      .trim()
+      .split("\n");
+
+    const anchorClasses = classesOf("AREA_ANCHOR_CLASSES");
+    expect([...anchorClasses].sort()).toEqual([...listed].sort());
+
+    const grid = classesOf("GRID_REPEAT_CLASSES");
+    const fill = classesOf("AREA_FILL_CLASSES");
+
+    // Disjoint: no class both repeats its symbol and paints its interior.
+    expect(grid.filter((name) => fill.includes(name))).toEqual([]);
+    // Exhaustive: their union IS the anchor set. Classify any class you add
+    // here explicitly -- there is no default any more.
+    expect([...grid, ...fill].sort()).toEqual([...anchorClasses].sort());
+    // The shipped split, pinned so a silent move between the two shows up.
+    expect(grid).toHaveLength(23);
+    expect(fill).toHaveLength(8);
   });
 });
 

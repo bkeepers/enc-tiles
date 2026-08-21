@@ -1,9 +1,12 @@
 #!/usr/bin/env node
 
-// Derives the _AREA_ANCHORS layer: one point per area feature of the
+// Derives the _AREA_ANCHORS layer: anchor points per area feature of the
 // ship-narrow class set, at which the style draws the feature's centred area
 // symbol (the PILBOP02 diamond, the CTNARE51 caution mark and their siblings)
-// instead of drawing it once per polygon per tile.
+// instead of drawing it once per polygon per tile. A FILLED class gets ONE
+// point per (feature, interval); a class whose interior nothing paints gets a
+// ground-distance GRID of points, so the symbol that is the only sign the
+// area exists is never a screenful away -- see GRID_REPEAT_CLASSES.
 //
 // Usage:
 //   bin/generate-area-anchors <output.geojson> \
@@ -71,10 +74,12 @@
 // chose to place the point in: the retargeted layers' filters branch on CATPIL,
 // CATBRG, WATLEV, CONRAD, CONVIS and the rest of each class's own attributes,
 // and an anchor missing one falls into the wrong branch -- so the whole bag
-// rides along rather than a curated list. Underscore properties are the
-// pipeline's own; of those, the copy ladder's _QZMIN/_QZMAX/_QFALL are re-added
-// deliberately, converted to per-feature tippecanoe zoom bounds later by
-// bin/stamp-quilt-zooms. On top of the bag:
+// rides along rather than a curated list. ONE deliberate exception:
+// SCAMIN/SCAMAX are dropped for GRID_REPEAT_CLASSES (see the bag copy below
+// -- the interval floor owns scale gating for them). Underscore properties are
+// the pipeline's own; of those, the copy ladder's _QZMIN/_QZMAX/_QFALL are
+// re-added deliberately, converted to per-feature tippecanoe zoom bounds later
+// by bin/stamp-quilt-zooms. On top of the bag:
 //
 //   CLASS    the S-57 class the feature came from, stamped over any source
 //            property of that name
@@ -98,6 +103,7 @@ import {
   ringArea,
 } from "./quilt-anchors.mjs";
 import { contentOf } from "./quilt-content.mjs";
+import { polygonsContaining } from "./quilt-edges.mjs";
 import { anchorElection } from "./quilt-election.mjs";
 import {
   polygons,
@@ -179,6 +185,117 @@ const AREA_ANCHOR_CLASSES = [
   "WEDKLP",
 ];
 
+// The classes above whose area INTERIOR is painted -- by the vendored S-52
+// lookup or by a Plotroom-owned client-side ground. These keep the original
+// contract exactly: ONE anchor per (feature, interval), SCAMIN/SCAMAX
+// inherited. The evidence, per class (packages/s52 data.json, area lookups of
+// both PLAIN_BOUNDARIES and SYMBOLIZED_BOUNDARIES; both AC() colour fills and
+// AP() pattern fills become MapLibre `fill` layers -- see
+// packages/styles/src/instructions/SHOWAREA.ts):
+//
+//   RESARE   plotroom's restricted-area tint (frontend style.ts,
+//            CHART_RESTRICTED_TINT_CLASSES) -- the vendored CS(RESARE04)
+//            cascade itself draws symbols and lines only
+//   CBLARE   the same plotroom tint list
+//   SMCFAC   AC(CHBRN) in both boundary tables
+//   TSSCRS   AP(TSSJCT02) in both boundary tables
+//   TSSLPT   AP(TSSJCT02) under SYMBOLIZED_BOUNDARIES (the no-ORIENT row)
+//   TSSRON   AP(TSSJCT02) under SYMBOLIZED_BOUNDARIES
+//   PRCARE   AP(TSSJCT02) under SYMBOLIZED_BOUNDARIES
+//   FSHFAC   AP(FSHHAV02) / AP(FSHFAC03/04) under PLAIN_BOUNDARIES
+//
+// NOT in this list, checked and worth recording: CTNARE -- its DIAMOND1 hatch
+// was retired client-side (2026-08-06 user ruling, plotroom style.ts) and its
+// lookups are SY+LS/LC only, so nothing paints a caution area's interior
+// today; the perceived "magenta caution fill" is RESARE's tint.
+const AREA_FILL_CLASSES = new Set([
+  "RESARE",
+  "CBLARE",
+  "SMCFAC",
+  "TSSCRS",
+  "TSSLPT",
+  "TSSRON",
+  "PRCARE",
+  "FSHFAC",
+]);
+
+// The rest: classes with NO fill of any kind. For these the centred symbol
+// (plus its text companion, e.g. SWPARE's "swept to X") is the only statement
+// the area makes, and one point per elected component leaves it tens of km
+// off-screen on a multi-cell swept area at high zoom. So these classes emit a
+// GRID of anchor points over the whole component -- roughly one per screenful
+// at the deepest zoom the copy serves -- and drop SCAMIN/SCAMAX from the bag
+// so the symbol serves the copy's whole interval (see the bag copy below).
+//
+// Written out POSITIVELY rather than derived as AREA_ANCHOR_CLASSES minus
+// AREA_FILL_CLASSES: derived, a class added to the anchor set would land here
+// by default and silently take the riskier treatment (a repeated symbol and a
+// stripped vendor SCAMIN) without anyone having looked at whether its
+// interior is painted. ADDING A CLASS TO AREA_ANCHOR_CLASSES MEANS ADDING IT
+// TO THIS LIST OR TO AREA_FILL_CLASSES -- the union test in
+// test/generate-area-anchors.test.js fails until you do.
+const GRID_REPEAT_CLASSES = new Set([
+  "CTNARE",
+  "PILBOP",
+  "DWRTPT",
+  "ISTZNE",
+  "ACHBRT",
+  "BERTHS",
+  "BRIDGE",
+  "CHKPNT",
+  "CONVYR",
+  "CTSARE",
+  "FERYRT",
+  "FSHGRD",
+  "HRBFAC",
+  "LOCMAG",
+  "LOGPON",
+  "MAGVAR",
+  "NEWOBJ",
+  "PRDARE",
+  "RCTLPT",
+  "RECTRC",
+  "SWPARE",
+  "WATTUR",
+  "WEDKLP",
+]);
+
+// ---- the grid --------------------------------------------------------------
+
+// The tile grid the screen arithmetic is measured against. Matches
+// bin/s57-to-tiles and the minzoom generators.
+const TILE_PIXELS = 512;
+
+// The top of the published pyramid -- bin/s57-to-tiles' publication_maxzoom.
+// No step is ever sized past it: beyond 13 the client is overzooming the
+// deepest tile it has, which STRETCHES the anchors already in that tile
+// rather than asking for more of them, so sizing deeper would only pay in
+// points at every zoom the pyramid does hold.
+const PYRAMID_MAX_ZOOM = 13;
+
+// Grid spacing ON SCREEN at the interval's sizing zoom (gridSizeZoom -- the
+// deepest zoom the copy serves), in pixels of that pyramid: the 400-600 px
+// "about one symbol per screenful" target. Sized at the DEEP end, so this is
+// the interval's WORST case -- shallower in the same interval the same ground
+// step spans fewer pixels and the symbols sit closer together, which is the
+// safe direction. The ground step is this many pixels' worth of longitude at
+// that zoom, with the latitude step scaled by cos(latitude) so the lattice is
+// square in ground distance (and, equivalently, in Mercator screen pixels).
+const GRID_SPACING_PIXELS = 512;
+
+// Hard cap on anchors per (component, interval). A runaway component -- a
+// swept band running the length of a coast at a deep sizing zoom -- would
+// otherwise mint thousands of points; past the cap the lattice is COARSENED
+// (step doubled, still a global lattice) rather than truncated, so coverage
+// stays even instead of piling into the south-west corner. Logged when it
+// happens.
+const GRID_MAX_POINTS = 256;
+
+// Iteration guard: lattice nodes TESTED (not kept) per attempt. Pre-coarsens
+// from the bbox alone so a sliver component in a huge bbox cannot make the
+// point-in-polygon loop quadratic before the cap can see the count.
+const GRID_MAX_LATTICE = 65536;
+
 const args = process.argv.slice(2);
 
 if (args.includes("--list-classes")) {
@@ -233,6 +350,161 @@ for (const { className } of inputs) {
 // The cross-cell election, over the other cells' semantic roster; inert without
 // one. See bin/quilt-election.mjs.
 const election = anchorElection({ paths: evidencePaths, dsnm, cellFloor });
+
+// ---- grid derivation (GRID_REPEAT_CLASSES only) ----------------------------
+
+/**
+ * The zoom the grid step is sized for: the DEEPEST zoom the copy serves,
+ * capped at PYRAMID_MAX_ZOOM.
+ *
+ * The deep end, not the floor. A step fixed in GROUND units spans MORE screen
+ * pixels the deeper the zoom -- degreesPerPixel = 360 / (TILE_PIXELS * 2^z),
+ * so it halves with every level -- which puts the symbols FARTHEST apart on
+ * screen at the interval's ceiling and closest at its floor. Sizing at the
+ * ceiling makes GRID_SPACING_PIXELS the worst spacing anywhere in the
+ * interval; sizing at the floor would make it the best, and every zoom above
+ * it worse without limit. The three interval shapes:
+ *
+ *   bounded (`_QZMIN` + `_QZMAX`) -- the copy's own ceiling, capped.
+ *
+ *   open-ended top copy (`_QZMIN`, no `_QZMAX`) -- `_QZMIN + 2` is the
+ *   representative deep zoom, capped. It is a choice and not a ceiling: past
+ *   sizeZoom + 2 the on-screen spacing passes ~2048 px and keeps growing. But
+ *   the pyramid stops at PYRAMID_MAX_ZOOM, so a top copy floored at or near
+ *   it has no deeper TILE to be sparse in, and anything further is the client
+ *   overzooming that same tile -- accepted sparse, rather than paid for with
+ *   4x the points at every zoom the pyramid actually holds.
+ *
+ *   fallback (`_QFALL`, no `_QZMIN`) -- the open-ended band BELOW the cell's
+ *   quilt floor, which carries no floor stamp of its own; the deepest zoom it
+ *   serves is the quilt floor minus one, which IS the deep end and needs no
+ *   cap (a quilt floor is never above the pyramid's top).
+ *
+ * A legacy input carrying no interval stamps at all (an unpartitioned cell,
+ * which also gets no --cell-floor) returns null and keeps the one-anchor
+ * behaviour: without a partition there is no interval to size a screenful
+ * over, and what shipped before is what it keeps.
+ */
+function gridSizeZoom(range) {
+  const min = Number(range._QZMIN);
+  if (range._QZMIN !== undefined && Number.isFinite(min)) {
+    const max = Number(range._QZMAX);
+    if (range._QZMAX !== undefined && Number.isFinite(max))
+      return Math.min(max, PYRAMID_MAX_ZOOM);
+    return Math.min(min + 2, PYRAMID_MAX_ZOOM);
+  }
+  if (range._QFALL !== undefined && Number.isFinite(cellFloor))
+    return cellFloor - 1;
+  return null;
+}
+
+/** bbox-carrying entries over polygons, the shape polygonsContaining reads. */
+function gridEntries(parts) {
+  return parts.map((polygon) => {
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+    for (const [x, y] of polygon[0]) {
+      if (x < minX) minX = x;
+      if (x > maxX) maxX = x;
+      if (y < minY) minY = y;
+      if (y > maxY) maxY = y;
+    }
+    return { polygon, minX, minY, maxX, maxY };
+  });
+}
+
+/**
+ * The lattice nodes inside the component, spaced ~GRID_SPACING_PIXELS apart
+ * on screen at `sizeZoom`.
+ *
+ * The lattice is GLOBAL: nodes sit at integer multiples of the step in
+ * longitude and latitude, counted from (0, 0) -- never from this cell's bbox
+ * corner -- so cells standing on one component derive the same node set from
+ * the shared geometry whatever order the roster handed it over in. (Only the
+ * elected emitter emits; the alignment is what makes that safe against
+ * roster-order differences.) The step: GRID_SPACING_PIXELS' worth of
+ * longitude at the sizing zoom on the TILE_PIXELS pyramid -- the same
+ * degrees-per-pixel arithmetic as the minzoom generators' thinning cells --
+ * with the latitude step scaled by cos(latitude) so the cells are square in
+ * ground distance.
+ *
+ * How global, exactly: EXACTLY so in longitude -- the step is a pure function
+ * of the sizing zoom, which every cell of one interval shares. In LATITUDE
+ * the cos factor is taken not at the raw mid-latitude of the candidates'
+ * joint bbox but at that latitude ROUNDED TO A 5-DEGREE BAND, because the
+ * joint bbox is only identical across cells when the election's roster is
+ * (the five classes never in the evidence roster -- BERTHS, CHKPNT, HRBFAC,
+ * MAGVAR, RCTLPT -- and every ALONE or degraded group have an EMPTY
+ * `verdict.parts`, leaving a per-cell bbox and a per-cell mid-latitude, which
+ * drifted the latitude rows across cell seams: 47.0274 against 47.0564 for
+ * the first rows of one measured component). Quantized, cells sharing a
+ * component agree on the step unless their mid-latitudes fall either side of
+ * a band edge -- rare, and cosmetic when it happens since cos changes by
+ * under 8% across a 5-degree band at mid latitudes.
+ *
+ * Returns `{ points, coarsened, stepLon, stepLat }`; `coarsened` reports that
+ * the step had to be doubled (kept a power-of-two multiple, still a global
+ * lattice) to hold GRID_MAX_POINTS -- the caller logs it -- and the steps are
+ * the ones the returned nodes actually stand on, coarsening included.
+ */
+function gridPoints(entries, sizeZoom) {
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (const entry of entries) {
+    if (entry.minX < minX) minX = entry.minX;
+    if (entry.maxX > maxX) maxX = entry.maxX;
+    if (entry.minY < minY) minY = entry.minY;
+    if (entry.maxY > maxY) maxY = entry.maxY;
+  }
+
+  const degreesPerPixel = 360 / (TILE_PIXELS * Math.pow(2, sizeZoom));
+  // Quantized to a 5-degree band so cells whose candidate sets differ still
+  // agree on the latitude step -- see the note above. The same 0.01 floor
+  // featureArea puts under cos, for the same polar guard.
+  const latBand = Math.round((minY + maxY) / 2 / 5) * 5;
+  const scale = Math.max(Math.cos((latBand * Math.PI) / 180), 0.01);
+  let stepLon = GRID_SPACING_PIXELS * degreesPerPixel;
+  let stepLat = stepLon * scale;
+
+  // Nodes a step would test, from the bbox alone.
+  const spanOf = (low, high, step) =>
+    Math.max(0, Math.floor(high / step) - Math.ceil(low / step) + 1);
+
+  let coarsened = false;
+  while (
+    spanOf(minX, maxX, stepLon) * spanOf(minY, maxY, stepLat) >
+    GRID_MAX_LATTICE
+  ) {
+    stepLon *= 2;
+    stepLat *= 2;
+    coarsened = true;
+  }
+
+  for (;;) {
+    const points = [];
+    const i0 = Math.ceil(minX / stepLon);
+    const i1 = Math.floor(maxX / stepLon);
+    const j0 = Math.ceil(minY / stepLat);
+    const j1 = Math.floor(maxY / stepLat);
+    for (let j = j0; j <= j1; j++) {
+      for (let i = i0; i <= i1; i++) {
+        const node = [i * stepLon, j * stepLat];
+        if (polygonsContaining(entries, node).length > 0) points.push(node);
+      }
+    }
+    // < rather than <=: the guaranteed pointOnSurface anchor rides on top, and
+    // the cap bounds the TOTAL per (component, interval).
+    if (points.length < GRID_MAX_POINTS)
+      return { points, coarsened, stepLon, stepLat };
+    stepLon *= 2;
+    stepLat *= 2;
+    coarsened = true;
+  }
+}
 
 // ---- 1. group every feature by (CLASS, LNAM, interval) ---------------------
 
@@ -350,37 +622,105 @@ for (const [id, group] of groups) {
   // neighbour's attributes are another chart's compilation, not this one's.
   // Nulls are GDAL's unset columns and carry nothing; underscore properties are
   // the pipeline's own.
+  //
+  // SCAMIN/SCAMAX are the one REVERSAL, scoped to GRID_REPEAT_CLASSES: the
+  // bag used to carry them for everyone, but for the no-fill classes the
+  // partition's interval floor owns scale gating (the same position
+  // bin/generate-area-edges takes for _AREA_EDGE), and rescheme-era NOAA
+  // cells stamp SCAMIN at ~1.1x CSCALE, which the client gate
+  // (z >= log2(279541132 / SCAMIN) on 512px tiles) opens ~1.6 zooms LATER
+  // than the interval floor the copy serves -- a band where the copy is in
+  // the tile and its only symbol is hidden. The FILLED classes keep
+  // inheriting: their tint says the area is there whatever the symbol does,
+  // and their vendor gating is left exactly as shipped.
+  const stripScale = GRID_REPEAT_CLASSES.has(group.className);
   const bag = {};
   for (const [name, value] of Object.entries(group.largest.properties)) {
     if (name.startsWith("_")) continue;
     if (value === null || value === undefined) continue;
+    if (stripScale && (name === "SCAMIN" || name === "SCAMAX")) continue;
     bag[name] = value;
   }
-  features.push({
-    type: "Feature",
-    // See ANCHOR_TIPPECANOE: one anchor per feature, exempt from dot-dropping.
-    tippecanoe: ANCHOR_TIPPECANOE,
-    geometry: {
-      type: "Point",
-      coordinates: pointOnSurface(placement),
-    },
-    properties: {
-      ...bag,
-      // Stamped AFTER the bag: the computed values win over any source
-      // property of the same name.
-      CLASS: group.className,
-      // The whole component's area, not this cell's share of it: the style's
-      // screen-size floor has to measure the FEATURE, and the elected cell's
-      // share can be a corner offcut a few metres across. The verdict's area
-      // is the component's polygons INCLUDING this cell's own unclipped row,
-      // so it replaces the local sum rather than adding to it; the local sum
-      // is what a group standing on no component keeps.
-      AREA: verdict.parts.length > 0 ? verdict.area : group.area,
-      // The interval the group's members serve, converted to tippecanoe
-      // bounds later by bin/stamp-quilt-zooms.
-      ...group.range,
-    },
-  });
+
+  // The GUARANTEED point, always first: the current single-anchor placement,
+  // so a small component -- one the lattice below puts no node in -- still
+  // gets exactly one symbol.
+  const points = [pointOnSurface(placement)];
+
+  // The grid, for the no-fill classes with a derivable interval floor. The
+  // candidates are this cell's own clipped parts PLUS the component's roster
+  // polygons -- the same union the placement above ranks, and deliberately
+  // NOT restricted to this cell's own coverage: the single anchor has always
+  // been allowed to sit in a neighbour's part of the component and renders
+  // fine there, and the grid keeps that contract. (In the matched election
+  // path the roster already holds this cell's own unclipped row, so the union
+  // is the component's geometry for every participating cell; the own-parts
+  // half only ADDS ground in the degraded no-own-row fallback, where this
+  // cell is the sole emitter anyway.)
+  const sizeZoom = GRID_REPEAT_CLASSES.has(group.className)
+    ? gridSizeZoom(group.range)
+    : null;
+  if (sizeZoom !== null) {
+    const entries = gridEntries([...group.parts, ...verdict.parts]);
+    const {
+      points: nodes,
+      coarsened,
+      stepLon,
+      stepLat,
+    } = gridPoints(entries, sizeZoom);
+    if (coarsened) {
+      console.error(
+        `generate-area-anchors: grid coarsened to hold ` +
+          `${GRID_MAX_POINTS}-point cap for ${id}`,
+      );
+    }
+    for (const node of nodes) {
+      // A lattice node NEAR the guaranteed point is the same symbol drawn
+      // twice. The tolerance is a QUARTER of the step on each axis, not an
+      // exact-coordinate epsilon: a node a metre away is not a second
+      // statement about the area, it is one symbol over another, and at 1e-9
+      // degrees (~0.1 mm) the test only ever caught the exact hit -- measured
+      // over Puget, ~1.4% of gridded components carried a visible double.
+      // A quarter step is ~128 px at the sizing zoom, comfortably wider than
+      // any of these symbols and still far short of dropping a node that
+      // reads as its own screenful.
+      if (
+        Math.abs(node[0] - points[0][0]) < stepLon * 0.25 &&
+        Math.abs(node[1] - points[0][1]) < stepLat * 0.25
+      )
+        continue;
+      points.push(node);
+    }
+  }
+
+  for (const coordinates of points) {
+    features.push({
+      type: "Feature",
+      // See ANCHOR_TIPPECANOE: the anchors ARE the symbol, exempt from
+      // dot-dropping.
+      tippecanoe: ANCHOR_TIPPECANOE,
+      geometry: {
+        type: "Point",
+        coordinates,
+      },
+      properties: {
+        ...bag,
+        // Stamped AFTER the bag: the computed values win over any source
+        // property of the same name.
+        CLASS: group.className,
+        // The whole component's area, not this cell's share of it: the style's
+        // screen-size floor has to measure the FEATURE, and the elected cell's
+        // share can be a corner offcut a few metres across. The verdict's area
+        // is the component's polygons INCLUDING this cell's own unclipped row,
+        // so it replaces the local sum rather than adding to it; the local sum
+        // is what a group standing on no component keeps.
+        AREA: verdict.parts.length > 0 ? verdict.area : group.area,
+        // The interval the group's members serve, converted to tippecanoe
+        // bounds later by bin/stamp-quilt-zooms.
+        ...group.range,
+      },
+    });
+  }
 }
 
 writeFileSync(
