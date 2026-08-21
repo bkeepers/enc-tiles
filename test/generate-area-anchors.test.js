@@ -18,6 +18,11 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
 
+import {
+  latticeNodesContained,
+  polygonsContaining,
+} from "../bin/quilt-edges.mjs";
+
 const SCRIPT = fileURLToPath(
   new URL("../bin/generate-area-anchors", import.meta.url),
 );
@@ -41,6 +46,48 @@ function box(x0, y0, x1, y1) {
     [x0, y1],
     [x0, y0],
   ];
+}
+
+/**
+ * A synthetic coastal band: a `length`-degree strip `thickness` degrees
+ * thick, long edges jagged with ~`n` vertices, laid at `slope` (1 is the
+ * diagonal Maine-coast case -- a bbox of square degrees over a sliver of
+ * area), plus one small hole ring mid-band. The geometry that timed the
+ * 2026-08 East Coast batch out of its conversion budget: nearly every
+ * lattice node under the bbox ray-cast the full ring vertex count.
+ */
+function jaggedBand({
+  n = 50000,
+  length = 3,
+  thickness = 0.05,
+  x0 = -70,
+  y0 = 43,
+  slope = 1,
+} = {}) {
+  const fract = (v) => v - Math.floor(v);
+  const half = Math.floor(n / 2);
+  const top = [];
+  const bottom = [];
+  for (let k = 0; k <= half; k++) {
+    const t = k / half;
+    const x = x0 + t * length;
+    const yBase = y0 + t * length * slope;
+    const jag = (fract(Math.sin(k * 12.9898) * 43758.5453) - 0.5) * 0.4;
+    top.push([x, yBase + thickness * (1 + jag)]);
+    bottom.push([x, yBase + thickness * jag * 0.7]);
+  }
+  const outer = [...top, ...bottom.reverse()];
+  outer.push([...outer[0]]);
+  const hx = x0 + length / 2;
+  const hy = y0 + (length / 2) * slope + thickness / 2;
+  const hole = [
+    [hx - 0.005, hy - 0.004],
+    [hx + 0.006, hy - 0.004],
+    [hx + 0.006, hy + 0.005],
+    [hx - 0.005, hy + 0.005],
+    [hx - 0.005, hy - 0.004],
+  ];
+  return [outer, hole];
 }
 
 function writeCollection(name, features) {
@@ -649,6 +696,42 @@ describe("the no-fill grid repeat", () => {
     });
   });
 
+  test("a SINGLE_ANCHOR class takes the one-point treatment, grid stamps and all", () => {
+    // The 2026-08-21 trim is a SET MEMBERSHIP decision, and it is only under
+    // test when the interval stamps are present: without _QZMIN/_QZMAX
+    // gridSizeZoom returns null and EVERY class emits one point for a reason
+    // that has nothing to do with the split, which is why the RCTLPT tests
+    // further down (no stamps) cannot catch a class moved back into the grid
+    // set. Stamped, the grid arm is live and the only thing between MAGVAR
+    // and a lattice is SINGLE_ANCHOR_CLASSES. Behaviour, not a count literal:
+    // one point AND the vendor SCAMIN inherited (the strip is scoped to
+    // GRID_REPEAT_CLASSES), pinned against the grid-side control below on the
+    // identical fixture -- so the two treatments hold each other apart.
+    const bag = { LNAM: "AA", SCAMIN: 119999, _QZMIN: 11, _QZMAX: 11 };
+    const ring = box(0, 0, 1, 1);
+
+    // A plain SINGLE_ANCHOR member...
+    const magvar = anchors([polygon(bag, ring)], { className: "MAGVAR" });
+    expect(magvar).toHaveLength(1);
+    expect(magvar[0].properties.SCAMIN).toBe(119999);
+
+    // ...and the undirected half of a directed-leg class, which reaches this
+    // generator only when it carries no ORIENT.
+    const rctlpt = anchors([polygon(bag, ring)], { className: "RCTLPT" });
+    expect(rctlpt).toHaveLength(1);
+    expect(rctlpt[0].properties.SCAMIN).toBe(119999);
+
+    // The control: same bag, same ring, same stamps -- a GRID_REPEAT class
+    // grids it and drops the vendor SCAMIN. If this arm ever collapses to one
+    // point the fixture stopped exercising the grid and the assertions above
+    // would pass vacuously.
+    const swept = anchors([polygon(bag, ring)], { className: "SWPARE" });
+    expect(swept.length).toBeGreaterThan(1);
+    for (const feature of swept) {
+      expect(feature.properties).not.toHaveProperty("SCAMIN");
+    }
+  });
+
   test("a runaway component is coarsened to the point cap", () => {
     // The z14 step is ~0.022 deg, so 2 x 2 deg is ~8000 lattice nodes; the
     // step doubles (still a global lattice, so coverage stays even) until
@@ -833,6 +916,227 @@ describe("the no-fill grid repeat", () => {
   });
 });
 
+describe("the lattice scanline", () => {
+  /**
+   * The grid used to ask polygonsContaining for EVERY lattice node under the
+   * component's bbox -- O(nodes x ring vertices), and 3.2 s for one
+   * 50k-vertex coastal band at the z13 sizing, minutes per cell over a
+   * roster, which is what timed the 2026-08 East Coast batch out. The
+   * edge-driven scanline that replaced it (latticeNodesContained,
+   * bin/quilt-edges.mjs) must keep the NODE SET bit for bit: the lattice is
+   * global and every cell of one component derives the same nodes, so any
+   * drift double-draws symbols at cell seams. The oracle below IS the
+   * replaced loop, verbatim.
+   */
+
+  /** The replaced per-node scan, kept here as the parity oracle. */
+  function perNodeScan(entries, { i0, i1, j0, j1, stepLon, stepLat }) {
+    const points = [];
+    for (let j = j0; j <= j1; j++) {
+      for (let i = i0; i <= i1; i++) {
+        const node = [i * stepLon, j * stepLat];
+        if (polygonsContaining(entries, node).length > 0) points.push(node);
+      }
+    }
+    return points;
+  }
+
+  /** bin/generate-area-anchors' gridEntries: bbox off the outer ring. */
+  function entriesOf(parts) {
+    return parts.map((polygon) => {
+      let minX = Infinity;
+      let minY = Infinity;
+      let maxX = -Infinity;
+      let maxY = -Infinity;
+      for (const [x, y] of polygon[0]) {
+        if (x < minX) minX = x;
+        if (x > maxX) maxX = x;
+        if (y < minY) minY = y;
+        if (y > maxY) maxY = y;
+      }
+      return { polygon, minX, minY, maxX, maxY };
+    });
+  }
+
+  /**
+   * The generator's step and window derivation (gridPoints' prelude, caps
+   * aside) -- both sides of the parity get the identical window.
+   */
+  function windowOf(entries, sizeZoom) {
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+    for (const entry of entries) {
+      if (entry.minX < minX) minX = entry.minX;
+      if (entry.maxX > maxX) maxX = entry.maxX;
+      if (entry.minY < minY) minY = entry.minY;
+      if (entry.maxY > maxY) maxY = entry.maxY;
+    }
+    const stepLon = (512 * 360) / (512 * 2 ** sizeZoom);
+    const latBand = Math.round((minY + maxY) / 2 / 5) * 5;
+    const stepLat =
+      stepLon * Math.max(Math.cos((latBand * Math.PI) / 180), 0.01);
+    return {
+      i0: Math.ceil(minX / stepLon),
+      i1: Math.floor(maxX / stepLon),
+      j0: Math.ceil(minY / stepLat),
+      j1: Math.floor(maxY / stepLat),
+      stepLon,
+      stepLat,
+    };
+  }
+
+  /** Scanline against oracle, exact -- order, count and float identity. */
+  function parity(parts, sizeZoom) {
+    const entries = entriesOf(parts);
+    const window = windowOf(entries, sizeZoom);
+    const nodes = latticeNodesContained(entries, window);
+    expect(nodes).toEqual(perNodeScan(entries, window));
+    return { entries, nodes };
+  }
+
+  test("a convex polygon agrees node for node", () => {
+    const ring = [
+      [0.13, 0.21],
+      [1.42, 0.09],
+      [1.93, 0.77],
+      [1.61, 1.38],
+      [0.52, 1.44],
+      [0.08, 0.83],
+      [0.13, 0.21],
+    ];
+    const { nodes } = parity([[ring]], 11);
+    // the fixture earns its keep: a real interior, a real outside
+    expect(nodes.length).toBeGreaterThan(10);
+  });
+
+  test("a box standing exactly on lattice nodes agrees -- the half-open rule", () => {
+    // Every vertex is an exact multiple of the z11/band-0 step (360/2048 =
+    // 45/256, an exact binary fraction), so lattice nodes land ON the ring:
+    // corners, edges, the lot. This is the one fixture that can see the
+    // half-open crossing rule -- flipping `xs[k] <= x` to `<` in
+    // latticeNodesContained moves every boundary-exact node's parity and
+    // fails here, while the generic-position fixtures above cannot notice.
+    const step = 360 / 2 ** 11;
+    const ring = [
+      [2 * step, 1 * step],
+      [8 * step, 1 * step],
+      [8 * step, 6 * step],
+      [2 * step, 6 * step],
+      [2 * step, 1 * step],
+    ];
+    const { nodes } = parity([[ring]], 11);
+    expect(nodes.length).toBeGreaterThan(10);
+    // the fixture earns its keep: at least one kept node sits exactly on the
+    // ring boundary, so the rule is actually exercised
+    const onBoundary = nodes.filter(
+      ([x, y]) =>
+        x === 2 * step || x === 8 * step || y === 1 * step || y === 6 * step,
+    );
+    expect(onBoundary.length).toBeGreaterThan(0);
+  });
+
+  test("a concave polygon with a hole agrees", () => {
+    // A U on its back, one arm carrying a hole tall enough to cross several
+    // lattice rows: nodes in the notch and in the hole are outside, the arms
+    // inside -- even-odd over the entry's rings together.
+    const outer = [
+      [0.11, 0.14],
+      [2.87, 0.09],
+      [2.91, 2.33],
+      [2.12, 2.28],
+      [2.08, 0.91],
+      [0.95, 0.87],
+      [0.9, 2.31],
+      [0.14, 2.36],
+      [0.11, 0.14],
+    ];
+    const hole = [
+      [0.31, 0.33],
+      [0.72, 0.35],
+      [0.7, 1.61],
+      [0.33, 1.58],
+      [0.31, 0.33],
+    ];
+    const { nodes } = parity([[outer, hole]], 12);
+    expect(nodes.length).toBeGreaterThan(20);
+  });
+
+  test("two overlapping polygons OR together, never cancel", () => {
+    // The trap the PER-ENTRY parity exists for: one global even-odd count
+    // over all rings of all entries would call the overlap of two outer
+    // rings OUTSIDE. polygonsContaining says inside either -- so must the
+    // scanline, and the fixture proves it is really exercising the overlap.
+    const a = [
+      [0.12, 0.11],
+      [1.53, 0.16],
+      [1.49, 1.52],
+      [0.09, 1.47],
+      [0.12, 0.11],
+    ];
+    const b = [
+      [0.71, 0.68],
+      [2.13, 0.72],
+      [2.17, 2.09],
+      [0.74, 2.12],
+      [0.71, 0.68],
+    ];
+    const { entries, nodes } = parity([[a], [b]], 11);
+    const shared = nodes.filter(
+      (node) => polygonsContaining(entries, node).length === 2,
+    );
+    expect(shared.length).toBeGreaterThan(0);
+  });
+
+  test("a thin jagged band under a square bbox agrees", () => {
+    // The incident geometry at parity scale: a diagonal sliver whose bbox
+    // rows and columns nearly all miss it, with a hole ring along.
+    const { nodes } = parity([jaggedBand({ n: 4000 })], 12);
+    expect(nodes.length).toBeGreaterThan(10);
+  });
+
+  test("a polar-ish band agrees where the lat step shrinks", () => {
+    // Above 78N the 80-degree band's cos puts the latitude rows ~6x closer
+    // than the longitude columns -- the asymmetric-window case.
+    const ring = [
+      [-150.2, 78.31],
+      [-146.1, 78.44],
+      [-145.9, 79.52],
+      [-148.7, 79.18],
+      [-150.4, 79.41],
+      [-150.2, 78.31],
+    ];
+    const { nodes } = parity([[ring]], 9);
+    expect(nodes.length).toBeGreaterThan(10);
+  });
+
+  test("a 50,000-vertex coastal band converts in milliseconds, not minutes", () => {
+    // The incident fixture at full size, through the WHOLE generator as
+    // bin/s57-to-tiles runs it -- child process, ~2 MB of GeoJSON in and
+    // out, grid on at the z13 sizing (a 68 x 99 window). The replaced
+    // per-node scan took 3.2 s in gridPoints ALONE on this fixture; the
+    // bound is generous over the scanline's ~15 ms plus process overhead,
+    // and a regression toward nodes-times-vertices blows it immediately.
+    const [outer, hole] = jaggedBand();
+    const path = writeCollection("SWPARE.geojson", [
+      polygon({ LNAM: "AA", _QZMIN: 13, _QZMAX: 13 }, outer, hole),
+    ]);
+    const started = process.hrtime.bigint();
+    const features = run("--class", `SWPARE:${path}`);
+    const elapsedMs = Number(process.hrtime.bigint() - started) / 1e6;
+    // Measured 74-155 ms here (slowest observed environment); the replaced
+    // per-node loop costs 3239 ms on the same fixture. 500 keeps ~3x headroom
+    // over pass while still failing anything short of a ~6x regression -- a
+    // 2000 ms bound would let a fast machine pass a full regression.
+    expect(elapsedMs).toBeLessThan(500);
+    // and the grid really gridded: the guaranteed point plus a capped
+    // lattice, not a lone anchor
+    expect(features.length).toBeGreaterThan(50);
+    expect(features.length).toBeLessThanOrEqual(256);
+  });
+});
+
 describe("the directed-leg split", () => {
   /**
    * RCTLPT with ORIENT is a traffic leg: bin/generate-tss-anchors stitches its
@@ -982,7 +1286,7 @@ describe("the class set", () => {
     }
   });
 
-  test("every anchor class is classified: grid or fill, never neither", () => {
+  test("every anchor class is classified: grid, fill, or single, never neither", () => {
     // GRID_REPEAT_CLASSES is written out POSITIVELY. Derived as the anchor set
     // minus the filled one it FAILED OPEN: a class added to AREA_ANCHOR_CLASSES
     // landed in the grid set by default and silently took the riskier
@@ -1012,15 +1316,23 @@ describe("the class set", () => {
 
     const grid = classesOf("GRID_REPEAT_CLASSES");
     const fill = classesOf("AREA_FILL_CLASSES");
+    const single = classesOf("SINGLE_ANCHOR_CLASSES");
 
-    // Disjoint: no class both repeats its symbol and paints its interior.
+    // Pairwise disjoint: one treatment per class, never two.
     expect(grid.filter((name) => fill.includes(name))).toEqual([]);
+    expect(grid.filter((name) => single.includes(name))).toEqual([]);
+    expect(fill.filter((name) => single.includes(name))).toEqual([]);
     // Exhaustive: their union IS the anchor set. Classify any class you add
     // here explicitly -- there is no default any more.
-    expect([...grid, ...fill].sort()).toEqual([...anchorClasses].sort());
-    // The shipped split, pinned so a silent move between the two shows up.
-    expect(grid).toHaveLength(23);
+    expect([...grid, ...fill, ...single].sort()).toEqual(
+      [...anchorClasses].sort(),
+    );
+    // The shipped split (2026-08-21 user ruling trimmed the grid to the
+    // classes where a repeated mark aids navigation), pinned so a silent
+    // move between the lists shows up.
+    expect(grid).toHaveLength(14);
     expect(fill).toHaveLength(8);
+    expect(single).toHaveLength(9);
   });
 });
 

@@ -3,10 +3,13 @@
 // Derives the _AREA_ANCHORS layer: anchor points per area feature of the
 // ship-narrow class set, at which the style draws the feature's centred area
 // symbol (the PILBOP02 diamond, the CTNARE51 caution mark and their siblings)
-// instead of drawing it once per polygon per tile. A FILLED class gets ONE
-// point per (feature, interval); a class whose interior nothing paints gets a
-// ground-distance GRID of points, so the symbol that is the only sign the
-// area exists is never a screenful away -- see GRID_REPEAT_CLASSES.
+// instead of drawing it once per polygon per tile. Three treatments
+// (2026-08-21 ruling): a FILLED class gets ONE point per (feature, interval)
+// with its charted SCAMIN; a no-fill class in GRID_REPEAT_CLASSES gets a
+// ground-distance GRID of points with SCAMIN dropped, so the symbol that is
+// the only sign the area exists is never a screenful away; and a no-fill
+// class in SINGLE_ANCHOR_CLASSES keeps the one point and the charted SCAMIN
+// -- the ruling judged a repeated mark unhelpful there.
 //
 // Usage:
 //   bin/generate-area-anchors <output.geojson> \
@@ -103,7 +106,7 @@ import {
   ringArea,
 } from "./quilt-anchors.mjs";
 import { contentOf } from "./quilt-content.mjs";
-import { polygonsContaining } from "./quilt-edges.mjs";
+import { latticeNodesContained } from "./quilt-edges.mjs";
 import { anchorElection } from "./quilt-election.mjs";
 import {
   polygons,
@@ -219,45 +222,58 @@ const AREA_FILL_CLASSES = new Set([
   "FSHFAC",
 ]);
 
-// The rest: classes with NO fill of any kind. For these the centred symbol
-// (plus its text companion, e.g. SWPARE's "swept to X") is the only statement
-// the area makes, and one point per elected component leaves it tens of km
-// off-screen on a multi-cell swept area at high zoom. So these classes emit a
-// GRID of anchor points over the whole component -- roughly one per screenful
-// at the deepest zoom the copy serves -- and drop SCAMIN/SCAMAX from the bag
-// so the symbol serves the copy's whole interval (see the bag copy below).
+// No-fill classes where a REPEATED symbol aids navigation (2026-08-21 user
+// ruling, trimming the original all-no-fill list): the centred symbol (plus
+// its text companion, e.g. SWPARE's "swept to X") is the only statement the
+// area makes, and one point per elected component leaves it tens of km
+// off-screen on a multi-cell swept area at high zoom. These classes emit a
+// GRID of anchor points over the whole component -- roughly one per
+// screenful at the deepest zoom the copy serves -- and drop SCAMIN/SCAMAX
+// from the bag so the symbol serves the copy's whole interval (see the bag
+// copy below).
 //
-// Written out POSITIVELY rather than derived as AREA_ANCHOR_CLASSES minus
-// AREA_FILL_CLASSES: derived, a class added to the anchor set would land here
-// by default and silently take the riskier treatment (a repeated symbol and a
-// stripped vendor SCAMIN) without anyone having looked at whether its
-// interior is painted. ADDING A CLASS TO AREA_ANCHOR_CLASSES MEANS ADDING IT
-// TO THIS LIST OR TO AREA_FILL_CLASSES -- the union test in
+// Written out POSITIVELY rather than derived: derived, a class added to the
+// anchor set would silently take the riskier treatment (a repeated symbol
+// and a stripped vendor SCAMIN) without anyone having looked at it. ADDING A
+// CLASS TO AREA_ANCHOR_CLASSES MEANS ADDING IT TO EXACTLY ONE OF THIS LIST,
+// AREA_FILL_CLASSES, OR SINGLE_ANCHOR_CLASSES -- the union test in
 // test/generate-area-anchors.test.js fails until you do.
 const GRID_REPEAT_CLASSES = new Set([
-  "CTNARE",
-  "PILBOP",
-  "DWRTPT",
-  "ISTZNE",
   "ACHBRT",
   "BERTHS",
-  "BRIDGE",
   "CHKPNT",
   "CONVYR",
+  "CTNARE",
   "CTSARE",
-  "FERYRT",
   "FSHGRD",
   "HRBFAC",
-  "LOCMAG",
   "LOGPON",
-  "MAGVAR",
-  "NEWOBJ",
+  "PILBOP",
   "PRDARE",
-  "RCTLPT",
-  "RECTRC",
   "SWPARE",
   "WATTUR",
   "WEDKLP",
+]);
+
+// No-fill classes the 2026-08-21 ruling REMOVED from the grid: back to the
+// pre-grid contract in full -- one elected anchor per (component, interval),
+// SCAMIN/SCAMAX inherited from the bag like every other class. (That keeps
+// their old symptom too: a rescheme-era SCAMIN opens ~1.6 zooms after the
+// copy's floor. Deliberate -- the ruling was a revert, not a half-revert.)
+// BRIDGE polygons never fit a grid step anyway; RCTLPT/RECTRC directed legs
+// belong to bin/generate-tss-anchors, and their undirected remainder plus
+// the route/zone bands (DWRTPT, FERYRT, ISTZNE) and the magnetic pair
+// (LOCMAG, MAGVAR) read better as one mark; NEWOBJ is a placeholder class.
+const SINGLE_ANCHOR_CLASSES = new Set([
+  "BRIDGE",
+  "DWRTPT",
+  "FERYRT",
+  "ISTZNE",
+  "LOCMAG",
+  "MAGVAR",
+  "NEWOBJ",
+  "RCTLPT",
+  "RECTRC",
 ]);
 
 // ---- the grid --------------------------------------------------------------
@@ -291,9 +307,13 @@ const GRID_SPACING_PIXELS = 512;
 // happens.
 const GRID_MAX_POINTS = 256;
 
-// Iteration guard: lattice nodes TESTED (not kept) per attempt. Pre-coarsens
-// from the bbox alone so a sliver component in a huge bbox cannot make the
-// point-in-polygon loop quadratic before the cap can see the count.
+// Iteration guard: lattice nodes per attempt, pre-coarsened from the bbox
+// alone. Under the edge-driven scanline (latticeNodesContained) the node
+// count is no longer the dominant cost -- the transient row buckets are,
+// ~O(ring vertices) on real coastal geometry and O(vertices x rows) worst
+// case for full-height edges (measured ~40 MB at 50k vertices x 68 rows) --
+// but the cap stays: it bounds the emitted-node loop, the retry ladder, and
+// that worst-case bucket memory all at once.
 const GRID_MAX_LATTICE = 65536;
 
 const args = process.argv.slice(2);
@@ -485,17 +505,24 @@ function gridPoints(entries, sizeZoom) {
   }
 
   for (;;) {
-    const points = [];
     const i0 = Math.ceil(minX / stepLon);
     const i1 = Math.floor(maxX / stepLon);
     const j0 = Math.ceil(minY / stepLat);
     const j1 = Math.floor(maxY / stepLat);
-    for (let j = j0; j <= j1; j++) {
-      for (let i = i0; i <= i1; i++) {
-        const node = [i * stepLon, j * stepLat];
-        if (polygonsContaining(entries, node).length > 0) points.push(node);
-      }
-    }
+    // Edge-driven scanline, not a per-node polygonsContaining ray cast over
+    // every ring vertex: a coastal band's rings run to ~10^5 vertices under a
+    // bbox that pre-coarsens to the full GRID_MAX_LATTICE, and nodes x
+    // vertices is minutes per (component, interval) -- what timed the
+    // 2026-08 East Coast batch out. Same node set, same row-major order --
+    // see latticeNodesContained for the equivalence, held bit for bit.
+    const points = latticeNodesContained(entries, {
+      i0,
+      i1,
+      j0,
+      j1,
+      stepLon,
+      stepLat,
+    });
     // < rather than <=: the guaranteed pointOnSurface anchor rides on top, and
     // the cap bounds the TOTAL per (component, interval).
     if (points.length < GRID_MAX_POINTS)

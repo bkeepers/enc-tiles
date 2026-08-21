@@ -295,6 +295,115 @@ export function coverageContains(entries, point) {
 }
 
 /**
+ * Every lattice node `[i * stepLon, j * stepLat]`, `i0 <= i <= i1` and
+ * `j0 <= j <= j1`, that some entry contains -- exactly the nodes the
+ * per-node loop `polygonsContaining(entries, node).length > 0` keeps, in the
+ * same row-major order (j ascending outer, i ascending inner), but derived
+ * EDGE-FIRST rather than node-first.
+ *
+ * WHY: the per-node loop is O(nodes x total ring vertices). A coastal band
+ * class (MAGVAR, FSHGRD, CTNARE) is a long thin diagonal strip whose bbox is
+ * square degrees while its rings run to ~10^5 vertices, so nearly all of a
+ * 65536-node lattice ray-casts the full vertex count -- measured 3.2 s for
+ * ONE 50k-vertex band at bin/generate-area-anchors' z13 sizing, minutes per
+ * cell over a component's roster, which is what timed the 2026-08 East Coast
+ * batch out of its conversion budget. Walking each EDGE once and bucketing
+ * its row crossings is O(vertices + nodes) instead.
+ *
+ * HOW the equivalence holds, ring for ring: `inRing`'s ray test counts an
+ * edge when exactly one endpoint lies strictly above the node's latitude
+ * (the standard half-open rule -- min(y1,y2) <= lat < max(y1,y2), horizontal
+ * edges never) and the crossing sits strictly right of the node. So a node
+ * is inside one ENTRY iff the count of that entry's crossings (all rings
+ * together, outer and holes -- even-odd) strictly right of it is ODD, which
+ * a per-row sorted bucket answers with one forward pointer. The parity runs
+ * PER ENTRY and the rows are OR-ed across entries, never globally: two
+ * overlapping outer rings would cancel under one global even-odd count where
+ * polygonsContaining says "inside either". The ONE load-bearing boundary
+ * decision is the half-open pointer advance (`xs[k] <= x`): flip it and every
+ * boundary-exact node changes parity (pinned by the lattice-aligned fixture
+ * in test/generate-area-anchors.test.js). The rest is belt and braces, kept
+ * deliberately but not observed to be load-bearing under fuzzing: the entry
+ * bbox gate as an explicit coordinate compare with row/column windows
+ * widened a node each side (rounding insurance), the crossing x computed
+ * with inRing's own expression (float-identity insurance), and the
+ * horizontal-edge skip (a pure short-circuit -- the endpoint test already
+ * rejects horizontals).
+ *
+ * The caller bounds the lattice (bin/generate-area-anchors pre-coarsens to
+ * GRID_MAX_LATTICE from the bbox alone); the row buffer here is one lattice
+ * row wide.
+ */
+export function latticeNodesContained(
+  entries,
+  { i0, i1, j0, j1, stepLon, stepLat },
+) {
+  const width = i1 - i0 + 1;
+  const points = [];
+  if (width <= 0 || j1 < j0) return points;
+
+  // Per entry, per lattice row: the sorted crossing x of every non-horizontal
+  // ring edge spanning that row. Each edge visits only the rows it spans.
+  const crossingRows = entries.map((entry) => {
+    const rows = new Map();
+    for (const ring of entry.polygon) {
+      for (let k = 1; k < ring.length; k++) {
+        const [x1, y1] = ring[k - 1];
+        const [x2, y2] = ring[k];
+        if (y1 === y2) continue;
+        const lo = y1 < y2 ? y1 : y2;
+        const hi = y1 < y2 ? y2 : y1;
+        const jA = Math.max(j0, Math.ceil(lo / stepLat) - 1);
+        const jB = Math.min(j1, Math.ceil(hi / stepLat));
+        for (let j = jA; j <= jB; j++) {
+          const y = j * stepLat;
+          if (y1 > y === y2 > y) continue; // the half-open crossing rule
+          const x = ((x2 - x1) * (y - y1)) / (y2 - y1) + x1;
+          let bucket = rows.get(j);
+          if (!bucket) rows.set(j, (bucket = []));
+          bucket.push(x);
+        }
+      }
+    }
+    for (const bucket of rows.values()) bucket.sort((a, b) => a - b);
+    return rows;
+  });
+
+  const inside = new Uint8Array(width);
+  for (let j = j0; j <= j1; j++) {
+    inside.fill(0);
+    const y = j * stepLat;
+    let any = false;
+    for (let e = 0; e < entries.length; e++) {
+      const entry = entries[e];
+      if (y < entry.minY || y > entry.maxY) continue; // the bbox gate, lat half
+      const xs = crossingRows[e].get(j);
+      if (!xs) continue; // no crossings: even parity everywhere on this row
+      const count = xs.length;
+      const iA = Math.max(i0, Math.ceil(entry.minX / stepLon) - 1);
+      const iB = Math.min(i1, Math.floor(entry.maxX / stepLon) + 1);
+      let k = 0;
+      for (let i = iA; i <= iB; i++) {
+        const x = i * stepLon;
+        while (k < count && xs[k] <= x) k++;
+        // Odd crossings strictly right of the node -- inRing's ray, entry's
+        // rings together -- inside the bbox gate's longitude half.
+        if ((count - k) % 2 === 1 && x >= entry.minX && x <= entry.maxX) {
+          if (!inside[i - i0]) {
+            inside[i - i0] = 1;
+            any = true;
+          }
+        }
+      }
+    }
+    if (!any) continue;
+    for (let i = i0; i <= i1; i++)
+      if (inside[i - i0]) points.push([i * stepLon, j * stepLat]);
+  }
+  return points;
+}
+
+/**
  * A point `NEIGHBOR_PROBE_EPSILON` out of the filled side of a walked segment.
  *
  * The walk is the owners' canonical ring direction -- filled side on the RIGHT
