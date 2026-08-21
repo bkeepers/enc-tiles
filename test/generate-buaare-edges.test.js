@@ -251,6 +251,38 @@ describe("chart boundaries are dropped, not drawn", () => {
   });
 });
 
+describe("the fallback copy's cut against COARSER coverage", () => {
+  // The one copy of the ladder that is cut against coarser coverage, on rings
+  // neither --coverage (finer only) nor the cell's own unclipped M_COVR knows.
+  // Without --fallback-coverage the outline was ruled down every
+  // compilation-scale junction. See THE FALLBACK CUT in bin/quilt-edges.mjs.
+  const coarser = () =>
+    writeCollection("quilting_fallback_coverage.geojson", [
+      polygon({ INTU: 2 }, EAST_HALF),
+    ]);
+
+  test("a fallback cut against a coarser chart is dropped", () => {
+    const areas = writeCollection("BUAARE.geojson", [
+      polygon({ OBJNAM: "Seattle", _QZMAX: 5, _QFALL: 1 }, WEST_HALF),
+    ]);
+
+    const features = run("--built-up", areas, "--fallback-coverage", coarser());
+
+    expect(features.length).toBeGreaterThan(0);
+    expect(hasMeridian(features)).toBe(false);
+  });
+
+  test("the same cut on a STAMPED interval keeps its line", () => {
+    const areas = writeCollection("BUAARE.geojson", [
+      polygon({ OBJNAM: "Seattle", _QZMIN: 9 }, WEST_HALF),
+    ]);
+
+    const features = run("--built-up", areas, "--fallback-coverage", coarser());
+
+    expect(hasMeridian(features)).toBe(true);
+  });
+});
+
 describe("the zoom partition", () => {
   test("each interval is classified and chained on its OWN segments", () => {
     // Two copies of one pair, one per interval of the copy ladder. A shared

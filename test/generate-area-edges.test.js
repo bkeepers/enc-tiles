@@ -1405,6 +1405,73 @@ describe("cross-cell semantic evidence", () => {
   });
 });
 
+describe("the fallback copy's cut against COARSER coverage", () => {
+  // The fallback continuation (_QFALL = 1) is the one copy the ladder cuts
+  // against COARSER coverage, and the cut lands on rings no other roster holds:
+  // --coverage carries finer charts only, and this cell's M_COVR is exempt from
+  // the partition and arrives whole. The truncated area therefore never reached
+  // chartBorderTest at all, so BAND NESTING and the ZONE-CLASS exemption below
+  // it never ran and the compilation-scale junction was drawn as a boundary.
+  //
+  // Geometry throughout: the fallback copy is the WEST half, the coarser chart
+  // covers the EAST half, and the cut is the meridian at x = 0.5. The cell's own
+  // ring is the WHOLE square, which is exactly why the meridian is invisible to
+  // --cell-coverage.
+  const fallbackArea = (extra = { _QZMAX: 7, _QFALL: 1 }) =>
+    writeCollection("RESARE.geojson", [
+      polygon({ RESTRN: "7", ...extra }, WEST_HALF),
+    ]);
+  const wholeCell = () =>
+    writeCollection("M_COVR.geojson", [polygon({ CATCOV: 1 }, CELL_RING)]);
+  const coarserRing = () =>
+    writeCollection("quilting_fallback_coverage.geojson", [
+      polygon({ INTU: 2, QFLOOR: 5 }, EAST_HALF),
+    ]);
+
+  /** The full production wiring, with the fallback roster optional. */
+  function runCut(areas, { fallback = true } = {}) {
+    return run(
+      "--area",
+      `RESARE:${areas}`,
+      "--cell-coverage",
+      wholeCell(),
+      ...(fallback ? ["--fallback-coverage", coarserRing()] : []),
+      "--neighbor-coverage",
+      neighborCoverage("neighbors.geojson", {
+        dsnm: "US2COARSE",
+        qfloor: 5,
+      }),
+      "--neighbor-area-evidence",
+      writeCollection("evidence.geojson", []),
+      "--cell-floor",
+      "9",
+    );
+  }
+
+  test("the cut is a chart border, so BAND NESTING suppresses it", () => {
+    // Cell floor 9, far side served by a floor-5 chart that carries no RESARE
+    // at all: a band handover, and a band handover never draws an area
+    // boundary. Without the roster the segment is not even a candidate.
+    expect(hasMeridian(runCut(fallbackArea()))).toBe(false);
+  });
+
+  test("without the roster the same cut is drawn (the defect)", () => {
+    expect(hasMeridian(runCut(fallbackArea(), { fallback: false }))).toBe(true);
+  });
+
+  test("a STAMPED interval on the same ring keeps its boundary", () => {
+    // No stamped copy was ever cut against a coarser chart, so a coarser ring
+    // crossing one lies over ground no clip touched and the boundary along it
+    // is real. The gate is the interval, and nothing else changed here.
+    expect(hasMeridian(runCut(fallbackArea({ _QZMIN: 9 })))).toBe(true);
+  });
+
+  test("an unpartitioned input never reaches the coarser rings either", () => {
+    // No _QFALL, no _QZMIN: one legacy interval, and the legacy answer.
+    expect(hasMeridian(runCut(fallbackArea({})))).toBe(true);
+  });
+});
+
 describe("the zoom partition", () => {
   test("each interval is classified and chained on its OWN segments", () => {
     // Two copies of one differing pair, one per interval of the copy ladder. A

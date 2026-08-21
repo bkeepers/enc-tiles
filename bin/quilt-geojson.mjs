@@ -61,6 +61,17 @@ export function quiltRange(properties) {
   return range;
 }
 
+/**
+ * Whether an interval's range is the FALLBACK continuation's.
+ *
+ * `_QFALL` reaches a generator through ogr2ogr's GeoJSON writer, which may make
+ * it a number or a string, and an absent stamp is `undefined` while an OGR null
+ * one is `null` -- `Number(null)` being 0, both fall through as not-fallback.
+ */
+export function isFallbackInterval(range) {
+  return Number(range?._QFALL) === 1;
+}
+
 /** The interval key of a range. Legacy inputs all share the empty one. */
 export function quiltKey(range) {
   return QUILT_PROPERTIES.map((name) => range[name] ?? "").join(

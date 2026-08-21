@@ -973,6 +973,23 @@ describe("BUAARE fragments of one town", () => {
     }
   });
 
+  test("a POINT or LINE built-up area is left alone too (FIX-087)", () => {
+    // S-57 carries BUAARE in all three primitives and ogr2ogr lands them in one
+    // mixed-geometry table. Grouped by OBJNAM alone, a town's symbol point is
+    // unioned into the town's polygon -- and where the two are disjoint GEOS
+    // returns a GEOMETRYCOLLECTION, which matches NEITHER arm of the copy
+    // ladder's geometry guard: not the POLYGON/LINESTRING arm the difference
+    // runs under, not the POINT arm the containment sweep runs under. The row
+    // is never clipped and never swept, so its fallback copy survives whole,
+    // tens of kilometres inside the coverage of the coarser chart that was
+    // supposed to erase it (24 features at Providence and Boston, 2026-08-20).
+    for (const statement of dissolveStatements(run(TOWN_CELL).sql)) {
+      expect(statement).toContain(
+        "GeometryType(geom) IN ('POLYGON', 'MULTIPOLYGON')",
+      );
+    }
+  });
+
   test("a cell with no BUAARE runs no dissolve at all", () => {
     const { sql } = run(THREE_RUNG_CELL);
 
@@ -1569,6 +1586,84 @@ describe("the area edge generator", () => {
     const { node } = run(THREE_RUNG_CELL);
 
     expect(node).not.toContain("_AREA_EDGE.geojson");
+  });
+});
+
+describe("the fallback copy's coarser roster", () => {
+  // The fallback continuation is the one copy cut against COARSER coverage
+  // (quilt_mask_coarser), and until this roster existed the cut was invisible
+  // to every edge generator: --coverage carries finer charts alone and the
+  // cell's own M_COVR is exempt from the ladder, so a compilation-scale
+  // junction came out as the edge of the survey -- a bold safety contour down
+  // the join. See THE FALLBACK CUT in bin/quilt-edges.mjs.
+  const EDGE_CELL = {
+    ...THREE_RUNG_CELL,
+    STUB_TABLES: "DEPARE M_COVR M_QUAL BUAARE RESARE",
+  };
+  const ROSTER = "quilting_fallback_coverage.geojson";
+
+  test("it is exported COARSER-only, beside the finer one", () => {
+    // Two exports of one table with opposite predicates. The cell's floor is 8
+    // here; rows AT that floor are its peers and clip nothing either way.
+    const { sql } = run(EDGE_CELL);
+
+    const coarser = statements(sql).find((entry) => entry.includes(ROSTER));
+    expect(coarser).toBeDefined();
+    expect(coarser).toContain("QFLOOR < 8");
+    expect(coarser).toContain("INTU,CSCALE,QFLOOR");
+
+    const finer = statements(sql).find(
+      (entry) =>
+        entry.includes("quilting_coverage.geojson") && !entry.includes(ROSTER),
+    );
+    expect(finer).toBeDefined();
+    expect(finer).toContain("QFLOOR > 8");
+  });
+
+  test("every edge generator is handed it", () => {
+    // All four derive their edges AFTER the clip, so all four see the cut.
+    const { node } = run(EDGE_CELL);
+
+    for (const generator of [
+      "generate-depare-edges",
+      "generate-mqual-edges",
+      "generate-buaare-edges",
+      "generate-area-edges",
+    ]) {
+      expect(node).toMatch(
+        new RegExp(`${generator} .*--fallback-coverage \\S+${ROSTER}`),
+      );
+    }
+  });
+
+  test("an EMPTY coarser mask exports none and passes none either", () => {
+    // The roster is an instruction -- "an edge on one of these rings is a cut
+    // this pipeline made, erase it" -- and it is a lie wherever the cut did
+    // not run. With nothing coarser beneath, the fallback copy is left WHOLE
+    // (see "with nothing coarser beneath, the copy is left uncut"), so a
+    // coarser chart's ring crossing it bounds ground nothing ever clipped: an
+    // edge along it is REAL and erasing it takes a contour off the chart.
+    // Exported unconditionally, that is exactly what the generators were told.
+    const { sql, node } = run({ ...EDGE_CELL, STUB_HAS_COARSER: "0" });
+
+    // The cell IS partitioned -- this is not the no-coverage case below; the
+    // mask was built and came back empty.
+    expect(sql).toContain("CREATE TABLE quilt_mask_coarser");
+    expect(sql).not.toContain(ROSTER);
+    expect(node).not.toContain("--fallback-coverage");
+    // The FINER roster is unaffected: it describes the rung clips, which ran.
+    expect(node).toContain("--coverage");
+  });
+
+  test("an unpartitioned cell exports none and passes none", () => {
+    // No coverage table means no ladder, no fallback copy and nothing cut.
+    const { sql, node } = run(
+      { ...EDGE_CELL, STUB_HAS_MASK: "0", STUB_HAS_COARSER: "0" },
+      { coverage: false },
+    );
+
+    expect(sql).not.toContain(ROSTER);
+    expect(node).not.toContain("--fallback-coverage");
   });
 });
 

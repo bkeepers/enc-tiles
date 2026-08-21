@@ -30,9 +30,10 @@
 //
 //   A segment whose owners ALL lie on ONE side -- a single owner, or several
 //   overlapping areas truncated together by the same edge -- that lies along a
-//   quilt cut or along this cell's own M_COVR ring is DROPPED. The area(s)
-//   continue into the neighbouring chart and THIS cell cannot see what is
-//   there, so emitting the segment claims a change the data does not show --
+//   quilt cut, along a FALLBACK cut (see below) or along this cell's own M_COVR
+//   ring is DROPPED. The area(s) continue into the neighbouring chart and THIS
+//   cell cannot see what is there, so emitting the segment claims a change the
+//   data does not show --
 //   and a chart ruled into boxes at its cell borders is the whole defect this
 //   machinery exists to remove. "All on one side" is read off the canonical
 //   ring directions: owners whose interiors share a side walk the segment the
@@ -53,6 +54,19 @@
 //   wherever it lies. If this cell holds both sides of a boundary then it has
 //   the evidence, and a coverage ring running along an interior boundary does
 //   not take it away.
+//
+// THE FALLBACK CUT
+//
+//   `coveragePaths` holds strictly FINER coverage, because that is all a
+//   stamped copy of the ladder is ever cut against. The FALLBACK continuation
+//   (_QFALL = 1) is the exception: bin/s57-to-tiles differences it against the
+//   union of all strictly COARSER coverage, so it is truncated at the
+//   compilation-scale junction, on rings neither `coveragePaths` nor the cell's
+//   own (unclipped) M_COVR describes. `fallbackCoveragePaths` carries those
+//   rings and is consulted ONLY when the interval's range says _QFALL -- a
+//   coarser chart's ring crosses a stamped copy's interior over ground no clip
+//   ever touched, and reading it as a chart border there would erase a real
+//   boundary.
 //
 // THE EDGE OF ALL CHARTED DATA (the neighbour-continuation refinement)
 //
@@ -85,6 +99,7 @@
 import {
   exteriorRings,
   intervalIndex,
+  isFallbackInterval,
   orientedRings,
   readFeatures,
   rings,
@@ -331,9 +346,11 @@ function wrapLongitude(lon) {
 /**
  * The coverage inputs every edge generator takes, as one seam test.
  *
- * `--coverage` is the quilt cut against a FINER chart; `--cell-coverage` is this
- * cell's own M_COVR. Both are chart borders and neither is a change in
- * anything. Passing neither gives a test that is false everywhere, which is the
+ * `--coverage` is the quilt cut against a FINER chart; `--fallback-coverage`
+ * the fallback copy's cut against a COARSER one (see THE FALLBACK CUT, and note
+ * that it applies to the _QFALL interval alone); `--cell-coverage` is this
+ * cell's own M_COVR. All three are chart borders and none of them is a change
+ * in anything. Passing none gives a test that is false everywhere, which is the
  * legacy behaviour: every truncated edge is emitted.
  *
  * `neighborPaths` -- the OTHER charts' coverage, this cell's own rows harmless
@@ -342,15 +359,22 @@ function wrapLongitude(lon) {
  * THE EDGE OF ALL CHARTED DATA above). The quilt-cut half never consults it: a
  * quilt cut exists because a finer chart covers the far side. The test takes
  * the owners' canonical walk as its third argument so the probe knows which
- * side is out; a caller that omits it gets the unconditional legacy drop.
+ * side is out; a caller that omits it gets the unconditional legacy drop. The
+ * fifth argument is the interval's range, which is what gates the fallback
+ * rings; a caller that omits it never reaches them.
  */
 export function chartBorderTest(
   coveragePaths,
   cellCoveragePaths,
   neighborPaths,
+  fallbackCoveragePaths,
 ) {
   const quilt = {
     index: coverageIndex(coveragePaths, SEAM_TOLERANCE),
+    tolerance: SEAM_TOLERANCE,
+  };
+  const fallback = {
+    index: coverageIndex(fallbackCoveragePaths ?? [], SEAM_TOLERANCE),
     tolerance: SEAM_TOLERANCE,
   };
   const cell = {
@@ -367,11 +391,15 @@ export function chartBorderTest(
       ? coveragePolygons(neighborPaths)
       : null;
 
-  return (a, b, walk) => {
+  return (a, b, walk, _sides, range) => {
     const mid = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
     if (
       !alongRing(quilt.index, quilt.tolerance, a, mid, b) &&
-      !alongRing(cell.index, cell.tolerance, a, mid, b)
+      !alongRing(cell.index, cell.tolerance, a, mid, b) &&
+      !(
+        isFallbackInterval(range) &&
+        alongRing(fallback.index, fallback.tolerance, a, mid, b)
+      )
     ) {
       return false;
     }

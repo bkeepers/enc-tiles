@@ -7,7 +7,8 @@
 // Usage:
 //   bin/generate-mqual-edges <output.geojson> \
 //     --quality M_QUAL.geojson \
-//     [--coverage quilting_coverage.geojson] [--cell-coverage M_COVR.geojson]
+//     [--coverage quilting_coverage.geojson] [--cell-coverage M_COVR.geojson] \
+//     [--fallback-coverage quilting_fallback_coverage.geojson]
 //
 // Why this layer exists:
 //
@@ -45,9 +46,11 @@
 //     split: one survey, two polygons, no change in confidence.
 //   * A segment owned by two zones one of which carries no CATZOC: both sides
 //     read -1, they agree, and it is dropped by the same rule.
-//   * A single-owner segment on a QUILT CUT (--coverage) or on this cell's OWN
-//     M_COVR ring (--cell-coverage). See THE CHART BORDER in
-//     bin/quilt-edges.mjs for the trade that buys.
+//   * A single-owner segment on a QUILT CUT (--coverage), on the FALLBACK
+//     copy's cut against coarser coverage (--fallback-coverage, which counts
+//     on the _QFALL interval alone) or on this cell's OWN M_COVR ring
+//     (--cell-coverage). See THE CHART BORDER in bin/quilt-edges.mjs for the
+//     trade that buys.
 //
 //     This is where _MQUAL_EDGE parts company with _DEPARE_EDGE, which FLAGS
 //     its seams (SEAM = 1) instead of dropping them. A depth-area seam still
@@ -63,6 +66,7 @@ import { readFeatures } from "./quilt-geojson.mjs";
 const args = process.argv.slice(2);
 const qualityPaths = [];
 const coveragePaths = [];
+const fallbackCoveragePaths = [];
 const cellCoveragePaths = [];
 const positional = [];
 
@@ -70,6 +74,8 @@ for (let i = 0; i < args.length; i++) {
   if (args[i] === "--quality" && args[i + 1]) qualityPaths.push(args[++i]);
   else if (args[i] === "--coverage" && args[i + 1])
     coveragePaths.push(args[++i]);
+  else if (args[i] === "--fallback-coverage" && args[i + 1])
+    fallbackCoveragePaths.push(args[++i]);
   else if (args[i] === "--cell-coverage" && args[i + 1])
     cellCoveragePaths.push(args[++i]);
   else positional.push(args[i]);
@@ -78,7 +84,7 @@ for (let i = 0; i < args.length; i++) {
 const outputPath = positional[0];
 if (!outputPath || qualityPaths.length === 0) {
   console.error(
-    "Usage: generate-mqual-edges <output.geojson> --quality <file> [--coverage <file>] [--cell-coverage <file>]",
+    "Usage: generate-mqual-edges <output.geojson> --quality <file> [--coverage <file>] [--fallback-coverage <file>] [--cell-coverage <file>]",
   );
   process.exit(1);
 }
@@ -107,7 +113,15 @@ const { features, segmentTotal, seamTotal } = deriveDifferEdges({
       properties: { CATZOC_LO: low, CATZOC_HI: high },
     };
   },
-  onSeam: chartBorderTest(coveragePaths, cellCoveragePaths),
+  // The fallback copy's cut against COARSER coverage is a chart border too,
+  // and one no other roster describes; consulted on the _QFALL interval alone.
+  // See THE FALLBACK CUT in bin/quilt-edges.mjs.
+  onSeam: chartBorderTest(
+    coveragePaths,
+    cellCoveragePaths,
+    null,
+    fallbackCoveragePaths,
+  ),
 });
 
 writeFileSync(

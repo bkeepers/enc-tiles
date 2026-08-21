@@ -6,7 +6,8 @@
 // Usage:
 //   bin/generate-buaare-edges <output.geojson> \
 //     --built-up BUAARE.geojson \
-//     [--coverage quilting_coverage.geojson] [--cell-coverage M_COVR.geojson]
+//     [--coverage quilting_coverage.geojson] [--cell-coverage M_COVR.geojson] \
+//     [--fallback-coverage quilting_fallback_coverage.geojson]
 //
 // Why this layer exists:
 //
@@ -39,10 +40,12 @@
 //     * NULL beside a named area.
 //
 //   The one thing that is dropped is a SINGLE-owner segment lying along a
-//   quilt cut or along this cell's own M_COVR ring, named or not: the area
-//   continues onto the next chart, which this cell cannot see. See THE CHART
-//   BORDER in bin/quilt-edges.mjs. An outline that stops at the cell border is
-//   the intended result -- the neighbouring cell draws the rest of it.
+//   quilt cut, along the fallback copy's cut against coarser coverage (on the
+//   _QFALL interval alone), or along this cell's own M_COVR ring, named or not:
+//   the area continues onto the next chart, which this cell cannot see. See THE
+//   CHART BORDER in bin/quilt-edges.mjs. An outline that stops at the cell
+//   border is the intended result -- the neighbouring cell draws the rest of
+//   it.
 //
 // The features carry no attributes of their own beyond the copy ladder's. An
 // edge has two sides and no single OBJNAM to name it with, the style draws the
@@ -57,6 +60,7 @@ import { readFeatures } from "./quilt-geojson.mjs";
 const args = process.argv.slice(2);
 const builtUpPaths = [];
 const coveragePaths = [];
+const fallbackCoveragePaths = [];
 const cellCoveragePaths = [];
 const positional = [];
 
@@ -64,6 +68,8 @@ for (let i = 0; i < args.length; i++) {
   if (args[i] === "--built-up" && args[i + 1]) builtUpPaths.push(args[++i]);
   else if (args[i] === "--coverage" && args[i + 1])
     coveragePaths.push(args[++i]);
+  else if (args[i] === "--fallback-coverage" && args[i + 1])
+    fallbackCoveragePaths.push(args[++i]);
   else if (args[i] === "--cell-coverage" && args[i + 1])
     cellCoveragePaths.push(args[++i]);
   else positional.push(args[i]);
@@ -72,7 +78,7 @@ for (let i = 0; i < args.length; i++) {
 const outputPath = positional[0];
 if (!outputPath || builtUpPaths.length === 0) {
   console.error(
-    "Usage: generate-buaare-edges <output.geojson> --built-up <file> [--coverage <file>] [--cell-coverage <file>]",
+    "Usage: generate-buaare-edges <output.geojson> --built-up <file> [--coverage <file>] [--fallback-coverage <file>] [--cell-coverage <file>]",
   );
   process.exit(1);
 }
@@ -113,7 +119,15 @@ const { features, segmentTotal, seamTotal } = deriveDifferEdges({
     // free to run a line through a vertex two segments of it share.
     return { signature: "", properties: {} };
   },
-  onSeam: chartBorderTest(coveragePaths, cellCoveragePaths),
+  // The fallback copy's cut against COARSER coverage is a chart border too,
+  // and one no other roster describes; consulted on the _QFALL interval alone.
+  // See THE FALLBACK CUT in bin/quilt-edges.mjs.
+  onSeam: chartBorderTest(
+    coveragePaths,
+    cellCoveragePaths,
+    null,
+    fallbackCoveragePaths,
+  ),
 });
 
 writeFileSync(

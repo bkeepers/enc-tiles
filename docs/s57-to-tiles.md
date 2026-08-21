@@ -55,9 +55,13 @@ Two of them are not S-57 attributes at all, and are added at step 2:
 | `DSNM`    | `M_COVR` | The cell's own 8-character name, from `DSID_DSNM` with its `.000`/`.001` extension stripped. On the coverage polygon ALONE — that is what a pick resolves the chart through. |
 
 BUAARE is also **dissolved by name** at step 2: `ST_Union` grouped by `OBJNAM`,
-per cell, so the shared border between two fragments of one town is not stroked
-as though it separated two places. A NULL or empty `OBJNAM` is left alone —
-"neither has a name" is not evidence that two areas are the same place — and
+per cell, over the AREAL rows only, so the shared border between two fragments
+of one town is not stroked as though it separated two places. A NULL or empty
+`OBJNAM` is left alone — "neither has a name" is not evidence that two areas are
+the same place — as is a point or line BUAARE whatever its name: unioning a
+town's symbol point into the town's polygon yields a GEOMETRYCOLLECTION wherever
+the two are disjoint, and a collection matches neither arm of the copy ladder's
+geometry guard, so the row is then never clipped and never swept (FIX-087). And
 fragments of one name that do not touch come out as a MultiPolygon, which draws
 exactly as they did. Borders remain between differently-named areas, which is
 correct, and at CELL SEAMS, which is not: the other half of a town is in a
@@ -70,17 +74,17 @@ carry information a MapLibre style cannot compute at render time — cross-featu
 spatial relationships and geometry MapLibre cannot draw. Their names all start
 with an underscore.
 
-| Layer             | Built by                           | Contents                                                                                                                                                                               |
-| ----------------- | ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `_LIGHTS_SECTORS` | `bin/generate-sector-arcs`         | LineString arcs and radial legs for sector lights (LIGHTS06) — one copy per zoom, see below.                                                                                           |
-| `_DEPARE_EDGE`    | `bin/generate-depare-edges`        | Shared edges of the DEPARE/DRGARE partition, with `DRVAL_LO`/`DRVAL_HI` on either side, a coincident `VALDCO`, and `SEAM` where the quilt clip or the cell's own M_COVR ring cut them. |
-| `_LABELS`         | `bin/generate-labels`              | One point per (`OBJNAM`, `INTU`) group of LNDARE/LNDRGN/SEAARE/BUAARE, with `CLASS` and the group's `AREA`.                                                                            |
-| `_MQUAL_EDGE`     | `bin/generate-mqual-edges`         | M_QUAL boundaries where the zone of confidence CHANGES, with `CATZOC_LO`/`CATZOC_HI` on either side — see below.                                                                       |
-| `_MQUAL_LABELS`   | `bin/generate-mqual-labels`        | One letter anchor per CONTIGUOUS zone of one `CATZOC`, with that `CATZOC` and the group's `AREA` — see below.                                                                          |
-| `_BUAARE_EDGE`    | `bin/generate-buaare-edges`        | The built-up area outline with the CHART borders left out of it — see below. No attributes of its own.                                                                                 |
-| `_TSS_ANCHORS`    | `bin/generate-tss-anchors`         | One arrow anchor per traffic-lane leg — see below. Carries `CLASS`, `INTU`, `ORIENT`, `AREA`.                                                                                          |
-| `_RESTR_ANCHORS`  | `bin/generate-restriction-anchors` | One water-side anchor per restriction feature of RESARE/CBLARE/PIPARE/MIPARE/DMPGRD — see below. Carries `CLASS`, `RESTRN`, `CATREA`, `INTU`, `CSCALE`, `AREA`.                        |
-| `_AREA_EDGE`      | `bin/generate-area-edges`          | The boundaries of every OTHER stroked area class, emitted only where the content changes — see below. Carries `CLASS` plus the owning side's content attributes.                       |
+| Layer             | Built by                           | Contents                                                                                                                                                                                                                                  |
+| ----------------- | ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `_LIGHTS_SECTORS` | `bin/generate-sector-arcs`         | LineString arcs and radial legs for sector lights (LIGHTS06) — one copy per zoom, see below.                                                                                                                                              |
+| `_DEPARE_EDGE`    | `bin/generate-depare-edges`        | Shared edges of the DEPARE/DRGARE partition, with `DRVAL_LO`/`DRVAL_HI` on either side, a coincident `VALDCO`, and `SEAM` where the quilt clip, the fallback copy's cut against coarser coverage, or the cell's own M_COVR ring cut them. |
+| `_LABELS`         | `bin/generate-labels`              | One point per (`OBJNAM`, `INTU`) group of LNDARE/LNDRGN/SEAARE/BUAARE, with `CLASS` and the group's `AREA`.                                                                                                                               |
+| `_MQUAL_EDGE`     | `bin/generate-mqual-edges`         | M_QUAL boundaries where the zone of confidence CHANGES, with `CATZOC_LO`/`CATZOC_HI` on either side — see below.                                                                                                                          |
+| `_MQUAL_LABELS`   | `bin/generate-mqual-labels`        | One letter anchor per CONTIGUOUS zone of one `CATZOC`, with that `CATZOC` and the group's `AREA` — see below.                                                                                                                             |
+| `_BUAARE_EDGE`    | `bin/generate-buaare-edges`        | The built-up area outline with the CHART borders left out of it — see below. No attributes of its own.                                                                                                                                    |
+| `_TSS_ANCHORS`    | `bin/generate-tss-anchors`         | One arrow anchor per traffic-lane leg — see below. Carries `CLASS`, `INTU`, `ORIENT`, `AREA`.                                                                                                                                             |
+| `_RESTR_ANCHORS`  | `bin/generate-restriction-anchors` | One water-side anchor per restriction feature of RESARE/CBLARE/PIPARE/MIPARE/DMPGRD — see below. Carries `CLASS`, `RESTRN`, `CATREA`, `INTU`, `CSCALE`, `AREA`.                                                                           |
+| `_AREA_EDGE`      | `bin/generate-area-edges`          | The boundaries of every OTHER stroked area class, emitted only where the content changes — see below. Carries `CLASS` plus the owning side's content attributes.                                                                          |
 
 ### `_MQUAL_EDGE`
 
@@ -97,8 +101,10 @@ where its two sides DIFFER:
 - A zone beside no zone at all — emitted with `CATZOC_LO` = −1, which is also
   what a neighbour carrying no `CATZOC` reads as, so two unassessed zones side
   by side draw nothing between them.
-- A segment lying along a quilt cut (`--coverage`) or along this cell's own
-  M_COVR ring (`--cell-coverage`) — **dropped**, not flagged. The zone
+- A segment lying along a quilt cut (`--coverage`), along the fallback copy's
+  cut against coarser coverage (`--fallback-coverage`, which counts on the
+  `_QFALL` interval alone) or along this cell's own M_COVR ring
+  (`--cell-coverage`) — **dropped**, not flagged. The zone
   continues into the next chart at a confidence this cell cannot see, and
   asserting a change there is the defect. This is the one place `_MQUAL_EDGE`
   parts company with `_DEPARE_EDGE`, which flags its seams because the safety
@@ -149,9 +155,10 @@ sides are the same place, which only two identical non-empty `OBJNAM`s are:
 - NULL beside NULL — **emitted**. "These two both have no name" is not evidence
   that they are the same place, which is exactly why the import-time dissolve
   leaves unnamed areas alone. NULL beside a named area, likewise.
-- A single-owner segment along a quilt cut or this cell's own M_COVR ring —
-  **dropped**, named or not. The area continues onto the next chart, which this
-  cell cannot see. An outline left open at the cell border is the intended
+- A single-owner segment along a quilt cut, along the fallback copy's cut
+  against coarser coverage, or along this cell's own M_COVR ring — **dropped**,
+  named or not. The area continues onto the next chart, which this cell cannot
+  see. An outline left open at the cell border is the intended
   result; the neighbouring cell draws the rest of it.
 
 ### `_AREA_EDGE`
@@ -189,9 +196,10 @@ merging).
   marks point INTO the filled side, and the direction is what says which side
   that is). A side beside no feature at all — the ordinary outline, nearly all
   of the layer — is emitted once.
-- A single-owner segment along a quilt cut or this cell's own M_COVR ring —
-  **dropped**, exactly as `_MQUAL_EDGE` drops its own. The area continues onto
-  the next chart, which this cell cannot see.
+- A single-owner segment along a quilt cut, along the fallback copy's cut
+  against coarser coverage, or along this cell's own M_COVR ring — **dropped**,
+  exactly as `_MQUAL_EDGE` drops its own. The area continues onto the next
+  chart, which this cell cannot see.
 
 Classes never compare across: RESARE beside CTNARE is two outlines, one per
 class, however much water they share. The style consumes the layer per class,

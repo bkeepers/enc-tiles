@@ -286,6 +286,138 @@ describe("quilt-clip seams still work", () => {
   });
 });
 
+describe("the fallback copy's cut against COARSER coverage", () => {
+  // A cell standing in for a chart that is not there is published below its own
+  // quilt floor as a fallback continuation (_QFALL = 1), and THAT copy alone is
+  // differenced against the union of all strictly coarser coverage. The cut
+  // lands on rings that neither --coverage (finer only) nor the cell's own
+  // unclipped M_COVR describes, so every one of them read as the edge of the
+  // survey -- DRVAL_LO = -1 -- and the style painted a bold safety contour down
+  // the compilation-scale junction wherever the water was deeper than the
+  // mariner's safety depth.
+  //
+  // The cut here is the meridian: the fallback copy is the WEST half, the
+  // coarser chart covers the EAST half, and the two rings coincide at x = 0.5.
+  const coarser = () =>
+    writeCollection("quilting_fallback_coverage.geojson", [
+      polygon({ INTU: 2, QFLOOR: 5 }, EAST_HALF),
+    ]);
+  const onMeridian = (feature) =>
+    feature.geometry.coordinates.every(([x]) => x === 0.5);
+
+  test("a fallback cut on a coarser ring is a SEAM, not the edge of survey", () => {
+    const depare = writeCollection("DEPARE.geojson", [
+      polygon({ DRVAL1: 20, _QZMAX: 5, _QFALL: 1 }, WEST_HALF),
+    ]);
+
+    const features = run(
+      "--depth-area",
+      depare,
+      "--fallback-coverage",
+      coarser(),
+    );
+
+    const seams = features.filter((f) => f.properties.SEAM === 1);
+    expect(seams).toHaveLength(1);
+    expect(onMeridian(seams[0])).toBe(true);
+    expect(seams[0].properties).not.toHaveProperty("DRVAL_LO");
+    expect(seams[0].properties.DRVAL_HI).toBe(20);
+    // The interval rides onto the edge exactly as it does on any other.
+    expect(seams[0].properties._QFALL).toBe(1);
+    expect(seams[0].properties._QZMAX).toBe(5);
+    // The cell's other three sides are still the edge of the data here: no
+    // --cell-coverage was passed, and the coarser roster says nothing of them.
+    const rest = features.filter((f) => f.properties.SEAM !== 1);
+    expect(rest.length).toBeGreaterThan(0);
+    for (const feature of rest) expect(feature.properties.DRVAL_LO).toBe(-1);
+  });
+
+  test("without the roster the same cut is labelled land (the defect)", () => {
+    const depare = writeCollection("DEPARE.geojson", [
+      polygon({ DRVAL1: 20, _QZMAX: 5, _QFALL: 1 }, WEST_HALF),
+    ]);
+
+    const features = run("--depth-area", depare);
+
+    expect(features.length).toBeGreaterThan(0);
+    for (const feature of features) {
+      expect(feature.properties.DRVAL_LO).toBe(-1);
+      expect(feature.properties).not.toHaveProperty("SEAM");
+    }
+  });
+
+  test("a STAMPED interval on the same ring is classified exactly as before", () => {
+    // The whole reason the roster is gated on _QFALL: no stamped copy was ever
+    // cut against a coarser chart, so a coarser ring crossing one lies over
+    // ground no clip touched. Reading it as a seam would erase a real contour.
+    const depare = writeCollection("DEPARE.geojson", [
+      polygon({ DRVAL1: 20, _QZMIN: 9 }, WEST_HALF),
+    ]);
+
+    const features = run(
+      "--depth-area",
+      depare,
+      "--fallback-coverage",
+      coarser(),
+    );
+
+    expect(features.length).toBeGreaterThan(0);
+    for (const feature of features) {
+      expect(feature.properties.DRVAL_LO).toBe(-1);
+      expect(feature.properties).not.toHaveProperty("SEAM");
+    }
+  });
+
+  test("the gate is per INTERVAL, not per run", () => {
+    // Both copies of one area in one input, on the one ring: the fallback's
+    // meridian is a seam and the stamped copy's identical meridian is not.
+    const depare = writeCollection("DEPARE.geojson", [
+      polygon({ DRVAL1: 20, _QZMAX: 5, _QFALL: 1 }, WEST_HALF),
+      polygon({ DRVAL1: 20, _QZMIN: 9 }, WEST_HALF),
+    ]);
+
+    const features = run(
+      "--depth-area",
+      depare,
+      "--fallback-coverage",
+      coarser(),
+    );
+
+    const fallback = features.filter((f) => f.properties._QFALL === 1);
+    const stamped = features.filter((f) => f.properties._QZMIN === 9);
+    expect(fallback.length).toBeGreaterThan(0);
+    expect(stamped.length).toBeGreaterThan(0);
+    expect(
+      fallback.filter((f) => f.properties.SEAM === 1).map(onMeridian),
+    ).toEqual([true]);
+    expect(stamped.some((f) => f.properties.SEAM === 1)).toBe(false);
+  });
+
+  test("a genuine interface on a coarser ring is never touched", () => {
+    // Two depth areas facing each other across the meridian: the segment has
+    // two owners, the seam test is never reached, and the contour between 5 m
+    // and 20 m of water survives whatever ring runs along it.
+    const depare = writeCollection("DEPARE.geojson", [
+      polygon({ DRVAL1: 5, _QZMAX: 5, _QFALL: 1 }, WEST_HALF),
+      polygon({ DRVAL1: 20, _QZMAX: 5, _QFALL: 1 }, EAST_HALF),
+    ]);
+
+    const features = run(
+      "--depth-area",
+      depare,
+      "--fallback-coverage",
+      coarser(),
+    );
+
+    const interfaces = features.filter(
+      (f) => f.properties.DRVAL_LO === 5 && f.properties.DRVAL_HI === 20,
+    );
+    expect(interfaces).toHaveLength(1);
+    expect(onMeridian(interfaces[0])).toBe(true);
+    expect(interfaces[0].properties).not.toHaveProperty("SEAM");
+  });
+});
+
 describe("the zoom partition", () => {
   /** The features of one interval, keyed by its _QZMIN. */
   function byFloor(features) {
@@ -387,10 +519,11 @@ describe("the zoom partition", () => {
   });
 
   test("a coastline grazing a coverage ring keeps DRVAL_LO = -1", () => {
-    // The coverage import widens under the partition to EVERY other chart, so
-    // a ring can now cross this cell over land that no clip ever touched. The
-    // midpoint of the southern edge here sits on such a ring; both endpoints
-    // do not, and the segment is a real coastline.
+    // A ring can cross this cell over land no clip ever touched -- always for
+    // the coarser rings of --fallback-coverage, and for a finer chart's ring
+    // wherever it overlaps a copy the clip left whole. The midpoint of the
+    // southern edge here sits on such a ring; both endpoints do not, and the
+    // segment is a real coastline.
     const depare = writeCollection("DEPARE.geojson", [
       polygon({ DRVAL1: 20 }, [
         [0.3, 0.5],

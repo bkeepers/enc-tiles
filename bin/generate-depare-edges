@@ -7,6 +7,7 @@
 //   bin/generate-depare-edges <output.geojson> \
 //     --depth-area DEPARE.geojson [--depth-area DRGARE.geojson ...] \
 //     [--contour DEPCNT.geojson] [--coverage quilting_coverage.geojson] \
+//     [--fallback-coverage quilting_fallback_coverage.geojson] \
 //     [--cell-coverage M_COVR.geojson]
 //
 // Why this layer exists (S-52 DEPARE03):
@@ -35,13 +36,15 @@
 // both polygons. A segment owned by two areas is an interface; one owned by a
 // single area is an outer boundary.
 //
-// Two things make an outer boundary that is NOT the edge of the survey, and
-// both have to be recognised or the style paints a safety contour along them.
+// Three things make an outer boundary that is NOT the edge of the survey, and
+// all of them have to be recognised or the style paints a safety contour along
+// them.
 //
 //   1. The quilt clip. bin/s57-to-tiles cuts this chart against the coverage
 //      of the charts it hands over to, so a depth area cut by that clip
 //      acquires a new outer boundary along the cut. The detailed chart
-//      continues there. --coverage carries those M_COVR rings.
+//      continues there. --coverage carries those M_COVR rings, and it holds
+//      strictly FINER coverage: a stamped copy is cut against nothing else.
 //
 //   2. The cell's OWN edge. An ENC cell is a rectangle cut out of a continuous
 //      survey: the depth areas along its border are truncated by the cut, and
@@ -61,17 +64,31 @@
 //      clipped away there would read those edges as land. The cut boundaries
 //      the ladder copies do have are recognised by case 1 alone.
 //
-// Either way the segment is flagged SEAM and left without a DRVAL_LO.
+//   3. The FALLBACK copy's clip. A cell that has to stand in for a chart that
+//      is not there is also published BELOW its own quilt floor, as a fallback
+//      continuation (_QFALL = 1), and that copy is cut against the union of
+//      all strictly COARSER coverage -- so it acquires new outer boundaries
+//      too, at the compilation-scale junction rather than at the finer one.
+//      --fallback-coverage carries those rings.
 //
-// BOTH endpoints and the midpoint must lie on the ring, for either source. A
-// coastline that merely touches a ring at a single vertex -- a headland running
-// down to the border -- is a real land boundary and must keep DRVAL_LO = -1;
-// testing the midpoint alone is enough to flag any segment whose middle happens
-// to graze one. The coverage test used to do exactly that, which was safe only
-// while --coverage held strictly finer charts, whose rings can appear inside
-// this cell only where it was cut: under the partition the import widens to
-// EVERY other chart, coarser ones included, so a ring can now cross this cell
-// over land that no clip ever touched.
+//      They are consulted on the _QFALL interval ALONE. No other copy was ever
+//      cut against a coarser chart, so on a stamped copy a coarser ring lies
+//      over ground no clip touched -- it crosses the cell's interior freely --
+//      and letting it flag a seam would take a real contour off the chart.
+//
+// However the boundary arose, the segment is flagged SEAM and left without a
+// DRVAL_LO.
+//
+// BOTH endpoints and the midpoint must lie on the ring, whichever source it
+// came from. A coastline that merely touches a ring at a single vertex -- a
+// headland running down to the border -- is a real land boundary and must keep
+// DRVAL_LO = -1; testing the midpoint alone is enough to flag any segment whose
+// middle happens to graze one. The coverage test used to do exactly that, and
+// got away with it only because --coverage holds strictly finer charts, whose
+// rings can appear inside this cell only where it was cut. Coarser rings, which
+// --fallback-coverage does hold, cross this cell wherever the coarser chart
+// happens to run -- which is why the interval gate above is not on its own
+// enough, and the along-the-ring rule matters most there.
 //
 // THE ZOOM PARTITION
 //
@@ -93,12 +110,13 @@
 
 import { readFileSync, writeFileSync } from "fs";
 
-import { orientedRings } from "./quilt-geojson.mjs";
+import { isFallbackInterval, orientedRings } from "./quilt-geojson.mjs";
 
 const args = process.argv.slice(2);
 const depthAreaPaths = [];
 const contourPaths = [];
 const coveragePaths = [];
+const fallbackCoveragePaths = [];
 const cellCoveragePaths = [];
 const positional = [];
 
@@ -107,6 +125,8 @@ for (let i = 0; i < args.length; i++) {
   else if (args[i] === "--contour" && args[i + 1]) contourPaths.push(args[++i]);
   else if (args[i] === "--coverage" && args[i + 1])
     coveragePaths.push(args[++i]);
+  else if (args[i] === "--fallback-coverage" && args[i + 1])
+    fallbackCoveragePaths.push(args[++i]);
   else if (args[i] === "--cell-coverage" && args[i + 1])
     cellCoveragePaths.push(args[++i]);
   else positional.push(args[i]);
@@ -115,7 +135,7 @@ for (let i = 0; i < args.length; i++) {
 const outputPath = positional[0];
 if (!outputPath || depthAreaPaths.length === 0) {
   console.error(
-    "Usage: generate-depare-edges <output.geojson> --depth-area <file> [--depth-area <file>] [--contour <file>] [--coverage <file>] [--cell-coverage <file>]",
+    "Usage: generate-depare-edges <output.geojson> --depth-area <file> [--depth-area <file>] [--contour <file>] [--coverage <file>] [--fallback-coverage <file>] [--cell-coverage <file>]",
   );
   process.exit(1);
 }
@@ -322,6 +342,18 @@ function coverageIndex(
 const coverageSegments = coverageIndex(coveragePaths, SEAM_TOLERANCE);
 
 /**
+ * The COARSER charts' rings, which only the fallback copy was cut against.
+ *
+ * Same tolerance as the finer cut, and for the same reason: GEOS keeps the
+ * mask's own vertices when it differences, so the cut edge and the ring it was
+ * cut along share coordinates exactly.
+ */
+const fallbackCoverageSegments = coverageIndex(
+  fallbackCoveragePaths,
+  SEAM_TOLERANCE,
+);
+
+/**
  * This cell's own coverage ring: the OUTER ring of its CATCOV = 1 polygons.
  *
  * The attribute arrives as an MVT/GeoJSON integer from ogr2ogr but has been a
@@ -385,6 +417,15 @@ function onCellBoundary(a, mid, b) {
   return alongRing(cellSegments, CELL_BOUNDARY_TOLERANCE, a, mid, b);
 }
 
+/**
+ * On the boundary of a COARSER chart's coverage: the fallback copy's cut.
+ *
+ * Only ever asked about a _QFALL interval -- see case 3 in the header.
+ */
+function onFallbackBoundary(a, mid, b) {
+  return alongRing(fallbackCoverageSegments, SEAM_TOLERANCE, a, mid, b);
+}
+
 // ---- 4. chain segments into LineStrings ------------------------------------
 
 function chain(entries) {
@@ -435,6 +476,9 @@ let segmentTotal = 0;
 
 for (const [id, interval] of intervals) {
   const contours = contourValues.get(id) ?? new Map();
+  // The one interval the coarser roster describes: everything else was cut
+  // against finer coverage alone, and a coarser ring across it is real ground.
+  const fallback = isFallbackInterval(interval.range);
   segmentTotal += interval.segments.size;
 
   /** Segments keyed by their attribute signature, for chaining. */
@@ -457,7 +501,8 @@ for (const [id, interval] of intervals) {
       ];
       if (
         onCoverageBoundary(segment.a, mid, segment.b) ||
-        onCellBoundary(segment.a, mid, segment.b)
+        onCellBoundary(segment.a, mid, segment.b) ||
+        (fallback && onFallbackBoundary(segment.a, mid, segment.b))
       ) {
         seam = true;
       } else {
@@ -502,6 +547,7 @@ writeFileSync(
 );
 const seamSources = [
   ...(coverageSegments.length ? ["quilt cuts"] : []),
+  ...(fallbackCoverageSegments.length ? ["fallback cuts"] : []),
   ...(cellSegments.length ? ["cell ring"] : []),
 ];
 console.error(

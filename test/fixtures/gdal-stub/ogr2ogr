@@ -33,7 +33,8 @@ case "$fmt" in
       # whether there is a mask to build at all; they are never the failing one.
       # The neighbour roster export rides with them: its presence is what wires
       # --neighbor-coverage, and it is not a layer export either.
-      *quilting_coverage.geojson | *quilting_all.geojson | *quilting_neighbors.geojson)
+      *quilting_coverage.geojson | *quilting_fallback_coverage.geojson | \
+        *quilting_all.geojson | *quilting_neighbors.geojson)
         printf '{"type":"FeatureCollection","features":[]}' >"$out"
         ;;
       *)

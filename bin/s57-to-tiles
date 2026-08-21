@@ -320,6 +320,21 @@ fi
 #     areas together would union every unrelated built-up area of the cell into
 #     one feature; "these two both have no name" is not evidence that they are
 #     the same place.
+#   * A POINT or LINE BUAARE is left completely alone as well, whatever its
+#     name. S-57 carries the class in all three primitives and ogr2ogr lands
+#     them in ONE mixed-geometry table, so an unrestricted GROUP BY OBJNAM
+#     unions a town's symbol point into the town's polygon -- and where the two
+#     are disjoint, GEOS returns a GEOMETRYCOLLECTION. That is FIX-087: the
+#     copy ladder's clip is guarded by `GeometryType(geom) IN (POLYGON,
+#     MULTIPOLYGON, LINESTRING, MULTILINESTRING)` and its point sweep by
+#     `IN (POINT, MULTIPOINT)`, and a collection matches NEITHER -- so the row
+#     is never differenced against any mask and never swept, and its fallback
+#     copy survives whole, tens of kilometres inside the coverage of the
+#     coarser chart that was supposed to clip it away (24 BUAARE features at
+#     Providence and Boston in the 2026-08-20 national build). Restricting the
+#     dissolve to areal rows makes the union polygonal by construction, which
+#     is also the only thing the dissolve was ever for: a point has no shared
+#     border to remove.
 #   * Fragments of one name that do NOT touch come out as a MultiPolygon,
 #     which draws exactly as the separate polygons did -- ST_Union only removes
 #     a border where there was a shared one.
@@ -336,7 +351,12 @@ fi
 # through the SpatiaLite functions, and an AsGPB()/CastAutomagic() wrapper on
 # the write-back double-encodes it to NULL.
 if echo "$tables" | grep -q '^BUAARE$'; then
-  buaare_named="OBJNAM IS NOT NULL AND OBJNAM <> ''"
+  # Named AND areal, in every one of the three statements: see the geometry
+  # note above. The same predicate has to gate the DELETE as well, or a point
+  # sharing a town's name is dropped as one of "the extra fragments" while its
+  # geometry never reached the union.
+  buaare_named="OBJNAM IS NOT NULL AND OBJNAM <> ''\
+     AND GeometryType(geom) IN ('POLYGON', 'MULTIPOLYGON')"
   ogrinfo --quiet "$gpkg" -dialect sqlite -sql \
     "CREATE TABLE buaare_dissolve AS
        SELECT OBJNAM AS objnam, ST_Union(geom) AS geom
@@ -629,11 +649,32 @@ if [ -n "$coverage" ] && [ -f "$coverage" ] && [ -n "$quilt_floor" ]; then
   ogr2ogr -f GeoJSON "$all_geojson" "$coverage" coverage \
     -where "QFLOOR <> ${quilt_floor}" -select "DSNM,INTU,CSCALE,QFLOOR" 2>/dev/null
 
-  # Finer coverage alone, for generate-depare-edges at step 3c: an edge left by
-  # a COARSER neighbour is not a quilt seam.
+  # Finer coverage alone, for the edge generators at steps 3c/3d: these are the
+  # rings the ladder's rung masks are unions of, so an edge a rung clip left
+  # comes out flagged a SEAM instead of reported as the edge of the survey.
+  #
+  # ONE roster serves every STAMPED interval, and that is a pragmatic
+  # approximation rather than a proof. Which finer rings actually cut a copy
+  # varies by copy: the WHOLE copy is not clipped at ALL (it is the bare UPDATE
+  # at the end of the per-table loop, stamping whatever the ladder left), and
+  # rung i is cut only against the cumulative mask up to its own floor f_i --
+  # never against the rings of the rungs deeper than it. So a REAL data
+  # boundary lying along a finer chart's ring can be mis-flagged SEAM on the
+  # whole copy or on a shallow rung, which drops a contour that should have
+  # been drawn. Known residual gap, pre-existing and accepted: the rings a cell
+  # shares with its finer neighbours are overwhelmingly the quilt's own cuts,
+  # and closing it properly means a PER-RUNG roster export (one GeoJSON per
+  # ladder floor, each generator invocation keyed to the copy it is deriving),
+  # which nothing has yet needed. Do not re-document the gap away -- the clip
+  # is not exhaustive on stamped copies.
   cov_geojson="$tmpdir/quilting_coverage.geojson"
   ogr2ogr -f GeoJSON "$cov_geojson" "$coverage" coverage \
     -where "QFLOOR > ${quilt_floor}" -select "INTU,CSCALE,QFLOOR" 2>/dev/null
+
+  # COARSER coverage alone, for the FALLBACK copy and nothing else, is NOT
+  # exported here beside its siblings: it is exported next to the mask whose
+  # cuts it describes (quilt_mask_coarser, below), and only when that mask is
+  # non-empty. See the block there for why the two cannot be separated.
 
   # EVERY chart's coverage, unfiltered -- same-floor peers included, which the
   # two exports above never carry, and this cell's own rows too (harmless: the
@@ -742,7 +783,35 @@ if [ -n "$coverage" ] && [ -f "$coverage" ] && [ -n "$quilt_floor" ]; then
       "SELECT COUNT(*) AS n FROM quilt_mask_coarser WHERE geom IS NOT NULL" \
       "coarser quilt mask count")
     coarser_mask=""
-    [ "$coarser_rows" -gt 0 ] && coarser_mask="quilt_mask_coarser"
+    if [ "$coarser_rows" -gt 0 ]; then
+      coarser_mask="quilt_mask_coarser"
+
+      # The fallback roster: the RING SET of the mask on the line above, which
+      # is why it is exported inside this branch and nowhere else.
+      #
+      # The fallback continuation is cut against the union of all
+      # strictly-coarser coverage, and that clip leaves new edges at the
+      # compilation-scale junction exactly as the rung masks leave them at the
+      # finer one. Those edges lie on no ring either other roster holds -- not
+      # the finer coverage export, not this cell's own M_COVR (which is exempt
+      # from the ladder and arrives UNCLIPPED) -- so every generator read them
+      # as the end of the data: _DEPARE_EDGE gave them DRVAL_LO = -1 and the
+      # style painted a bold safety contour down each cut. Handed over as
+      # --fallback-coverage and consulted ONLY on the _QFALL interval.
+      #
+      # GATED ON THE MASK because the roster is an instruction -- "an edge on
+      # one of these rings is a cut this pipeline made; erase it" -- and that
+      # instruction is a lie wherever the cut did not run. With an empty union
+      # the fallback copy is left WHOLE (quilt_copy below is handed an empty
+      # mask and skips the difference), so a coarser chart's ring crossing it
+      # lies over ground nothing ever clipped: an edge along that ring is a
+      # REAL boundary, and erasing it would take a real contour off the chart.
+      # Exported unconditionally, that is exactly what the generators were
+      # told. Keep the export and the mask in the same branch.
+      fallback_cov_geojson="$tmpdir/quilting_fallback_coverage.geojson"
+      ogr2ogr -f GeoJSON "$fallback_cov_geojson" "$coverage" coverage \
+        -where "QFLOOR < ${quilt_floor}" -select "INTU,CSCALE,QFLOOR" 2>/dev/null
+    fi
 
     # One cumulative mask per distinct finer floor: everything finer than this
     # cell up to and including that rung. Typically K <= 3.
@@ -1062,6 +1131,15 @@ if [ ${#edge_args[@]} -gt 0 ]; then
   if [ -f "$tmpdir/quilting_coverage.geojson" ]; then
     edge_args+=(--coverage "$tmpdir/quilting_coverage.geojson")
   fi
+  # The COARSER coverage the fallback copy was cut against, so the cuts that
+  # clip left are seams on that interval instead of the edge of the survey.
+  # The file exists only when that cut actually ran -- step 2b exports it
+  # inside the quilt_mask_coarser branch -- so the -f test here is also the
+  # test for "the rings in it really are cuts". The same holds at the three
+  # sibling generators below.
+  if [ -f "$tmpdir/quilting_fallback_coverage.geojson" ]; then
+    edge_args+=(--fallback-coverage "$tmpdir/quilting_fallback_coverage.geojson")
+  fi
   # This cell's OWN coverage ring, exported at Step 3 above and therefore
   # already carrying the quilt clip. A depth area truncated by the edge of the
   # cell is not bounded by land: the neighbouring cell carries the rest of it,
@@ -1100,6 +1178,9 @@ if [ -f "$tmpdir/M_QUAL.geojson" ]; then
   if [ -f "$tmpdir/quilting_coverage.geojson" ]; then
     mqual_args+=(--coverage "$tmpdir/quilting_coverage.geojson")
   fi
+  if [ -f "$tmpdir/quilting_fallback_coverage.geojson" ]; then
+    mqual_args+=(--fallback-coverage "$tmpdir/quilting_fallback_coverage.geojson")
+  fi
   if [ -f "$tmpdir/M_COVR.geojson" ]; then
     mqual_args+=(--cell-coverage "$tmpdir/M_COVR.geojson")
   fi
@@ -1133,6 +1214,9 @@ if [ -f "$tmpdir/BUAARE.geojson" ]; then
   buaare_args=(--built-up "$tmpdir/BUAARE.geojson")
   if [ -f "$tmpdir/quilting_coverage.geojson" ]; then
     buaare_args+=(--coverage "$tmpdir/quilting_coverage.geojson")
+  fi
+  if [ -f "$tmpdir/quilting_fallback_coverage.geojson" ]; then
+    buaare_args+=(--fallback-coverage "$tmpdir/quilting_fallback_coverage.geojson")
   fi
   if [ -f "$tmpdir/M_COVR.geojson" ]; then
     buaare_args+=(--cell-coverage "$tmpdir/M_COVR.geojson")
@@ -1174,6 +1258,9 @@ done <<< "$area_edge_classes"
 if [ ${#area_edge_args[@]} -gt 0 ]; then
   if [ -f "$tmpdir/quilting_coverage.geojson" ]; then
     area_edge_args+=(--coverage "$tmpdir/quilting_coverage.geojson")
+  fi
+  if [ -f "$tmpdir/quilting_fallback_coverage.geojson" ]; then
+    area_edge_args+=(--fallback-coverage "$tmpdir/quilting_fallback_coverage.geojson")
   fi
   if [ -f "$tmpdir/M_COVR.geojson" ]; then
     area_edge_args+=(--cell-coverage "$tmpdir/M_COVR.geojson")
