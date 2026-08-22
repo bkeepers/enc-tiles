@@ -444,14 +444,21 @@ describe("zone-aware quilt masks", () => {
     const { sql } = run(ZONE_CELL);
 
     // DSNM and CLASS only: the mask asks whether that chart compiles the zone
-    // at all, never what it says.
+    // at all, never what it says. -nlt NONE on both legs -- the roster is
+    // attribute-only end to end, because the geometry was ~240 MB of GeoJSON
+    // per cell that no consumer of zone_evidence ever read.
     const exported = statements(sql).find((statement) =>
       statement.includes("zone_presence.geojson"),
     );
     expect(exported).toBeDefined();
     expect(exported).toContain("area_evidence");
     expect(exported).toContain("-select DSNM,CLASS");
-    expect(sql).toMatch(/zone_presence\.geojson -append -nln zone_evidence/);
+    expect(exported).toContain("-nlt NONE");
+    // Region-wide on purpose: presence means "carries the class ANYWHERE".
+    expect(exported).not.toContain("-spat");
+    expect(sql).toMatch(
+      /zone_presence\.geojson -append -nln zone_evidence -nlt NONE/,
+    );
 
     // The join is by chart name, so the coverage rows have to carry it.
     expect(sql).toContain("-select DSNM,INTU,CSCALE,QFLOOR");

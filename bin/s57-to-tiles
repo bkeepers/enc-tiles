@@ -645,6 +645,17 @@ if [ -n "$coverage" ] && [ -f "$coverage" ] && [ -n "$quilt_floor" ]; then
   #
   # DSNM travels with the rows because the ZONE masks below join them to the
   # zone_evidence roster by chart name; nothing else reads it off `quilting`.
+  #
+  # REGION-WIDE on purpose; do not -spat filter this import to the cell's
+  # neighbourhood. Three consumers read `quilting` beyond the cell's own
+  # ground: the ladder floors are SELECT DISTINCT QFLOOR over the WHOLE
+  # roster, so a floor served only far from this cell still creates a real
+  # rung (its mask union is non-empty region-wide) and with it the copies'
+  # _QZMIN/_QZMAX stamps; the has_mask/coarser_rows/rung_rows gates key
+  # quilt_applied (exit 65) and the fallback branch -- the fallback roster
+  # export included -- on region-wide row existence; and the quilt_mask*
+  # unions are materialized region-wide as tables. A bbox filter changes all
+  # three, not just union area no clip could ever see.
   all_geojson="$tmpdir/quilting_all.geojson"
   ogr2ogr -f GeoJSON "$all_geojson" "$coverage" coverage \
     -where "QFLOOR <> ${quilt_floor}" -select "DSNM,INTU,CSCALE,QFLOOR" 2>/dev/null
@@ -729,11 +740,22 @@ if [ -n "$coverage" ] && [ -f "$coverage" ] && [ -n "$quilt_floor" ]; then
   # The same roster reduced to PRESENCE -- which chart carries which class --
   # for the zone-aware quilt masks below. Content is irrelevant here: the
   # question the mask asks is only "does THAT chart compile this zone at all",
-  # so the geometry rides along unused and the two attributes are the answer.
+  # so the two attributes are the whole answer and -nlt NONE drops the
+  # geometry at the source. Every consumer of `zone_evidence` reads (CLASS,
+  # DSNM) and nothing else -- the zone_rung_mask EXISTS probe and the covering
+  # index that serves it -- while the geometry was ~240 MB of GeoJSON per cell
+  # on a Maine-region roster, written and re-parsed into the chart GPKG
+  # entirely unread.
+  #
+  # REGION-WIDE on purpose; do not -spat filter this export. The probe's
+  # semantics are chart-level presence -- "does chart DSNM carry class X
+  # ANYWHERE" -- and a bbox filter keyed to this cell would drop (CLASS, DSNM)
+  # pairs whose zone features lie outside the cell while the chart's coverage
+  # still intersects it, silently changing the zone masks.
   zone_presence_geojson="$tmpdir/zone_presence.geojson"
   ogr2ogr -f GeoJSON "$zone_presence_geojson" "$coverage" area_evidence \
     -lco AUTODETECT_JSON_STRINGS=NO \
-    -where "DSNM <> '${dsnm}'" -select "DSNM,CLASS" 2>/dev/null
+    -where "DSNM <> '${dsnm}'" -select "DSNM,CLASS" -nlt NONE 2>/dev/null
 
   if [ -s "$all_geojson" ]; then
     ogr2ogr -f GPKG "$gpkg" "$all_geojson" -append -nln quilting 2>/dev/null
@@ -744,18 +766,19 @@ if [ -n "$coverage" ] && [ -f "$coverage" ] && [ -n "$quilt_floor" ]; then
     zone_evidence_ready=0
     if [ -s "$zone_presence_geojson" ]; then
       if ogr2ogr -f GPKG "$gpkg" "$zone_presence_geojson" \
-        -append -nln zone_evidence 2>/dev/null; then
+        -append -nln zone_evidence -nlt NONE 2>/dev/null; then
         zone_evidence_ready=1
 
         # The roster lands UNINDEXED and REGION-WIDE -- every chart in the
-        # region, tens of thousands of rows, each dragging along the
-        # area_evidence geometry that the presence probe never reads. Without
-        # this index zone_rung_mask's correlated EXISTS is a full scan of that
-        # table for every `quilting` row, re-run once per zone class per rung:
-        # measured at ~16 s per mask on US4ME1CI (5 zone classes x 3 rungs),
-        # ~240 s of a ~370 s cell, on a probe whose answer involves 3-6 rows.
-        # (CLASS, DSNM) is exactly the probe's key AND covers it, so the lookup
-        # is resolved in the index and never touches a heavy row at all.
+        # region, tens of thousands of rows (attribute-only: the -nlt NONE
+        # export above already dropped the geometry the probe never reads).
+        # Without this index zone_rung_mask's correlated EXISTS is a full scan
+        # of that table for every `quilting` row, re-run once per zone class
+        # per rung: measured at ~16 s per mask on US4ME1CI (5 zone classes x 3
+        # rungs), ~240 s of a ~370 s cell, back when the rows still carried
+        # the area_evidence geometry -- on a probe whose answer involves 3-6
+        # rows. (CLASS, DSNM) is exactly the probe's key AND covers it, so the
+        # lookup is resolved in the index and never touches a row at all.
         ogrinfo --quiet "$gpkg" -dialect sqlite -sql \
           "CREATE INDEX IF NOT EXISTS zone_evidence_class_dsnm ON zone_evidence(CLASS, DSNM)"
       fi
