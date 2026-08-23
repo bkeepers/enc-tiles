@@ -227,10 +227,10 @@ const AREA_FILL_CLASSES = new Set([
 // its text companion, e.g. SWPARE's "swept to X") is the only statement the
 // area makes, and one point per elected component leaves it tens of km
 // off-screen on a multi-cell swept area at high zoom. These classes emit a
-// GRID of anchor points over the whole component -- roughly one per
-// screenful at the deepest zoom the copy serves -- and drop SCAMIN/SCAMAX
-// from the bag so the symbol serves the copy's whole interval (see the bag
-// copy below).
+// GRID of anchor points over the whole component -- roughly two per
+// screenful at the deepest zoom the copy serves, so a screenful still holds
+// one a level of overzoom past it -- and drop SCAMIN/SCAMAX from the bag so
+// the symbol serves the copy's whole interval (see the bag copy below).
 //
 // Written out POSITIVELY rather than derived: derived, a class added to the
 // anchor set would silently take the riskier treatment (a repeated symbol
@@ -290,14 +290,25 @@ const TILE_PIXELS = 512;
 const PYRAMID_MAX_ZOOM = 13;
 
 // Grid spacing ON SCREEN at the interval's sizing zoom (gridSizeZoom -- the
-// deepest zoom the copy serves), in pixels of that pyramid: the 400-600 px
-// "about one symbol per screenful" target. Sized at the DEEP end, so this is
-// the interval's WORST case -- shallower in the same interval the same ground
-// step spans fewer pixels and the symbols sit closer together, which is the
-// safe direction. The ground step is this many pixels' worth of longitude at
-// that zoom, with the latitude step scaled by cos(latitude) so the lattice is
-// square in ground distance (and, equivalently, in Mercator screen pixels).
-const GRID_SPACING_PIXELS = 512;
+// deepest zoom the copy serves), in pixels of that pyramid: the target is
+// ABOUT TWO SYMBOLS PER SCREENFUL at that zoom, and one at a level of
+// overzoom. Sized at the DEEP end, so this is the interval's WORST case --
+// shallower in the same interval the same ground step spans fewer pixels and
+// the symbols sit closer together, which is the safe direction. The ground
+// step is this many pixels' worth of longitude at that zoom, with the
+// latitude step scaled by cos(latitude) so the lattice is square in ground
+// distance (and, equivalently, in Mercator screen pixels).
+//
+// Two per screenful, not one, because the pyramid's top is NOT the deepest
+// zoom anyone looks at: past PYRAMID_MAX_ZOOM the client overzooms the
+// deepest tile, which doubles the on-screen spacing per level while minting
+// no new anchors. At 512 px -- one screenful at z13 -- the lattice stood
+// ~3 km apart at mid latitudes and a z13.6 harbour viewport (~4.9 x 2.6 km
+// at 52N) fell BETWEEN nodes: a swept area filling the screen drew no symbol
+// at all (2026-08-22 report, Atka / Expedition Harbor). At 256 px the step
+// is ~1.5 km, so that viewport holds one node on its short axis and three on
+// its long one, and a full level of overzoom still holds one.
+const GRID_SPACING_PIXELS = 256;
 
 // Hard cap on anchors per (component, interval). A runaway component -- a
 // swept band running the length of a coast at a deep sizing zoom -- would
@@ -305,7 +316,15 @@ const GRID_SPACING_PIXELS = 512;
 // (step doubled, still a global lattice) rather than truncated, so coverage
 // stays even instead of piling into the south-west corner. Logged when it
 // happens.
-const GRID_MAX_POINTS = 256;
+//
+// FOUR TIMES the original 256, raised with the spacing above: halving
+// GRID_SPACING_PIXELS quadruples the nodes under one component, and the old
+// cap would have coarsened exactly the big swept bands the change is for
+// straight back to the 512 px step that hid their symbol. Ordinary geometry
+// is nowhere near either number -- a 50 x 5 km swept band at the z13 sizing
+// steps ~1.5 km, so ~33 x 3 = ~110 nodes -- so this stays the runaway guard
+// it has always been rather than a budget the usual component spends.
+const GRID_MAX_POINTS = 1024;
 
 // Iteration guard: lattice nodes per attempt, pre-coarsened from the bbox
 // alone. Under the edge-driven scanline (latticeNodesContained) the node
@@ -313,7 +332,10 @@ const GRID_MAX_POINTS = 256;
 // ~O(ring vertices) on real coastal geometry and O(vertices x rows) worst
 // case for full-height edges (measured ~40 MB at 50k vertices x 68 rows) --
 // but the cap stays: it bounds the emitted-node loop, the retry ladder, and
-// that worst-case bucket memory all at once.
+// that worst-case bucket memory all at once. Unchanged by the finer spacing,
+// which merely moves where it bites: 65536 nodes is a bbox ~256 steps square
+// either way, so ~380 km rather than ~770 km at the z13 sizing -- still a
+// coast-length runaway, still coarsened rather than truncated.
 const GRID_MAX_LATTICE = 65536;
 
 const args = process.argv.slice(2);
@@ -389,7 +411,7 @@ const election = anchorElection({ paths: evidencePaths, dsnm, cellFloor });
  *
  *   open-ended top copy (`_QZMIN`, no `_QZMAX`) -- `_QZMIN + 2` is the
  *   representative deep zoom, capped. It is a choice and not a ceiling: past
- *   sizeZoom + 2 the on-screen spacing passes ~2048 px and keeps growing. But
+ *   sizeZoom + 2 the on-screen spacing passes ~1024 px and keeps growing. But
  *   the pyramid stops at PYRAMID_MAX_ZOOM, so a top copy floored at or near
  *   it has no deeper TILE to be sparse in, and anything further is the client
  *   overzooming that same tile -- accepted sparse, rather than paid for with
@@ -708,9 +730,9 @@ for (const [id, group] of groups) {
       // statement about the area, it is one symbol over another, and at 1e-9
       // degrees (~0.1 mm) the test only ever caught the exact hit -- measured
       // over Puget, ~1.4% of gridded components carried a visible double.
-      // A quarter step is ~128 px at the sizing zoom, comfortably wider than
-      // any of these symbols and still far short of dropping a node that
-      // reads as its own screenful.
+      // A quarter step is ~64 px at the sizing zoom, still wider than any of
+      // these symbols and far short of dropping a node that stands on its
+      // own share of the area.
       if (
         Math.abs(node[0] - points[0][0]) < stepLon * 0.25 &&
         Math.abs(node[1] - points[0][1]) < stepLat * 0.25

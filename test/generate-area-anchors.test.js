@@ -193,9 +193,13 @@ function latticeStep(features) {
   };
 }
 
-/** GRID_SPACING_PIXELS' worth of longitude at `zoom`, the generator's step. */
+/**
+ * GRID_SPACING_PIXELS' worth of longitude at `zoom`, the generator's step:
+ * 256 px of a 512 px tile, so half a tile -- about two symbols per screenful
+ * at the sizing zoom, one at a level of overzoom.
+ */
 function stepAt(zoom) {
-  return (512 * 360) / (512 * 2 ** zoom);
+  return (256 * 360) / (512 * 2 ** zoom);
 }
 
 /** Ray-casting point-in-ring, written here so the test proves it independently. */
@@ -623,7 +627,7 @@ describe("the no-fill grid repeat", () => {
    * it tens of km off-screen on a multi-cell swept area at high zoom. Those
    * classes (GRID_REPEAT_CLASSES) emit a lattice of anchors instead: global
    * (multiples of the step from lon/lat 0, so every cell derives the same
-   * grid), spaced ~512 px of screen at the DEEPEST zoom the copy serves,
+   * grid), spaced ~256 px of screen at the DEEPEST zoom the copy serves,
    * capped, and always joined by the guaranteed pointOnSurface anchor.
    * SWPARE -- the motivating class, `SY(SWPARE51);TE('swept to %5.1lf',...)`,
    * no fill -- plays the grid side; RESARE (plotroom's restricted-area tint)
@@ -631,8 +635,8 @@ describe("the no-fill grid repeat", () => {
    */
 
   test("a large component grids: many points, all inside, order-blind", () => {
-    // 512 px at the z11 floor is ~0.176 deg of longitude; two fragments of
-    // one LNAM spanning 2.5 x 1 deg hold dozens of lattice nodes.
+    // 256 px at the z11 floor is ~0.088 deg of longitude; two fragments of
+    // one LNAM spanning 2.5 x 1 deg hold hundreds of lattice nodes.
     const west = box(0, 0, 1, 1);
     const east = box(1, 0, 2.5, 1);
     const parts = [
@@ -660,9 +664,91 @@ describe("the no-fill grid repeat", () => {
     expect(keys(reversed)).toEqual(keys(forward));
   });
 
+  test("a harbour-sized viewport holds a symbol wherever it sits", () => {
+    // The defect the 256 px spacing exists to remove (2026-08-22 report,
+    // Atka / Expedition Harbor, a swept area filling the screen and drawing
+    // nothing). At 512 px the lattice stood a whole screenful apart AT THE
+    // SIZING ZOOM -- and the sizing zoom is not the deepest zoom anyone
+    // looks at, because past the pyramid's top the client overzooms. A z13.6
+    // desktop viewport, ~4.9 x 2.6 km at 52N, was then SHORTER than one
+    // latitude step and could sit between two rows with no anchor in it.
+    //
+    // Proven over the EMITTED lattice rather than asserted from arithmetic:
+    // the viewport is slid across one full step period on each axis -- the
+    // lattice is global, so one period is every placement there is -- and
+    // must always hold a symbol.
+    const west = -174.2;
+    const south = 51.9;
+    const ring = box(west, south, west + 0.5, south + 0.3);
+    const features = anchors(
+      [polygon({ LNAM: "AA", _QZMIN: 13, _QZMAX: 13 }, ring)],
+      { className: "SWPARE" },
+    );
+    const step = latticeStep(features);
+    // Measured at the real step: ~500 nodes, so nothing coarsened on the way
+    // and the sweep below is testing the shipped spacing.
+    expect(step.lon).toBeCloseTo(stepAt(13), 9);
+    expect(step.lat).toBeCloseTo(
+      stepAt(13) * Math.cos((50 * Math.PI) / 180),
+      9,
+    );
+
+    // The viewport, in degrees at this latitude.
+    const metresPerDegree = 111320;
+    const viewLon =
+      4900 / (metresPerDegree * Math.cos(((south + 0.15) * Math.PI) / 180));
+    const viewLat = 2600 / metresPerDegree;
+    // Wider than a longitude step, and ~1.7 latitude steps tall: the margin
+    // the change bought. The old spacing was exactly twice this one, so the
+    // short axis was under a step -- the reported symptom, pinned below.
+    expect(viewLat).toBeGreaterThan(step.lat);
+    expect(viewLat).toBeLessThan(2 * step.lat);
+
+    const symbols = features.map((feature) => feature.geometry.coordinates);
+    const lattice = features
+      .slice(1)
+      .map((feature) => feature.geometry.coordinates);
+    const held = (points, x0, y0) =>
+      points.filter(
+        ([x, y]) =>
+          x >= x0 && x <= x0 + viewLon && y >= y0 && y <= y0 + viewLat,
+      ).length;
+    // Swept over one period, three steps inside the area so no window hangs
+    // over an edge and reads a boundary effect as coverage.
+    const sweep = (points) => {
+      const offsets = 64;
+      let fewest = Infinity;
+      for (let a = 0; a < offsets; a++) {
+        for (let b = 0; b < offsets; b++) {
+          const x0 = west + (3 + a / offsets) * step.lon;
+          const y0 = south + (3 + b / offsets) * step.lat;
+          fewest = Math.min(fewest, held(points, x0, y0));
+        }
+      }
+      return fewest;
+    };
+
+    // Every placement holds one. (It holds three or more in practice -- the
+    // viewport is 3.3 columns wide -- but ONE is the contract.)
+    expect(sweep(symbols)).toBeGreaterThanOrEqual(1);
+
+    // And the counterfactual, so the assertion above is not vacuous: the old
+    // 512 px lattice IS every other node of this one on each axis (both
+    // steps doubled, both counted from zero), and some placement of the same
+    // viewport over it holds nothing at all.
+    const coarse = lattice.filter(([x, y]) => {
+      const column = Math.round(x / step.lon);
+      const row = Math.round(y / step.lat);
+      return column % 2 === 0 && row % 2 === 0;
+    });
+    expect(coarse.length).toBeGreaterThan(50);
+    expect(sweep(coarse)).toBe(0);
+  });
+
   test("a small component keeps exactly ONE symbol: the guaranteed point", () => {
-    // Far smaller than the z12 step (~0.088 deg), so the lattice puts no
-    // node inside and the pointOnSurface fallback is the whole answer.
+    // Far smaller than the z12 step (~0.044 deg), and clear of the nodes
+    // either side of it, so the lattice puts nothing inside and the
+    // pointOnSurface fallback is the whole answer.
     const small = box(0.4, 0.4, 0.41, 0.41);
     const features = anchors([polygon({ LNAM: "AA", _QZMIN: 12 }, small)], {
       className: "SWPARE",
@@ -733,16 +819,16 @@ describe("the no-fill grid repeat", () => {
   });
 
   test("a runaway component is coarsened to the point cap", () => {
-    // The z14 step is ~0.022 deg, so 2 x 2 deg is ~8000 lattice nodes; the
+    // The z14 step is ~0.011 deg, so 2 x 2 deg is ~33,000 lattice nodes; the
     // step doubles (still a global lattice, so coverage stays even) until
-    // the total -- guaranteed point included -- fits the 256 cap.
+    // the total -- guaranteed point included -- fits the 1024 cap.
     const big = box(0, 0, 2, 2);
     const features = anchors([polygon({ LNAM: "AA", _QZMIN: 14 }, big)], {
       className: "SWPARE",
     });
 
     expect(features.length).toBeGreaterThan(1);
-    expect(features.length).toBeLessThanOrEqual(256);
+    expect(features.length).toBeLessThanOrEqual(1024);
     for (const feature of features) {
       expect(inRing(feature.geometry.coordinates, big)).toBe(true);
     }
@@ -751,7 +837,7 @@ describe("the no-fill grid repeat", () => {
   test("a BOUNDED interval is sized at its ceiling, not its floor", () => {
     // A ground step spans MORE screen pixels the deeper the zoom, so the
     // sparsest the lattice ever looks is at the interval's CEILING -- that is
-    // where the ~512 px target has to be met, and sizing at the floor met it
+    // where the ~256 px target has to be met, and sizing at the floor met it
     // only at the one zoom where the copy looked its best.
     const ring = box(0, 44, 2, 45);
     const whole = latticeStep(
@@ -780,7 +866,7 @@ describe("the no-fill grid repeat", () => {
   test("an open-ended top copy is sized two zooms below its floor", () => {
     // The top copy has no ceiling: it runs to the tiling maxzoom and past it
     // through overzoom. Two zooms down is the representative deep zoom --
-    // past that the spacing passes ~2048 px, which the pyramid cap below
+    // past that the spacing passes ~1024 px, which the pyramid cap below
     // makes moot.
     const ring = box(0, 44, 2, 45);
     const open = latticeStep(
@@ -861,9 +947,17 @@ describe("the no-fill grid repeat", () => {
     const step = stepAt(11);
     // The centre of the box, and so its pointOnSurface, offset from the node
     // at 5 steps by a twentieth of a step: far outside 1e-9, well inside the
-    // quarter-step tolerance.
+    // quarter-step tolerance. The box is sized in STEPS -- 2.275 of them
+    // either side, so rows 3..7 stand inside it -- rather than in degrees,
+    // which pinned the 5 x 5 block to one value of GRID_SPACING_PIXELS.
     const centre = 5 * step + step / 20;
-    const ring = box(centre - 0.4, centre - 0.4, centre + 0.4, centre + 0.4);
+    const half = 2.275 * step;
+    const ring = box(
+      centre - half,
+      centre - half,
+      centre + half,
+      centre + half,
+    );
     const features = anchors(
       [polygon({ LNAM: "AA", _QZMIN: 11, _QZMAX: 11 }, ring)],
       { className: "SWPARE" },
@@ -973,7 +1067,7 @@ describe("the lattice scanline", () => {
       if (entry.minY < minY) minY = entry.minY;
       if (entry.maxY > maxY) maxY = entry.maxY;
     }
-    const stepLon = (512 * 360) / (512 * 2 ** sizeZoom);
+    const stepLon = (256 * 360) / (512 * 2 ** sizeZoom);
     const latBand = Math.round((minY + maxY) / 2 / 5) * 5;
     const stepLat =
       stepLon * Math.max(Math.cos((latBand * Math.PI) / 180), 0.01);
@@ -1012,13 +1106,13 @@ describe("the lattice scanline", () => {
   });
 
   test("a box standing exactly on lattice nodes agrees -- the half-open rule", () => {
-    // Every vertex is an exact multiple of the z11/band-0 step (360/2048 =
-    // 45/256, an exact binary fraction), so lattice nodes land ON the ring:
+    // Every vertex is an exact multiple of the z11/band-0 step (180/2048 =
+    // 45/512, an exact binary fraction), so lattice nodes land ON the ring:
     // corners, edges, the lot. This is the one fixture that can see the
     // half-open crossing rule -- flipping `xs[k] <= x` to `<` in
     // latticeNodesContained moves every boundary-exact node's parity and
     // fails here, while the generic-position fixtures above cannot notice.
-    const step = 360 / 2 ** 11;
+    const step = stepAt(11);
     const ring = [
       [2 * step, 1 * step],
       [8 * step, 1 * step],
@@ -1114,7 +1208,7 @@ describe("the lattice scanline", () => {
   test("a 50,000-vertex coastal band converts in milliseconds, not minutes", () => {
     // The incident fixture at full size, through the WHOLE generator as
     // bin/s57-to-tiles runs it -- child process, ~2 MB of GeoJSON in and
-    // out, grid on at the z13 sizing (a 68 x 99 window). The replaced
+    // out, grid on at the z13 sizing (a 137 x 197 window). The replaced
     // per-node scan took 3.2 s in gridPoints ALONE on this fixture; the
     // bound is generous over the scanline's ~15 ms plus process overhead,
     // and a regression toward nodes-times-vertices blows it immediately.
@@ -1125,15 +1219,18 @@ describe("the lattice scanline", () => {
     const started = process.hrtime.bigint();
     const features = run("--class", `SWPARE:${path}`);
     const elapsedMs = Number(process.hrtime.bigint() - started) / 1e6;
-    // Measured 74-155 ms here (slowest observed environment); the replaced
-    // per-node loop costs 3239 ms on the same fixture. 500 keeps ~3x headroom
-    // over pass while still failing anything short of a ~6x regression -- a
-    // 2000 ms bound would let a fast machine pass a full regression.
+    // Measured 74-160 ms here (slowest observed environment) -- the halved
+    // spacing doubles the scanline's rows without moving that materially,
+    // since the cost is the row buckets over the ring's vertices, not the
+    // nodes; the replaced per-node loop costs 3239 ms on the same fixture.
+    // 500 keeps ~3x headroom over pass while still failing anything short of
+    // a ~6x regression -- a 2000 ms bound would let a fast machine pass a
+    // full regression.
     expect(elapsedMs).toBeLessThan(500);
     // and the grid really gridded: the guaranteed point plus a capped
     // lattice, not a lone anchor
     expect(features.length).toBeGreaterThan(50);
-    expect(features.length).toBeLessThanOrEqual(256);
+    expect(features.length).toBeLessThanOrEqual(1024);
   });
 });
 
