@@ -328,6 +328,27 @@ for (let zoom = minzoom; zoom < maxzoom; zoom++) {
   }
 }
 
+// Feedback #79 -- a NAMED summit's icon shows wherever its name does; unnamed
+// summits keep the density thinning. The _TERRAIN anchor below carries
+// ANCHOR_TIPPECANOE (minzoom 0) whatever the density contest decided, so a
+// named representative that LOSES its low-zoom cells would otherwise publish
+// its name with no peak mark under it -- measured over Alaska z8-9, "Mount
+// Hamlet 620 m" and its neighbours drew as text with no HILTOP01/POSGEN04
+// symbol. Pin a named representative's icon to the anchor's minzoom so the two
+// enter the tile pyramid together and the frontend style's name floor governs
+// both. This is the THINNING stamp alone, exactly like the value the contest
+// writes: the copy-ladder interval is still composed on top by
+// bin/stamp-quilt-zooms (max(minzoom, _QZMIN)) just as it is for the anchor, so
+// a partitioned copy is unaffected below its own range. Unnamed points keep
+// their competed minzoom -- no new low-zoom clutter -- and the coincident
+// SLOGRD ground takes this through the group loop below, so the nested
+// dot-and-starburst arrives with the name as one summit.
+for (const representative of contestants) {
+  if (representative.name !== null) {
+    representative.minzoom = ANCHOR_TIPPECANOE.minzoom;
+  }
+}
+
 // A summit digitised twice is ONE summit: the group competed as one unit and
 // every member takes the unit's result, so the sloping ground and the
 // elevation point arrive and leave together. The NAME is still deduped -- the

@@ -220,20 +220,22 @@ describe("the coincident pair", () => {
     });
   });
 
-  test("a group that loses the contest has BOTH members at the maxzoom", () => {
-    // Two coincident pairs a ten-thousandth of a degree apart -- one 64 px
-    // cell at every zoom this run contests (the z11 cell is ~0.022 degrees).
-    // The lower pair never wins, so BOTH its members are stamped with the
-    // band maxzoom: the unit loses together exactly as it wins together.
+  test("an unnamed coincident pair that loses the contest has BOTH members at the maxzoom", () => {
+    // A named winning pair and, a ten-thousandth of a degree away, an UNNAMED
+    // pair -- one 64 px cell at every zoom this run contests (the z11 cell is
+    // ~0.022 degrees). The named pair holds the cell at every zoom, so the
+    // unnamed one never wins and BOTH its members are stamped with the band
+    // maxzoom: an unnamed unit loses together exactly as it wins together. (A
+    // NAMED loser instead follows its label to minzoom 0 -- feedback #79 below.)
     const { LNDELV, SLOGRD } = run(
       {
         LNDELV: [
           peak("high-spot", { name: "High Hill", elevation: 500 }),
-          peak("low-spot", { name: "Low Hill", elevation: 100, lon: 0.0001 }),
+          peak("low-spot", { elevation: 100, lon: 0.0001 }),
         ],
         SLOGRD: [
           peak("high-ground", { name: "High Hill" }),
-          peak("low-ground", { name: "Low Hill", lon: 0.0001 }),
+          peak("low-ground", { lon: 0.0001 }),
         ],
       },
       { maxzoom: 12 },
@@ -452,15 +454,18 @@ describe("the zoom partition", () => {
   });
 
   test("a copy does not hold a grid cell at a zoom it does not serve", () => {
-    // The named copy serves z9 up; the unnamed one serves everything. Without
-    // the interval the named copy wins z0 and the unnamed peak -- the only
+    // The higher copy serves z9 up; the lower one serves everything. Without
+    // the interval the higher copy wins z0 and the lower peak -- the only
     // terrain this cell publishes down there -- is stamped out of its range.
+    // Both unnamed, so the feedback #79 name floor does not enter and this is
+    // the interval alone doing its job in the contest; the name-plus-interval
+    // interaction is exercised in the feedback #79 block below.
     const { LNDELV } = run({
       LNDELV: [
         copy("plain", { elevation: 300 }, {}),
         copy(
-          "famous",
-          { name: "Peak", elevation: 300, lon: 0.0001 },
+          "higher",
+          { elevation: 900, lon: 0.0001 },
           {
             _QZMIN: 9,
           },
@@ -529,5 +534,71 @@ describe("the zoom partition", () => {
     });
 
     expect(stamps(LNDELV)).toEqual([0, 0]);
+  });
+});
+
+describe("a named summit's icon shows wherever its name does (feedback #79)", () => {
+  test("a named pair that loses the contest still shows its icon at the label minzoom", () => {
+    // The _TERRAIN anchor enters the pyramid at ANCHOR_TIPPECANOE.minzoom (0)
+    // whatever the density contest decided, so a NAMED summit that loses its
+    // low-zoom cells must publish its icon there too -- otherwise the name draws
+    // with no peak mark under it (measured over Alaska z8-9, "Mount Hamlet
+    // 620 m" as text). "High Hill" holds every shared cell, yet the losing
+    // named pair "Low Hill" is stamped at 0, both members together.
+    const { LNDELV, SLOGRD, _TERRAIN } = run(
+      {
+        LNDELV: [
+          peak("high-spot", { name: "High Hill", elevation: 500 }),
+          peak("low-spot", { name: "Low Hill", elevation: 100, lon: 0.0001 }),
+        ],
+        SLOGRD: [
+          peak("high-ground", { name: "High Hill" }),
+          peak("low-ground", { name: "Low Hill", lon: 0.0001 }),
+        ],
+      },
+      { maxzoom: 12 },
+    );
+    // The losing named summit's icon rides its label to minzoom 0...
+    expect(minzooms(LNDELV)["low-spot"]).toBe(0);
+    // ...and its coincident SLOGRD ground shares that stamp, so the nested
+    // dot-and-starburst arrives with the name as one summit.
+    expect(minzooms(SLOGRD)["low-ground"]).toBe(0);
+    // Each named summit still gets exactly one anchor.
+    const names = _TERRAIN.features.map((f) => f.properties.OBJNAM).sort();
+    expect(names).toEqual(["High Hill", "Low Hill"]);
+  });
+
+  test("an unnamed summit that loses keeps its competed minzoom", () => {
+    // The fix touches named representatives only. An unnamed loser sharing a
+    // cell with a named winner at every contested zoom stays at the band
+    // maxzoom -- no new low-zoom clutter.
+    const { LNDELV } = run(
+      {
+        LNDELV: [
+          peak("named", { name: "Beacon Hill", elevation: 200 }),
+          peak("unnamed", { elevation: 900, lon: 0.0001 }),
+        ],
+      },
+      { maxzoom: 12 },
+    );
+    expect(minzooms(LNDELV)["named"]).toBe(0);
+    expect(minzooms(LNDELV)["unnamed"]).toBe(12);
+  });
+
+  test("a named partitioned copy stamps the thinning floor, leaving _QZMIN for stamp-quilt-zooms", () => {
+    // The name floor is the THINNING stamp alone: a copy serving z9 up is
+    // stamped 0 here, and bin/stamp-quilt-zooms composes max(0, _QZMIN) = 9
+    // later -- exactly as it does for the anchor -- so the copy is not published
+    // below its own range. The interval property is left untouched for that
+    // pass, and the anchor carries the same {minzoom: 0}.
+    const feature = peak("copy", { name: "Mount Peulik", elevation: 1524 });
+    Object.assign(feature.properties, { _QZMIN: 9, _QZMAX: 11 });
+    const { LNDELV, _TERRAIN } = run({ LNDELV: [feature] }, { maxzoom: 12 });
+    const [icon] = LNDELV.features;
+    expect(icon.tippecanoe.minzoom).toBe(0);
+    // _QZMIN survives as a property for bin/stamp-quilt-zooms to compose.
+    expect(icon.properties._QZMIN).toBe(9);
+    // Icon and anchor enter the pyramid on the same floor.
+    expect(_TERRAIN.features[0].tippecanoe).toEqual({ minzoom: 0 });
   });
 });
