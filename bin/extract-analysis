@@ -33,8 +33,9 @@
 #                             §4): territorial sea, contiguous zone, EEZ,
 #                             fishery zone, customs zone, straight
 #                             territorial-sea baseline. MIPARE is deliberately
-#                             NOT here: military practice areas are
-#                             restriction display, not maritime-limit lines.
+#                             NOT in this family — military practice areas are
+#                             restriction display, not maritime-limit lines;
+#                             it rides the advisory-area list below.
 #   ADMARE                    administration areas, exported IN FULL with
 #                             their attributes because NOAA charts the
 #                             "Three Nautical Mile Line" as a named ADMARE
@@ -54,6 +55,23 @@
 #                             dangerousness. Clipped exactly like every other
 #                             class: areas/lines by ST_Difference, points
 #                             deleted where ST_Within the finer mask.
+#   CTNARE RESARE PRCARE      the advisory-area classes for the areas product
+#   MIPARE SPLARE MARCUL      (Live Route Check advisory candidates): caution,
+#                             restricted, precautionary, military practice,
+#                             sea-plane landing and marine farm/culture areas.
+#                             Exported per feature as charted — no dissolve —
+#                             with every attribute the full-feature export
+#                             carries (OBJNAM, INFORM, CATREA, RESTRN, STATUS,
+#                             DATSTA, DATEND, and TXTDSC's companion .TXT file
+#                             refs, which the pipeline resolves to note text
+#                             while the cell's files are still on disk). The
+#                             attribute allowlist lives PIPELINE-side
+#                             (plotroom encpipeline/analysis.py), where it is
+#                             tested; this script exports the classes as
+#                             charted like every other, clipped exactly like
+#                             every other: areas by ST_Difference, point
+#                             renderings deleted where ST_Within the finer
+#                             mask.
 #
 # Clip semantics, mirroring the s57-to-tiles top copy: the mask is the
 # ST_Union of every coverage row with QFLOOR strictly greater than this
@@ -124,7 +142,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 # shellcheck source=bin/quilt-rung.sh
 . "$SCRIPT_DIR/quilt-rung.sh"
 
-ANALYSIS_CLASSES="DEPARE LNDARE DEPCNT TESARE CONZNE EXEZNE FSHZNE CUSZNE STSLNE ADMARE UWTROC OBSTRN WRECKS"
+ANALYSIS_CLASSES="DEPARE LNDARE DEPCNT TESARE CONZNE EXEZNE FSHZNE CUSZNE STSLNE ADMARE UWTROC OBSTRN WRECKS CTNARE RESARE PRCARE MIPARE SPLARE MARCUL"
 
 export OGR_S57_OPTIONS="SPLIT_MULTIPOINT=ON,ADD_SOUNDG_DEPTH=ON,LIST_AS_STRING=ON"
 

@@ -131,6 +131,39 @@ describe("which classes are exported", () => {
     );
   });
 
+  test("the advisory-area classes are analysis classes (the areas product)", () => {
+    // Caution, restricted, precautionary, military practice, sea-plane
+    // landing and marine farm/culture areas export IN FULL — the attribute
+    // allowlist (and the TXTDSC note-text resolution) is pipeline-side.
+    const result = run({
+      STUB_TABLES: "CTNARE RESARE PRCARE MIPARE SPLARE MARCUL M_COVR",
+    });
+
+    expect(result.status).toBe(0);
+    expect(result.exports).toEqual([
+      "CTNARE.geojson",
+      "MARCUL.geojson",
+      "MIPARE.geojson",
+      "PRCARE.geojson",
+      "RESARE.geojson",
+      "SPLARE.geojson",
+    ]);
+    // The same finest-here clip every class gets, point renderings included
+    // (a small-scale CTNARE is charted as a point).
+    for (const cls of ["CTNARE", "RESARE", "MARCUL"]) {
+      expect(result.sql).toContain(
+        `UPDATE "${cls}" SET geom = ST_Difference("${cls}".geom, (SELECT geom FROM quilt_mask))`,
+      );
+      expect(result.sql).toContain(
+        `ST_Within("${cls}".geom, (SELECT geom FROM quilt_mask))`,
+      );
+    }
+    // Full-feature imports, no field trim: the class name is the invocation's
+    // last argument (OBJNAM, INFORM, CATREA, RESTRN, STATUS, DATSTA, DATEND
+    // and the TXTDSC file refs all ride along).
+    expect(result.sql).toMatch(/US5WA22M\.000 RESARE( -append)?\n/);
+  });
+
   test("a READABLE chart with no analysis class at all exits 0 with nothing", () => {
     const result = run({ STUB_TABLES: "M_COVR SOUNDG" });
 
