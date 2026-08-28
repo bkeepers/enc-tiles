@@ -1,0 +1,119 @@
+#!/usr/bin/env node
+
+// Derives the _LABELS layer: one label anchor per named land or sea area.
+//
+// Usage:
+//   bin/generate-labels <output.geojson> --class LNDARE:LNDARE.geojson \
+//     [--class LNDRGN:LNDRGN.geojson] [--class SEAARE:SEAARE.geojson]
+//
+// Why this layer exists:
+//
+//   An S-57 cell splits a named feature across as many polygons as its
+//   topology needs -- an island group is one LNDARE per island, a bay is
+//   several SEAARE parts -- and every one of them carries the same OBJNAM. A
+//   symbol layer with a text-field over the class draws the name once per
+//   polygon, so a chart of an archipelago repeats the same island name a
+//   dozen times and MapLibre's collision detection thins them arbitrarily.
+//
+//   Grouping by (OBJNAM, INTU) and emitting a single anchor per group gives
+//   the style one label per name per chart scale. INTU is part of the key
+//   because the quilt carries several charts at once and each keeps its own
+//   labelling.
+//
+// Each output feature carries OBJNAM, CLASS (the S-57 class of the largest
+// member), INTU, and AREA (the summed area of the group, in square degrees
+// scaled by cos(latitude) so it ranks sensibly across latitudes). The style
+// uses AREA to size and prioritise the text.
+//
+// THE ZOOM PARTITION
+//
+// A partitioned cell arrives as zoom-range COPIES of each source feature --
+// one per interval of the copy ladder, carrying _QZMIN/_QZMAX (and _QFALL on a
+// fallback continuation) -- which bin/stamp-quilt-zooms turns into per-feature
+// tippecanoe zoom bounds after this runs. The interval is therefore part of the
+// group key, and the group's interval is carried onto its anchor: without it
+// the copies of one island merge into a single group whose anchor is stamped
+// for no interval at all and draws at every zoom, which is the multi-band label
+// duplication the partition exists to remove. An input with none of those
+// properties is one group and behaves exactly as it did before them.
+
+import { writeFileSync } from "fs";
+
+import { ANCHOR_TIPPECANOE, anchorOf, featureArea } from "./quilt-anchors.mjs";
+import { quiltKey, quiltRange, readFeatures } from "./quilt-geojson.mjs";
+
+const args = process.argv.slice(2);
+const inputs = [];
+const positional = [];
+
+for (let i = 0; i < args.length; i++) {
+  if (args[i] === "--class" && args[i + 1]) {
+    const value = args[++i];
+    const separator = value.indexOf(":");
+    inputs.push({
+      className: value.slice(0, separator),
+      path: value.slice(separator + 1),
+    });
+  } else positional.push(args[i]);
+}
+
+const outputPath = positional[0];
+if (!outputPath || inputs.length === 0) {
+  console.error(
+    "Usage: generate-labels <output.geojson> --class <CLASS>:<file.geojson> [--class ...]",
+  );
+  process.exit(1);
+}
+
+const groups = new Map();
+
+for (const { className, path } of inputs) {
+  for (const feature of readFeatures(path)) {
+    const name = feature.properties?.OBJNAM;
+    if (typeof name !== "string" || name.trim() === "") continue;
+    const intu = feature.properties?.INTU ?? null;
+    const range = quiltRange(feature.properties);
+    const id = `${name}\u0000${intu}\u0000${quiltKey(range)}`;
+
+    const area = featureArea(feature.geometry);
+    const group = groups.get(id) ?? {
+      name,
+      intu,
+      range,
+      area: 0,
+      best: { area: -1, className, anchor: undefined },
+    };
+    group.area += area;
+    if (area > group.best.area) {
+      const anchor = anchorOf(feature);
+      if (anchor) group.best = { area, className, anchor };
+    }
+    groups.set(id, group);
+  }
+}
+
+const features = [];
+for (const group of groups.values()) {
+  if (!group.best.anchor) continue;
+  features.push({
+    type: "Feature",
+    // See ANCHOR_TIPPECANOE: one anchor per group, exempt from dot-dropping.
+    tippecanoe: ANCHOR_TIPPECANOE,
+    geometry: { type: "Point", coordinates: group.best.anchor },
+    properties: {
+      OBJNAM: group.name,
+      CLASS: group.best.className,
+      ...(group.intu === null ? {} : { INTU: group.intu }),
+      AREA: group.area,
+      // The interval the group's members serve, converted to tippecanoe
+      // bounds later by bin/stamp-quilt-zooms.
+      ...group.range,
+    },
+  });
+}
+
+writeFileSync(
+  outputPath,
+  JSON.stringify({ type: "FeatureCollection", features }),
+);
+console.error(`Generated ${features.length} label anchors`);

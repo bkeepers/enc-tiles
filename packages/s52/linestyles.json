@@ -1,0 +1,1020 @@
+{
+  "ACHARE51": {
+    "description": "boundary of an anchorage area",
+    "interval": 122.079,
+    "parts": [
+      {
+        "offset": 0,
+        "width": 1.209,
+        "colour": "CHMGD",
+        "dash": [
+          22.677,
+          38.551,
+          22.677,
+          7.559,
+          22.677,
+          7.937
+        ]
+      }
+    ],
+    "marks": [
+      {
+        "mark": "LM_ACHARE51",
+        "spacing": 30.52
+      },
+      {
+        "mark": "LM_ACHARE51_2",
+        "spacing": 122.079
+      }
+    ]
+  },
+  "ACHRES51": {
+    "description": "boundary of an area where anchoring is prohibited or restricted",
+    "interval": 116.031,
+    "parts": [
+      {
+        "offset": 0,
+        "width": 1.209,
+        "colour": "CHMGD",
+        "dash": [
+          11.339,
+          34.394,
+          11.339,
+          10.961,
+          11.339,
+          12.472,
+          11.339,
+          12.85
+        ]
+      }
+    ],
+    "marks": [
+      {
+        "mark": "LM_ACHRES51",
+        "spacing": 23.206
+      },
+      {
+        "mark": "LM_ACHRES51_2",
+        "spacing": 116.031
+      }
+    ]
+  },
+  "ADMARE01": {
+    "description": "jurisdiction boundary",
+    "interval": 19.276,
+    "parts": [
+      {
+        "offset": 0,
+        "width": 2.419,
+        "colour": "CHGRD",
+        "dash": [
+          11.339,
+          7.937
+        ]
+      }
+    ],
+    "mark": "LM_ADMARE01"
+  },
+  "ARCSLN01": {
+    "description": "boundary of archipelagic sea lane",
+    "interval": 30.236,
+    "parts": [
+      {
+        "offset": 0,
+        "width": 1.209,
+        "colour": "CHMGF",
+        "dash": [
+          22.677,
+          7.559
+        ]
+      }
+    ],
+    "mark": "LM_ARCSLN01"
+  },
+  "CBLARE51": {
+    "description": "boundary of a submarine cable area",
+    "interval": 122.079,
+    "parts": [
+      {
+        "offset": 0,
+        "width": 1.209,
+        "colour": "CHMGD",
+        "dash": [
+          22.677,
+          38.551,
+          22.677,
+          7.559,
+          22.677,
+          7.937
+        ]
+      }
+    ],
+    "marks": [
+      {
+        "mark": "LM_CBLARE51",
+        "spacing": 30.52
+      },
+      {
+        "mark": "LM_CBLARE51_2",
+        "spacing": 122.079
+      }
+    ]
+  },
+  "CBLSUB06": {
+    "description": "submarine cable",
+    "interval": 116.787,
+    "parts": [
+      {
+        "offset": 0,
+        "width": 1.209,
+        "colour": "CHMGD",
+        "dash": [
+          7.559,
+          80.126,
+          7.559,
+          21.543
+        ]
+      }
+    ],
+    "mark": "LM_CBLSUB06"
+  },
+  "CHCRDEL1": {
+    "description": "this line has been deleted by a manual update",
+    "interval": 50.646,
+    "parts": [
+      {
+        "offset": 0,
+        "width": 1.209,
+        "colour": "CHCOR"
+      }
+    ],
+    "mark": "LM_CHCRDEL1"
+  },
+  "CHCRID01": {
+    "description": "this line has been manually updated",
+    "interval": 47.244,
+    "parts": [
+      {
+        "offset": 0,
+        "width": 1.209,
+        "colour": "CHCOR"
+      }
+    ],
+    "mark": "LM_CHCRID01"
+  },
+  "CTNARE51": {
+    "description": "boundary of area with a specific caution",
+    "interval": 122.079,
+    "parts": [
+      {
+        "offset": 0,
+        "width": 1.209,
+        "colour": "CHMGD",
+        "dash": [
+          22.677,
+          38.551,
+          22.677,
+          7.559,
+          22.677,
+          7.937
+        ]
+      }
+    ],
+    "marks": [
+      {
+        "mark": "LM_CTNARE51",
+        "spacing": 30.52
+      },
+      {
+        "mark": "LM_CTNARE51_2",
+        "spacing": 122.079
+      }
+    ]
+  },
+  "CTYARE51": {
+    "description": "boundary of area to be navigated with caution",
+    "interval": 32.504,
+    "parts": [
+      {
+        "offset": 0,
+        "width": 1.209,
+        "colour": "CHMGD",
+        "dash": [
+          22.677,
+          9.827
+        ]
+      }
+    ],
+    "mark": "LM_CTYARE51"
+  },
+  "CURENT01": {
+    "description": "non-tidal current",
+    "interval": 45.354,
+    "parts": [
+      {
+        "offset": 0,
+        "width": 1.209,
+        "colour": "CHGRD",
+        "dash": [
+          34.016,
+          11.339
+        ]
+      }
+    ],
+    "mark": "LM_CURENT01"
+  },
+  "DWLDEF01": {
+    "description": "deep water route centreline, direction not defined in the data",
+    "interval": 98.268,
+    "parts": [
+      {
+        "offset": 0,
+        "width": 1.209,
+        "colour": "TRFCD",
+        "dash": [
+          12.472,
+          40.819,
+          12.472,
+          32.504
+        ]
+      }
+    ],
+    "mark": "LM_DWLDEF01"
+  },
+  "DWRTCL05": {
+    "description": "two-way deep water route centreline, not based on fixed marks",
+    "interval": 96,
+    "parts": [
+      {
+        "offset": 0,
+        "width": 1.209,
+        "colour": "TRFCD",
+        "dash": [
+          15.118,
+          8.315,
+          15.496,
+          8.693,
+          15.118,
+          33.26
+        ]
+      }
+    ],
+    "mark": "LM_DWRTCL05"
+  },
+  "DWRTCL06": {
+    "description": "two-way deep water route centreline, based on fixed marks",
+    "interval": 96.756,
+    "parts": [
+      {
+        "offset": 0,
+        "width": 1.209,
+        "colour": "TRFCD",
+        "dash": [
+          62.74,
+          34.016
+        ]
+      }
+    ],
+    "mark": "LM_DWRTCL06"
+  },
+  "DWRTCL07": {
+    "description": "one-way deep water route centreline, not based on fixed marks",
+    "interval": 88.441,
+    "parts": [
+      {
+        "offset": 0,
+        "width": 1.209,
+        "colour": "TRFCD",
+        "dash": [
+          15.496,
+          18.52,
+          15.118,
+          39.307
+        ]
+      }
+    ],
+    "mark": "LM_DWRTCL07"
+  },
+  "DWRTCL08": {
+    "description": "one-way deep water route centreline, based on fixed-marks",
+    "interval": 86.173,
+    "parts": [
+      {
+        "offset": 0,
+        "width": 1.209,
+        "colour": "TRFCD",
+        "dash": [
+          49.512,
+          36.661
+        ]
+      }
+    ],
+    "mark": "LM_DWRTCL08"
+  },
+  "DWRUTE51": {
+    "description": "boundary of a deep water route",
+    "interval": 122.079,
+    "parts": [
+      {
+        "offset": 0,
+        "width": 1.209,
+        "colour": "TRFCD",
+        "dash": [
+          22.677,
+          38.551,
+          22.677,
+          7.559,
+          22.677,
+          7.937
+        ]
+      }
+    ],
+    "marks": [
+      {
+        "mark": "LM_DWRUTE51",
+        "spacing": 30.52
+      },
+      {
+        "mark": "LM_DWRUTE51_2",
+        "spacing": 122.079
+      }
+    ]
+  },
+  "ENTRES51": {
+    "description": "boundary of an area where entry is prohibited or restricted",
+    "interval": 116.031,
+    "parts": [
+      {
+        "offset": 0,
+        "width": 1.209,
+        "colour": "CHMGD",
+        "dash": [
+          11.339,
+          34.394,
+          11.339,
+          10.961,
+          11.339,
+          12.472,
+          11.339,
+          12.85
+        ]
+      }
+    ],
+    "marks": [
+      {
+        "mark": "LM_ENTRES51",
+        "spacing": 23.206
+      },
+      {
+        "mark": "LM_ENTRES51_2",
+        "spacing": 116.031
+      }
+    ]
+  },
+  "ERBLNA01": {
+    "description": "electronic range/bearing line, dash",
+    "interval": 91.465,
+    "parts": [
+      {
+        "offset": 0,
+        "width": 2.419,
+        "colour": "NINFO",
+        "dash": [
+          37.795,
+          7.559,
+          37.795,
+          8.315
+        ]
+      }
+    ]
+  },
+  "ESSARE01": {
+    "description": "boundary of an ESSA or PSSA",
+    "interval": 18.898,
+    "parts": [
+      {
+        "offset": 0,
+        "width": 1.209,
+        "colour": "CHMGF",
+        "dash": [
+          11.339,
+          7.559
+        ]
+      }
+    ],
+    "mark": "LM_ESSARE01"
+  },
+  "FERYRT01": {
+    "description": "ferry route",
+    "interval": 83.15,
+    "parts": [
+      {
+        "offset": 0,
+        "width": 1.209,
+        "colour": "CHMGD",
+        "dash": [
+          11.717,
+          34.394,
+          10.961,
+          7.559,
+          10.961,
+          7.559
+        ]
+      }
+    ],
+    "mark": "LM_FERYRT01"
+  },
+  "FERYRT02": {
+    "description": "cable ferry route",
+    "interval": 83.15,
+    "parts": [
+      {
+        "offset": 0,
+        "width": 1.209,
+        "colour": "CHBLK",
+        "dash": [
+          11.717,
+          34.394,
+          10.961,
+          7.559,
+          10.961,
+          7.559
+        ]
+      }
+    ],
+    "mark": "LM_FERYRT02"
+  },
+  "FSHFAC02": {
+    "description": "fishing stakes",
+    "interval": 9.071,
+    "parts": [
+      {
+        "offset": 0,
+        "width": 1.209,
+        "colour": "CHGRD",
+        "dash": [
+          7.559,
+          1.512
+        ]
+      }
+    ],
+    "mark": "LM_FSHFAC02"
+  },
+  "FSHRES51": {
+    "description": "boundary of an area where trawling or fishing is prohibited or restricted",
+    "interval": 116.031,
+    "parts": [
+      {
+        "offset": 0,
+        "width": 1.209,
+        "colour": "CHMGD",
+        "dash": [
+          11.339,
+          34.394,
+          11.339,
+          10.961,
+          11.339,
+          12.472,
+          11.339,
+          12.85
+        ]
+      }
+    ],
+    "marks": [
+      {
+        "mark": "LM_FSHRES51",
+        "spacing": 23.206
+      },
+      {
+        "mark": "LM_FSHRES51_2",
+        "spacing": 116.031
+      }
+    ]
+  },
+  "LOWACC01": {
+    "description": "safety contour of low accuracy in position",
+    "interval": 47.698,
+    "parts": [],
+    "mark": "LM_LOWACC01"
+  },
+  "LOWACC21": {
+    "description": "coastline or shoreline construction of low accuracy in position",
+    "interval": 11.339,
+    "parts": [
+      {
+        "offset": 0,
+        "width": 1.209,
+        "colour": "CSTLN"
+      }
+    ],
+    "mark": "LM_LOWACC21"
+  },
+  "LOWACC31": {
+    "description": "area of wrecks or obstructions of low accuracy",
+    "interval": 11.339,
+    "parts": [
+      {
+        "offset": 0,
+        "width": 1.209,
+        "colour": "CHGRD"
+      }
+    ],
+    "mark": "LM_LOWACC31"
+  },
+  "LOWACC41": {
+    "description": "danger line of low accuracy surrounding a foul area",
+    "interval": 11.339,
+    "parts": [
+      {
+        "offset": 0,
+        "width": 1.209,
+        "colour": "CHBLK"
+      }
+    ],
+    "mark": "LM_LOWACC41"
+  },
+  "MARSYS51": {
+    "description": "boundary between IALA-A and IALA-B systems of lateral buoys and beacons",
+    "interval": 96.378,
+    "parts": [
+      {
+        "offset": 0,
+        "width": 1.209,
+        "colour": "CHGRD",
+        "dash": [
+          11.339,
+          18.898,
+          11.339,
+          8.315,
+          11.339,
+          16.252,
+          11.339,
+          7.559
+        ]
+      }
+    ],
+    "mark": "LM_MARSYS51"
+  },
+  "NAVARE51": {
+    "description": "boundary of a navigation feature such as a fairway, magnetic anomaly, etc.",
+    "interval": 32.504,
+    "parts": [
+      {
+        "offset": 0,
+        "width": 1.209,
+        "colour": "CHGRD",
+        "dash": [
+          22.677,
+          9.827
+        ]
+      }
+    ],
+    "mark": "LM_NAVARE51"
+  },
+  "NEWOBJ01": {
+    "description": "new object",
+    "interval": 23.887,
+    "parts": [],
+    "mark": "LM_NEWOBJ01"
+  },
+  "NONHODAT": {
+    "description": "boundary of non-HO data",
+    "interval": 22.677,
+    "parts": [
+      {
+        "offset": 0,
+        "width": 1.209,
+        "colour": "NINFO"
+      }
+    ],
+    "mark": "LM_NONHODAT"
+  },
+  "PIPARE51": {
+    "description": "boundary of a submarine pipeline area with potentially dangerous contents",
+    "interval": 122.079,
+    "parts": [
+      {
+        "offset": 0,
+        "width": 1.209,
+        "colour": "CHMGD",
+        "dash": [
+          22.677,
+          38.551,
+          22.677,
+          7.559,
+          22.677,
+          7.937
+        ]
+      }
+    ],
+    "marks": [
+      {
+        "mark": "LM_PIPARE51",
+        "spacing": 30.52
+      },
+      {
+        "mark": "LM_PIPARE51_2",
+        "spacing": 122.079
+      }
+    ]
+  },
+  "PIPARE61": {
+    "description": "boundary of a submarine pipeline area with generally non-dangerous contents",
+    "interval": 122.079,
+    "parts": [
+      {
+        "offset": 0,
+        "width": 1.209,
+        "colour": "CHGRD",
+        "dash": [
+          22.677,
+          38.551,
+          22.677,
+          7.559,
+          22.677,
+          7.937
+        ]
+      }
+    ],
+    "marks": [
+      {
+        "mark": "LM_PIPARE61",
+        "spacing": 30.52
+      },
+      {
+        "mark": "LM_PIPARE61_2",
+        "spacing": 122.079
+      }
+    ]
+  },
+  "PIPSOL05": {
+    "description": "oil, gas pipeline, submerged or on land",
+    "interval": 35.906,
+    "parts": [
+      {
+        "offset": 0,
+        "width": 1.209,
+        "colour": "CHMGD",
+        "dash": [
+          15.118,
+          20.787
+        ]
+      }
+    ],
+    "mark": "LM_PIPSOL05"
+  },
+  "PIPSOL06": {
+    "description": "water pipeline, sewer, etc.",
+    "interval": 32.882,
+    "parts": [
+      {
+        "offset": 0,
+        "width": 1.209,
+        "colour": "CHGRD",
+        "dash": [
+          15.118,
+          17.764
+        ]
+      }
+    ],
+    "mark": "LM_PIPSOL06"
+  },
+  "PRCARE51": {
+    "description": "boundary of a precautionary area",
+    "interval": 122.079,
+    "parts": [
+      {
+        "offset": 0,
+        "width": 1.209,
+        "colour": "CHMGD",
+        "dash": [
+          22.677,
+          38.551,
+          22.677,
+          7.559,
+          22.677,
+          7.937
+        ]
+      }
+    ],
+    "marks": [
+      {
+        "mark": "LM_PRCARE51",
+        "spacing": 30.52
+      },
+      {
+        "mark": "LM_PRCARE51_2",
+        "spacing": 122.079
+      }
+    ]
+  },
+  "QUESMRK1": {
+    "description": "object which is not sufficiently described to be symbolized, or for which no symbol exists in the symbol library",
+    "interval": 66.142,
+    "parts": [
+      {
+        "offset": 0,
+        "width": 2.419,
+        "colour": "CHMGD",
+        "dash": [
+          11.339,
+          7.559,
+          11.339,
+          17.386,
+          10.961,
+          7.559
+        ]
+      }
+    ],
+    "mark": "LM_QUESMRK1"
+  },
+  "RCRDEF11": {
+    "description": "regulated recommended route centreline, details not defined",
+    "interval": 92.976,
+    "parts": [
+      {
+        "offset": 0,
+        "width": 1.209,
+        "colour": "TRFCD",
+        "dash": [
+          13.228,
+          7.559,
+          11.339,
+          26.457,
+          11.339,
+          7.559,
+          11.717,
+          3.78
+        ]
+      }
+    ],
+    "mark": "LM_RCRDEF11"
+  },
+  "RCRTCL11": {
+    "description": "regulated two-way recommended route centreline, not based on fixed marks",
+    "interval": 91.087,
+    "parts": [
+      {
+        "offset": 0,
+        "width": 1.209,
+        "colour": "TRFCD",
+        "dash": [
+          11.339,
+          7.559,
+          11.339,
+          7.559,
+          11.339,
+          7.559,
+          11.339,
+          7.559,
+          11.339,
+          4.157
+        ]
+      }
+    ],
+    "mark": "LM_RCRTCL11"
+  },
+  "RCRTCL12": {
+    "description": "regulated one-way recommended route centreline, not based on fixed marks",
+    "interval": 91.087,
+    "parts": [
+      {
+        "offset": 0,
+        "width": 1.209,
+        "colour": "TRFCD",
+        "dash": [
+          11.339,
+          7.559,
+          11.339,
+          7.559,
+          11.339,
+          7.559,
+          11.339,
+          7.559,
+          11.339,
+          4.157
+        ]
+      }
+    ],
+    "mark": "LM_RCRTCL12"
+  },
+  "RCRTCL13": {
+    "description": "regulated two-way recommended route centreline, based on fixed-marks",
+    "interval": 89.197,
+    "parts": [
+      {
+        "offset": 0,
+        "width": 1.209,
+        "colour": "TRFCD",
+        "dash": [
+          86.929,
+          2.268
+        ]
+      }
+    ],
+    "mark": "LM_RCRTCL13"
+  },
+  "RCRTCL14": {
+    "description": "regulated one-way recommended route centreline, based on fixed marks",
+    "interval": 89.197,
+    "parts": [
+      {
+        "offset": 0,
+        "width": 1.209,
+        "colour": "TRFCD",
+        "dash": [
+          86.929,
+          2.268
+        ]
+      }
+    ],
+    "mark": "LM_RCRTCL14"
+  },
+  "RECDEF02": {
+    "description": "non-regulated recommended track, direction not defined in data",
+    "interval": 72.945,
+    "parts": [
+      {
+        "offset": 0,
+        "width": 1.209,
+        "colour": "CHGRD",
+        "dash": [
+          12.472,
+          40.441,
+          12.472,
+          7.559
+        ]
+      }
+    ],
+    "mark": "LM_RECDEF02"
+  },
+  "RECTRC09": {
+    "description": "non-regulated recommended two-way track, not based on fixed marks",
+    "interval": 72.945,
+    "parts": [
+      {
+        "offset": 0,
+        "width": 1.209,
+        "colour": "CHGRD",
+        "dash": [
+          12.472,
+          13.984,
+          12.472,
+          13.984,
+          12.472,
+          7.559
+        ]
+      }
+    ],
+    "mark": "LM_RECTRC09"
+  },
+  "RECTRC10": {
+    "description": "non-regulated recommended two-way track, based on fixed-marks",
+    "interval": 66.52,
+    "parts": [
+      {
+        "offset": 0,
+        "width": 1.209,
+        "colour": "CHGRD",
+        "dash": [
+          65.386,
+          1.134
+        ]
+      }
+    ],
+    "mark": "LM_RECTRC10"
+  },
+  "RECTRC11": {
+    "description": "non-regulated recommended one-way track, not based on fixed marks",
+    "interval": 72.945,
+    "parts": [
+      {
+        "offset": 0,
+        "width": 1.209,
+        "colour": "CHGRD",
+        "dash": [
+          12.472,
+          7.559,
+          12.094,
+          20.409,
+          12.472,
+          7.937
+        ]
+      }
+    ],
+    "mark": "LM_RECTRC11"
+  },
+  "RECTRC12": {
+    "description": "non-regulated recommended one-way track, based on fixed marks",
+    "interval": 66.898,
+    "parts": [
+      {
+        "offset": 0,
+        "width": 1.209,
+        "colour": "CHGRD",
+        "dash": [
+          64.63,
+          2.268
+        ]
+      }
+    ],
+    "mark": "LM_RECTRC12"
+  },
+  "RESARE51": {
+    "description": "boundary of a restricted area",
+    "interval": 19.276,
+    "parts": [
+      {
+        "offset": 0,
+        "width": 2.419,
+        "colour": "CHMGD",
+        "dash": [
+          11.339,
+          7.937
+        ]
+      }
+    ],
+    "mark": "LM_RESARE51"
+  },
+  "SCLBDY51": {
+    "description": "chart scale boundary, the double line indicates the larger scale",
+    "interval": 23.055,
+    "parts": [
+      {
+        "offset": -3.78,
+        "width": 3.628,
+        "colour": "CHGRF"
+      },
+      {
+        "offset": 6.576,
+        "width": 1.209,
+        "colour": "CHGRF"
+      },
+      {
+        "offset": 9.184,
+        "width": 1.209,
+        "colour": "CHGRF"
+      }
+    ]
+  },
+  "TIDINF51": {
+    "description": "boundary of an area for which there is tidal information",
+    "interval": 125.858,
+    "parts": [
+      {
+        "offset": 0,
+        "width": 1.209,
+        "colour": "CHGRD",
+        "dash": [
+          22.677,
+          42.331,
+          22.677,
+          7.937,
+          22.677,
+          7.559
+        ]
+      }
+    ],
+    "mark": "LM_TIDINF51"
+  },
+  "CHRVID02": {
+    "description": "This object has been inserted or modified by an automatic update",
+    "interval": 43.087,
+    "parts": [
+      {
+        "offset": 0,
+        "width": 3.628,
+        "colour": "CHCOR"
+      }
+    ],
+    "mark": "LM_CHRVID02"
+  },
+  "CHRVDEL2": {
+    "description": "This object has been deleted by an automatic update",
+    "interval": 41.575,
+    "parts": [
+      {
+        "offset": 0,
+        "width": 1.209,
+        "colour": "CHCOR"
+      }
+    ],
+    "mark": "LM_CHRVDEL2"
+  },
+  "INDHLT02": {
+    "description": "indication highlight for mariner's use",
+    "interval": 22.677,
+    "parts": [
+      {
+        "offset": 0,
+        "width": 4.838,
+        "colour": "BKAJ1"
+      },
+      {
+        "offset": 0,
+        "width": 2.419,
+        "colour": "CHYLW"
+      }
+    ]
+  }
+}

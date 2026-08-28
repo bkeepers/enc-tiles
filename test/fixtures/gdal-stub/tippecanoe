@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# Stub tippecanoe: records that the run got as far as tiling, and with what.
+#
+# The argv line is where the tests read the cell's TILING RANGE back: the copy
+# ladder can put a rung deeper than the cell's INTU band, and every interval of
+# it needs a tile, so --maximum-zoom is not a function of the band alone.
+echo "TIPPECANOE RAN"
+echo "TIPPECANOE ARGV $*"
+exit 0

@@ -1,0 +1,134 @@
+#!/usr/bin/env node
+
+// Derives the _MQUAL_EDGE layer: the boundaries of the M_QUAL partition where
+// the zone of confidence actually CHANGES, each carrying the CATZOC on either
+// side of it.
+//
+// Usage:
+//   bin/generate-mqual-edges <output.geojson> \
+//     --quality M_QUAL.geojson \
+//     [--coverage quilting_coverage.geojson] [--cell-coverage M_COVR.geojson] \
+//     [--fallback-coverage quilting_fallback_coverage.geojson]
+//
+// Why this layer exists:
+//
+//   M_QUAL is a meta-object: it tiles the survey into zones of confidence and
+//   says nothing about what is drawn. Its polygons are therefore split for
+//   reasons that have nothing to do with quality -- the topology of whatever
+//   they were digitised against, and above all the edge of the CHART. Stroking
+//   M_QUAL's own boundaries draws a line down every one of those splits, so a
+//   single CATZOC 2 survey covering three cells came out ruled into three
+//   boxes.
+//
+//   The line the mariner is owed is the one where the CONFIDENCE changes. That
+//   is a property of a boundary's two sides, not of either polygon, so it has
+//   to be derived -- which is what bin/quilt-edges.mjs does, on exactly the
+//   machinery bin/generate-depare-edges uses for the safety contour. This file
+//   is the CATZOC half of it: what a side is, and what makes two of them
+//   disagree.
+//
+// Each output feature carries:
+//
+//   CATZOC_LO  CATZOC of the better-surveyed side (S-57 numbers the zones
+//              1 = A1 best .. 6 = unassessed, so this is the NUMERICALLY lower
+//              of the two); -1 where the other side is not an assessed zone at
+//              all -- no M_QUAL there, or one carrying no CATZOC
+//   CATZOC_HI  CATZOC of the other side
+//
+// There is no DIFFER flag: a segment whose two sides agree is not emitted at
+// all, so the flag would be 1 on every feature of the layer. `CATZOC_LO !==
+// CATZOC_HI` is the invariant, and the two values are what a style needs to
+// pick which side of the line to hatch.
+//
+// WHAT IS DROPPED, AND WHY
+//
+//   * A segment owned by TWO zones of the same CATZOC. This is the interior
+//     split: one survey, two polygons, no change in confidence.
+//   * A segment owned by two zones one of which carries no CATZOC: both sides
+//     read -1, they agree, and it is dropped by the same rule.
+//   * A single-owner segment on a QUILT CUT (--coverage), on the FALLBACK
+//     copy's cut against coarser coverage (--fallback-coverage, which counts
+//     on the _QFALL interval alone) or on this cell's OWN M_COVR ring
+//     (--cell-coverage). See THE CHART BORDER in bin/quilt-edges.mjs for the
+//     trade that buys.
+//
+//     This is where _MQUAL_EDGE parts company with _DEPARE_EDGE, which FLAGS
+//     its seams (SEAM = 1) instead of dropping them. A depth-area seam still
+//     has to be drawn -- the safety contour runs along it -- and only its
+//     LABEL changes. A confidence boundary that is only a cell border has
+//     nothing to draw at all.
+
+import { writeFileSync } from "fs";
+
+import { chartBorderTest, deriveDifferEdges } from "./quilt-edges.mjs";
+import { readFeatures } from "./quilt-geojson.mjs";
+
+const args = process.argv.slice(2);
+const qualityPaths = [];
+const coveragePaths = [];
+const fallbackCoveragePaths = [];
+const cellCoveragePaths = [];
+const positional = [];
+
+for (let i = 0; i < args.length; i++) {
+  if (args[i] === "--quality" && args[i + 1]) qualityPaths.push(args[++i]);
+  else if (args[i] === "--coverage" && args[i + 1])
+    coveragePaths.push(args[++i]);
+  else if (args[i] === "--fallback-coverage" && args[i + 1])
+    fallbackCoveragePaths.push(args[++i]);
+  else if (args[i] === "--cell-coverage" && args[i + 1])
+    cellCoveragePaths.push(args[++i]);
+  else positional.push(args[i]);
+}
+
+const outputPath = positional[0];
+if (!outputPath || qualityPaths.length === 0) {
+  console.error(
+    "Usage: generate-mqual-edges <output.geojson> --quality <file> [--coverage <file>] [--fallback-coverage <file>] [--cell-coverage <file>]",
+  );
+  process.exit(1);
+}
+
+/** Stands in for "the other side is not an assessed zone". */
+const NO_QUALITY = -1;
+
+const quality = qualityPaths.flatMap((path) => readFeatures(path));
+
+const { features, segmentTotal, seamTotal } = deriveDifferEdges({
+  features: quality,
+  // A zone with no CATZOC states no confidence, which is the same thing the
+  // absence of a zone states. Both read -1, so two of them side by side agree
+  // and no line is drawn between them.
+  sideOf: (feature) => {
+    const catzoc = Number(feature.properties?.CATZOC);
+    return Number.isFinite(catzoc) ? catzoc : NO_QUALITY;
+  },
+  absent: NO_QUALITY,
+  classify: (sides) => {
+    const low = Math.min(...sides);
+    const high = Math.max(...sides);
+    if (low === high) return null;
+    return {
+      signature: `${low}|${high}`,
+      properties: { CATZOC_LO: low, CATZOC_HI: high },
+    };
+  },
+  // The fallback copy's cut against COARSER coverage is a chart border too,
+  // and one no other roster describes; consulted on the _QFALL interval alone.
+  // See THE FALLBACK CUT in bin/quilt-edges.mjs.
+  onSeam: chartBorderTest(
+    coveragePaths,
+    cellCoveragePaths,
+    null,
+    fallbackCoveragePaths,
+  ),
+});
+
+writeFileSync(
+  outputPath,
+  JSON.stringify({ type: "FeatureCollection", features }),
+);
+console.error(
+  `Generated ${features.length} quality edges from ${segmentTotal} segments` +
+    (seamTotal ? ` (${seamTotal} dropped at chart boundaries)` : ""),
+);

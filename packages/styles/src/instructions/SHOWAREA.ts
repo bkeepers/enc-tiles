@@ -25,9 +25,21 @@ export function AP(
   return {
     type: "fill",
     paint: {
-      "fill-pattern": pattern.name,
+      "fill-pattern": patternImage(pattern.name),
     },
   };
+}
+
+/**
+ * Sprite-sheet key of an area fill.
+ *
+ * The same name-space collapse `lineStyleImage` documents: four fills share a
+ * name with a symbol, and AP(AIRARE02) / AP(FSHFAC03) / AP(MARCUL02) were
+ * resolving to those point icons and tiling them edge to edge instead of
+ * drawing the sparse S-101 lattice.
+ */
+export function patternImage(pattern: string): string {
+  return `AP_${pattern}`;
 }
 
 /** Map TRANSP values to their corresponding opacity. */

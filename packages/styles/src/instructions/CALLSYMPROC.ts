@@ -5,14 +5,16 @@ import {
 } from "maplibre-gl";
 import { Reference } from "./parser.js";
 import { colour, symbols } from "@enc-tiles/s52";
-import { LineStyles } from "./SHOWLINE.js";
+import { LC, LineStyles } from "./SHOWLINE.js";
+import { patternImage } from "./SHOWAREA.js";
 import {
   listContains,
   listIncludes,
   quaposLowQuality,
   scaleFilter,
 } from "../filters.js";
-import type { LayerConfig } from "../symbolology/index.js";
+import { BoundaryType } from "../symbolology/index.js";
+import type { CSPLayer, LayerConfig } from "../symbolology/index.js";
 
 const procs = {
   DEPARE03,
@@ -202,6 +204,31 @@ export function DEPCNT03(config: LayerConfig): Partial<LayerSpecification>[] {
   ];
 }
 
+/**
+ * FLARE_AT_45_DEG — the local variable LIGHTS06 sets before it draws a
+ * non-sector, non-directional flare (S-52 PresLib 4.0, section 13.2.4).
+ *
+ * The CSP initialises it FALSE ("Set the local variable 'FLARE AT 45 DEGREES'
+ * to 'FALSE'") and only sets it TRUE when two questions in series both answer
+ * yes: "Is there any 'No Sector' lights located at the same point as the
+ * calling object?" and "Does the calling object COLOUR include 1 (white) or
+ * 6 (yellow) or 11 (orange)?". Co-location is pre-computed by the pipeline as
+ * _COLOCATED, so a lone light of any colour leaves the variable FALSE.
+ *
+ * It decides two things — the flare's rotation and where LITDSN02 hangs the
+ * light description — so both read this one predicate.
+ */
+const FLARE_AT_45_DEG = [
+  "all",
+  ["==", ["get", "_COLOCATED"], 1],
+  [
+    "any",
+    listIncludes("COLOUR", "1"),
+    listIncludes("COLOUR", "6"),
+    listIncludes("COLOUR", "11"),
+  ],
+] as ExpressionSpecification;
+
 /** TODO: DEPVAL02 - 13.2.3 Depth value */
 /**
  * LIGHTS06 - 13.2.4 Light flares, light sectors & light coverage
@@ -225,7 +252,7 @@ export function DEPCNT03(config: LayerConfig): Partial<LayerSpecification>[] {
  *
  * Co-located light detection is pre-computed in the pipeline:
  *   - _EXTENDED_ARC: sector lights with overlapping sectors use 25mm arc radius
- *   - _COLOCATED: non-sector lights at the same position offset flare angles
+ *   - _COLOCATED: non-sector lights at the same position; feeds FLARE_AT_45_DEG
  *
  * TODO: Major light circles (VALNMR >= 10)
  */
@@ -334,9 +361,18 @@ export function LIGHTS06(config: LayerConfig): Partial<LayerSpecification>[] {
     },
 
     // --- Non-sector, non-special lights → flare symbol ---
-    // When co-located with other non-sector lights (_COLOCATED=1), the flare
-    // angle is offset: white/yellow/orange → 45°, red/green/other → 135°.
-    // This separates overlapping flare symbols visually.
+    // The CSP branches on FLARE_AT_45_DEG: TRUE → "SY(SELECT,45)", "Draw the
+    // selected symbol with a rotation of 45 degrees from upright at the
+    // position where the object which was calling the procedure is located";
+    // FALSE → "SY(SELECT,135)", "Draw the selected symbol with a rotation of
+    // 135 degrees from upright at the position where the object which was
+    // calling the procedure is located".
+    //
+    // 135° is therefore the resting orientation of every flare, including a
+    // lone one — the body leans down-right with its tip on the light, as
+    // Chart 1 P draws it. The 45° arm only fires for a white/yellow/orange
+    // light sharing a point with other 'No Sector' lights, so the two flares
+    // fan apart instead of overlapping.
     {
       type: "symbol",
       filter: [
@@ -361,18 +397,8 @@ export function LIGHTS06(config: LayerConfig): Partial<LayerSpecification>[] {
         ...flareLayout,
         "icon-rotate": [
           "case",
-          // Not co-located → default orientation (no rotation)
-          ["!=", ["get", "_COLOCATED"], 1],
-          0,
-          // Co-located: white(1), yellow(6), orange(11) → 45°
-          [
-            "any",
-            listIncludes("COLOUR", "1"),
-            listIncludes("COLOUR", "6"),
-            listIncludes("COLOUR", "11"),
-          ],
+          FLARE_AT_45_DEG,
           45,
-          // Co-located: red, green, other → 135°
           135,
         ] as ExpressionSpecification,
       },
@@ -425,9 +451,39 @@ export function LIGHTS06(config: LayerConfig): Partial<LayerSpecification>[] {
  * 1-wide dashed CHBLK line instead of the two-layer approach.
  *
  * Leg lines are always LS(DASH,1,CHBLK).
+ *
+ * The figures are screen-size, so the tiler emits one copy of each PER ZOOM
+ * (`_z`) rather than one sized for the cell's deepest zoom — see
+ * `bin/generate-sector-arcs`. Every copy at or below the cell's band maxzoom is
+ * confined to its own zoom's tiles by a per-feature `tippecanoe` member, so at
+ * those zooms `zoomCopy` matches the only copy present and changes nothing.
+ * What it is actually for is the levels ABOVE that maxzoom, where there are no
+ * tiles to confine anything to: those copies all ride the deepest real tile
+ * together and would otherwise draw four arcs at once.
  */
 function sectorArcLayers(config: LayerConfig): Partial<LayerSpecification>[] {
   const { mode } = config;
+
+  // The copy sized for the zoom being drawn at, clamped to the deepest one the
+  // feature has. `zoom` in a filter is the OVERSCALED zoom — the level the tile
+  // is being displayed at, not the level it was cut at — which is exactly the
+  // level the figure has to be sized for. Past `_zmax` the clamp holds the last
+  // copy, so overzooming further than the tiler prepared for degrades to the
+  // old behaviour (a figure that grows with the scale) rather than to an empty
+  // layer.
+  //
+  // A figure with no `_z` is geographic rather than screen-size — the leg of a
+  // directional light with a VALNMR nominal range — and is drawn at every zoom.
+  // It is tested first so `_zmax` is never coerced on a feature that has none.
+  const zoomCopy: ExpressionFilterSpecification = [
+    "any",
+    ["!", ["has", "_z"]],
+    [
+      "==",
+      ["to-number", ["get", "_z"]],
+      ["min", ["floor", ["zoom"]], ["to-number", ["get", "_zmax"]]],
+    ],
+  ];
 
   // Map _colour attribute to actual colour values for data-driven styling
   const arcColour: ExpressionSpecification = [
@@ -452,6 +508,7 @@ function sectorArcLayers(config: LayerConfig): Partial<LayerSpecification>[] {
       filter: [
         "all",
         scale,
+        zoomCopy,
         ["==", ["get", "_type"], "arc"],
         ["==", ["get", "_style"], "SOLD"],
       ],
@@ -468,6 +525,7 @@ function sectorArcLayers(config: LayerConfig): Partial<LayerSpecification>[] {
       filter: [
         "all",
         scale,
+        zoomCopy,
         ["==", ["get", "_type"], "arc"],
         ["==", ["get", "_style"], "SOLD"],
       ],
@@ -484,6 +542,7 @@ function sectorArcLayers(config: LayerConfig): Partial<LayerSpecification>[] {
       filter: [
         "all",
         scale,
+        zoomCopy,
         ["==", ["get", "_type"], "arc"],
         ["==", ["get", "_style"], "DASH"],
       ],
@@ -498,7 +557,7 @@ function sectorArcLayers(config: LayerConfig): Partial<LayerSpecification>[] {
     {
       type: "line",
       "source-layer": "_LIGHTS_SECTORS",
-      filter: ["all", scale, ["==", ["get", "_type"], "leg"]],
+      filter: ["all", scale, zoomCopy, ["==", ["get", "_type"], "leg"]],
       paint: {
         "line-color": colour(mode, "CHBLK"),
         "line-width": 1,
@@ -677,8 +736,24 @@ function LITDSN02(config: LayerConfig): Partial<LayerSpecification>[] {
         "text-field": textField,
         "text-font": ["Metropolis Regular"],
         "text-size": 10,
-        "text-offset": [2, 0],
-        "text-anchor": "left",
+        // The CSP places the description by the same FLARE_AT_45_DEG the flare
+        // rotates by. FALSE (the 135° flare, leaning away down-right) →
+        // "TX('LITDSN', 3,2,3, '15110', 2,0, CHBLK, 23)", CENTRE justified
+        // beside the light. TRUE (the 45° flare, reaching up-right into where
+        // that text would sit) → "TX('LITDSN', 3,1,3, '15110', 2,-1, CHBLK,
+        // 23)", BOTTOM justified so the string lifts clear above the point.
+        "text-offset": [
+          "case",
+          FLARE_AT_45_DEG,
+          ["literal", [2, -1]],
+          ["literal", [2, 0]],
+        ] as unknown as ExpressionSpecification,
+        "text-anchor": [
+          "case",
+          FLARE_AT_45_DEG,
+          "bottom-left",
+          "left",
+        ] as ExpressionSpecification,
         "text-allow-overlap": false,
       },
       paint: {
@@ -698,12 +773,26 @@ function LITDSN02(config: LayerConfig): Partial<LayerSpecification>[] {
  * Geometry: Point, Line, Area
  *
  * Point obstructions (Continuation A):
- *   - Isolated danger → ISODGR01
- *   - UWTROC: WATLEV 3 → UWTROC03, else → UWTROC04
+ *   - Isolated danger (UDWHAZ05) → ISODGR01, for both classes
+ *   - UWTROC with VALSOU: deeper than SAFETY_DEPTH → DANGER02 + sounding;
+ *     at or shoaler than SAFETY_DEPTH → WATLEV 4,5 → UWTROC04 (no sounding),
+ *     else → DANGER01 + sounding
+ *   - UWTROC without VALSOU: WATLEV 3 → UWTROC03, else → UWTROC04
  *   - OBSTRN with VALSOU: shallow → DANGER01, deep → DANGER02
  *   - OBSTRN with CATOBS 6 (foul area): WATLEV 1,2 → OBSTRN11, WATLEV 4,5 → OBSTRN03, else → DANGER01
  *   - OBSTRN without VALSOU: CATOBS 6 → OBSTRN01, WATLEV 1,2 → OBSTRN11,
- *     WATLEV 4,5 → UWTROC04, else → DANGER01
+ *     WATLEV 4,5 → OBSTRN03, else → OBSTRN01
+ *
+ * The UWTROC branches are gated with `objectClasses` rather than a filter: the
+ * two classes are separate source-layers in the tiles and carry no attribute
+ * that distinguishes them. See CSPLayerExtras.
+ *
+ * WITHIN EACH CLASS BLOCK THE ICON BRANCHES COME FIRST AND SNDFRM04 LAST.
+ * Array position is draw order: a layer later in the array paints over the
+ * layers before it. A hazard that draws both an icon and its sounding needs
+ * the sounding emitted after the icon, or the icon covers the number that
+ * says how deep the hazard is. Adding a branch to a class block means adding
+ * it above that block's SNDFRM04 entry, not at the end.
  *
  * Line obstructions (Continuation B):
  *   - Isolated danger → ISODGR01 + dotted CHBLK
@@ -718,29 +807,172 @@ function LITDSN02(config: LayerConfig): Partial<LayerSpecification>[] {
  *   - WATLEV 4 → DEPIT fill + dashed CSTLN
  *   - Default → DEPVS fill + dotted CHBLK
  */
-export function OBSTRN07(config: LayerConfig): Partial<LayerSpecification>[] {
+export function OBSTRN07(config: LayerConfig): CSPLayer[] {
   const { mode, safetyDepth } = config;
-  const isDanger = isolatedDanger(config);
-  const notDanger = notIsolatedDanger(config);
+  // OBSTRN and UWTROC share the DEPTH_VALUE ladder OBSTRN07 defines, so one
+  // hazard key covers both classes (CATOBS simply never matches on a rock).
+  const hazard: HazardClass = "OBSTRN";
+  const isDanger = isolatedDangerShown(config, hazard);
+  const notDanger = notIsolatedDanger(config, hazard);
+
+  /** WATLEV 4 (covers and uncovers) or 5 (awash). */
+  const awash: ExpressionFilterSpecification = [
+    "in",
+    ["get", "WATLEV"],
+    ["literal", [4, 5]],
+  ];
+
+  /** The plain rock symbol: dangerous rock when always submerged, else awash. */
+  const rockSymbol: ExpressionSpecification = [
+    "case",
+    ["==", ["get", "WATLEV"], 3],
+    "UWTROC03",
+    "UWTROC04",
+  ];
+
+  /**
+   * The plain obstruction symbol, by CATOBS/WATLEV.
+   *
+   * This is the S-101 OBSTRN07 no-VALSOU ladder verbatim (see
+   * packages/s52/data/.../Rules/OBSTRN07.lua): CATOBS 6 → OBSTRN01,
+   * WATLEV 1,2 → OBSTRN11, WATLEV 4,5 → OBSTRN03, default OBSTRN01. It is
+   * used twice — for the features that have no sounding at all, and for the
+   * deep-hazard deviation below, which needs "the class's ordinary symbol"
+   * where S-52 asks for DANGER02.
+   *
+   * OBSTRN01 is the small circle (an obstruction of unknown depth) and is the
+   * right default: DANGER01, the big filled oval, asserts a hazard whose depth
+   * IS known and is at or above the safety depth, which is precisely what a
+   * feature with no VALSOU does not say. OBSTRN03 rather than UWTROC04 on the
+   * awash arm for the same reason — UWTROC04 is a rock symbol and this is not
+   * a rock.
+   */
+  const obstructionSymbol: ExpressionSpecification = [
+    "case",
+    ["==", ["get", "CATOBS"], 6],
+    "OBSTRN01",
+    ["in", ["get", "WATLEV"], ["literal", [1, 2]]],
+    "OBSTRN11",
+    awash as ExpressionSpecification,
+    "OBSTRN03",
+    "OBSTRN01",
+  ];
 
   return [
     // ─── Point obstructions (Continuation A) ───
 
-    // Isolated danger → ISODGR01
+    // Isolated danger → ISODGR01 (display base + optional shallow-water family)
+    ...isolatedDangerLayers(config, hazard, ["==", ["geometry-type"], "Point"]),
+
+    // ── UWTROC (underwater/awash rock) ──
+    // Rocks reach this procedure through their own look-up entries
+    // (rcid 952 SIMPLIFIED / 1300 PAPER_CHART, both CS(OBSTRN07), point only),
+    // but S-52 gives them a different Continuation A path from obstructions,
+    // so these branches are restricted to the UWTROC class and the equivalent
+    // OBSTRN branches below are restricted to OBSTRN.
+
+    // Has VALSOU, VALSOU <= SAFETY_DEPTH, WATLEV 4,5 → UWTROC04 (no sounding)
     {
+      objectClasses: ["UWTROC"],
       type: "symbol",
-      filter: ["all", ["==", ["geometry-type"], "Point"], isDanger],
-      layout: iconLayout("ISODGR01"),
+      filter: [
+        "all",
+        ["==", ["geometry-type"], "Point"],
+        notDanger,
+        ["has", "VALSOU"],
+        ["<=", ["get", "VALSOU"], safetyDepth],
+        awash,
+      ],
+      layout: iconLayout("UWTROC04"),
     },
 
-    // Not isolated danger, no VALSOU, UWTROC class
-    // The lookup table separates UWTROC and OBSTRN into different source-layers,
-    // so we use the source-layer name to distinguish them. UWTROC without VALSOU:
-    // WATLEV 3 → UWTROC03, else → UWTROC04
-    // (Features with VALSOU are handled by the VALSOU branches below)
-
-    // Has VALSOU, not isolated danger, CATOBS 6 (foul area)
+    // Has VALSOU, VALSOU <= SAFETY_DEPTH, any other WATLEV → DANGER01 + sounding
     {
+      objectClasses: ["UWTROC"],
+      type: "symbol",
+      filter: [
+        "all",
+        ["==", ["geometry-type"], "Point"],
+        notDanger,
+        ["has", "VALSOU"],
+        ["<=", ["get", "VALSOU"], safetyDepth],
+        ["!", awash],
+      ],
+      layout: iconLayout("DANGER01"),
+    },
+
+    // No VALSOU → WATLEV 3 (always under water) → UWTROC03, else UWTROC04.
+    // UWTROC03 is the dangerous-rock symbol (rock with dots); UWTROC04 is the
+    // rock-awash symbol, and S-52 uses it as the default for every other
+    // WATLEV including a missing one.
+    {
+      objectClasses: ["UWTROC"],
+      type: "symbol",
+      filter: [
+        "all",
+        ["==", ["geometry-type"], "Point"],
+        notDanger,
+        ["!", ["has", "VALSOU"]],
+      ],
+      layout: iconLayout(rockSymbol),
+    },
+
+    // DELIBERATE DEVIATION FROM S-52 — deep hazards get a plain symbol.
+    // S-52 sends any sounded hazard deeper than SAFETY_DEPTH to DANGER02, the
+    // "obstruction with dotted danger circle" symbol. Below the safety depth
+    // the hazard is not a danger to own ship, and the danger circle on every
+    // deep rock/wreck/obstruction clutters the chart to the point where the
+    // shoal ones stop standing out. We emit the class's ordinary symbol plus
+    // the sounding instead. DANGER01 for shoal hazards is untouched.
+    {
+      objectClasses: ["UWTROC"],
+      type: "symbol",
+      filter: [
+        "all",
+        ["==", ["geometry-type"], "Point"],
+        notDanger,
+        ["has", "VALSOU"],
+        [">", ["get", "VALSOU"], safetyDepth],
+      ],
+      layout: iconLayout(rockSymbol),
+    },
+
+    // Sounding text on rocks. LAST in the UWTROC block, after every branch
+    // that draws an icon: a sounding emitted before its icon is painted over
+    // by it, which is what the deep rocks above did while this entry sat in
+    // the middle of the block.
+    //
+    // DELIBERATE DEVIATION FROM S-52 — drying heights on awash rocks.
+    // S-52 sets SOUNDING = FALSE for the whole WATLEV 4,5 branch above. A
+    // WATLEV 4 rock (covers and uncovers) carries a drying height that Chart 1
+    // K11 shows against the symbol, and losing it costs the mariner the one
+    // number that says how far the rock dries. We therefore keep UWTROC04 for
+    // WATLEV 4 but still draw its sounding; WATLEV 5 (awash at chart datum,
+    // where the value is 0 by definition) keeps the S-52 suppression.
+    {
+      objectClasses: ["UWTROC"],
+      ...SNDFRM04(config, "VALSOU", [
+        "all",
+        ["==", ["geometry-type"], "Point"],
+        notDanger,
+        ["has", "VALSOU"],
+        [
+          "!",
+          [
+            "all",
+            ["<=", ["get", "VALSOU"], safetyDepth],
+            ["==", ["get", "WATLEV"], 5],
+          ],
+        ],
+      ]),
+    },
+
+    // ── OBSTRN (obstruction) ──
+
+    // Has VALSOU, not isolated danger, CATOBS 6 (foul area).
+    // CATOBS is an OBSTRN attribute, so these never match a rock anyway.
+    {
+      objectClasses: ["OBSTRN"],
       type: "symbol",
       filter: [
         "all",
@@ -753,6 +985,7 @@ export function OBSTRN07(config: LayerConfig): Partial<LayerSpecification>[] {
       layout: iconLayout("OBSTRN11"),
     },
     {
+      objectClasses: ["OBSTRN"],
       type: "symbol",
       filter: [
         "all",
@@ -767,6 +1000,7 @@ export function OBSTRN07(config: LayerConfig): Partial<LayerSpecification>[] {
 
     // Has VALSOU, not isolated danger, not CATOBS 6, VALSOU <= safetyDepth → DANGER01
     {
+      objectClasses: ["OBSTRN"],
       type: "symbol",
       filter: [
         "all",
@@ -779,8 +1013,11 @@ export function OBSTRN07(config: LayerConfig): Partial<LayerSpecification>[] {
       layout: iconLayout("DANGER01"),
     },
 
-    // Has VALSOU, not isolated danger, not CATOBS 6, VALSOU > safetyDepth → DANGER02
+    // Has VALSOU, not isolated danger, not CATOBS 6, VALSOU > safetyDepth.
+    // DELIBERATE DEVIATION FROM S-52 — plain symbol instead of DANGER02; see
+    // the UWTROC deep-hazard branch above for the rationale.
     {
+      objectClasses: ["OBSTRN"],
       type: "symbol",
       filter: [
         "all",
@@ -790,19 +1027,24 @@ export function OBSTRN07(config: LayerConfig): Partial<LayerSpecification>[] {
         ["!=", ["get", "CATOBS"], 6],
         [">", ["get", "VALSOU"], safetyDepth],
       ],
-      layout: iconLayout("DANGER02"),
+      layout: iconLayout(obstructionSymbol),
     },
 
-    // Sounding text on point obstructions with VALSOU (SNDFRM04)
-    SNDFRM04(config, "VALSOU", [
-      "all",
-      ["==", ["geometry-type"], "Point"],
-      notDanger,
-      ["has", "VALSOU"],
-    ]),
-
-    // No VALSOU, not isolated danger → symbol by CATOBS/WATLEV
+    // No VALSOU, not isolated danger → symbol by CATOBS/WATLEV.
+    //
+    // The ladder is `obstructionSymbol`, which is the S-101 OBSTRN07 lua's
+    // no-VALSOU ladder: CATOBS 6 → OBSTRN01, WATLEV 1,2 → OBSTRN11,
+    // WATLEV 4,5 → OBSTRN03, default OBSTRN01.
+    //
+    // This used to default to DANGER01 with UWTROC04 on the awash arm, which
+    // is what put the big filled danger oval on 2,389 of Puget Sound's 2,455
+    // unsounded snags and stumps. DANGER01 states a hazard whose least depth
+    // is KNOWN and is at or above the safety depth; a feature with no VALSOU
+    // states no such thing, and Coastal Explorer draws the small OBSTRN01
+    // circle for exactly these. (Round 3's note that the pre-existing OBSTRN
+    // divergences were being left alone no longer holds for this branch.)
     {
+      objectClasses: ["OBSTRN"],
       type: "symbol",
       filter: [
         "all",
@@ -810,20 +1052,19 @@ export function OBSTRN07(config: LayerConfig): Partial<LayerSpecification>[] {
         notDanger,
         ["!", ["has", "VALSOU"]],
       ],
-      layout: iconLayout([
-        "case",
-        // CATOBS 6 (foul area) → OBSTRN01
-        ["==", ["get", "CATOBS"], 6],
-        "OBSTRN01",
-        // WATLEV 1,2 (dry/partly submerged) → OBSTRN11
-        ["in", ["get", "WATLEV"], ["literal", [1, 2]]],
-        "OBSTRN11",
-        // WATLEV 4,5 (covers/uncovers, awash) → UWTROC04
-        ["in", ["get", "WATLEV"], ["literal", [4, 5]]],
-        "UWTROC04",
-        // Default → DANGER01
-        "DANGER01",
-      ] as ExpressionSpecification),
+      layout: iconLayout(obstructionSymbol),
+    },
+
+    // Sounding text on point obstructions with VALSOU (SNDFRM04). LAST in the
+    // OBSTRN block, after every branch that draws an icon; see the header.
+    {
+      objectClasses: ["OBSTRN"],
+      ...SNDFRM04(config, "VALSOU", [
+        "all",
+        ["==", ["geometry-type"], "Point"],
+        notDanger,
+        ["has", "VALSOU"],
+      ]),
     },
 
     // ─── Line obstructions (Continuation B) ───
@@ -838,14 +1079,12 @@ export function OBSTRN07(config: LayerConfig): Partial<LayerSpecification>[] {
         "line-color": colour(mode, "CHBLK"),
       },
     },
-    {
-      type: "symbol",
-      filter: ["all", ["==", ["geometry-type"], "LineString"], isDanger],
-      layout: {
-        ...iconLayout("ISODGR01"),
-        "symbol-placement": "line",
-      },
-    },
+    ...isolatedDangerLayers(
+      config,
+      hazard,
+      ["==", ["geometry-type"], "LineString"],
+      { "symbol-placement": "line" },
+    ),
 
     // Not isolated danger, shallow or no sounding → dotted CHBLK
     {
@@ -895,7 +1134,7 @@ export function OBSTRN07(config: LayerConfig): Partial<LayerSpecification>[] {
     {
       type: "fill",
       filter: ["all", ["==", ["geometry-type"], "Polygon"], isDanger],
-      paint: { "fill-pattern": "FOULAR01" },
+      paint: { "fill-pattern": patternImage("FOULAR01") },
     },
     {
       type: "line",
@@ -906,11 +1145,11 @@ export function OBSTRN07(config: LayerConfig): Partial<LayerSpecification>[] {
         "line-color": colour(mode, "CHBLK"),
       },
     },
-    {
-      type: "symbol",
-      filter: ["all", ["==", ["geometry-type"], "Polygon"], isDanger],
-      layout: iconLayout("ISODGR01"),
-    },
+    ...isolatedDangerLayers(config, hazard, [
+      "==",
+      ["geometry-type"],
+      "Polygon",
+    ]),
 
     // Not isolated danger, has VALSOU, shallow → dotted CHBLK outline
     {
@@ -965,7 +1204,7 @@ export function OBSTRN07(config: LayerConfig): Partial<LayerSpecification>[] {
         ["!", ["has", "VALSOU"]],
         ["==", ["get", "CATOBS"], 6],
       ],
-      paint: { "fill-pattern": "FOULAR01" },
+      paint: { "fill-pattern": patternImage("FOULAR01") },
     },
     {
       type: "line",
@@ -1198,14 +1437,17 @@ const CATREA_NATURE = ["4", "5", "6", "7", "10", "20", "22", "23"];
  *   51 = only this restriction type
  *   61 = this type + other navigational restrictions
  *   71 = this type + environmental/nature restrictions
+ *
+ * The boundary follows the same cascade, but S-52 publishes only the 51 member
+ * of each family as a complex line style: `data.linestyles` has ENTRES51,
+ * ACHRES51, FSHRES51 and CTYARE51 and no 61 or 71 counterpart, so the extra
+ * restriction types change the centred symbol and leave the boundary alone.
  */
 function restrictionSymbol(
   prefix: string,
   additionalRestrn: string[],
   config: LayerConfig,
 ): Partial<LayerSpecification>[] {
-  const { mode } = config;
-
   const is61: ExpressionFilterSpecification = [
     "any",
     listIncludes("RESTRN", ...additionalRestrn),
@@ -1217,6 +1459,12 @@ function restrictionSymbol(
     ["all", ["has", "CATREA"], listIncludes("CATREA", ...CATREA_NATURE)],
   ];
 
+  // The CTYARE family has no 61 member: the Presentation Library (and
+  // S-101's own RESCSP03 rule) publish only CTYARE51 and CTYARE71, so the
+  // additional-restrictions case keeps the base symbol instead of naming a
+  // sprite no sheet carries.
+  const sym61 = prefix === "CTYARE" ? `${prefix}51` : `${prefix}61`;
+
   return [
     // Symbol in center of area
     {
@@ -1224,21 +1472,36 @@ function restrictionSymbol(
       layout: iconLayout([
         "case",
         is61,
-        `${prefix}61`,
+        sym61,
         is71,
         `${prefix}71`,
         `${prefix}51`,
       ] as ExpressionSpecification),
     },
 
-    // Boundary: plain boundaries use LS(DASH,2,CHMGD)
-    // TODO: symbolized boundaries should use LC pattern (e.g., LC(ENTRES51))
+    // Boundary: LS(DASH,2,CHMGD) under plain boundaries, the family's complex
+    // line style under symbolized boundaries. RESARE04 is reached from both
+    // look-up tables, so this is the only place the setting can be honoured.
+    ...restrictionBoundary(prefix, config),
+  ];
+}
+
+/** The boundary layer of one restriction continuation. */
+function restrictionBoundary(
+  prefix: string,
+  config: LayerConfig,
+): Partial<LayerSpecification>[] {
+  if (config.boundaries === BoundaryType.SYMBOLIZED) {
+    return LC(config, new Reference(`${prefix}51`));
+  }
+
+  return [
     {
       type: "line",
       paint: {
         "line-dasharray": LineStyles.DASH,
         "line-width": 2,
-        "line-color": colour(mode, "CHMGD"),
+        "line-color": colour(config.mode, "CHMGD"),
       },
     },
   ];
@@ -1865,64 +2128,326 @@ export function TOPMAR01(_config: LayerConfig): Partial<LayerSpecification>[] {
   ];
 }
 
-/**
- * UDWHAZ05 - 13.2.20 Isolated dangers in general that endanger own ship
- * (S-52 PresLib 4.0, section 13.2.20)
- *
- * Not called directly from lookup tables -- used as a helper by WRECKS05 and OBSTRN07.
- *
- * A feature is an isolated danger when:
- *   - VALSOU <= safetyContour (hazard is shallow enough to matter)
- *   - _DEPARE_DRVAL1 >= safetyContour (hazard lies within safe water)
- *   - WATLEV is NOT 1 or 2 (feature is underwater)
- *
- * _DEPARE_DRVAL1 is pre-computed by the pipeline via spatial query (DRVAL1 of
- * the containing DEPARE/DRGARE polygon).
- *
- * Skipped for WATLEV 1 (partly submerged) or 2 (always dry) per spec, as these
- * are above-water dangers that don't get the isolated danger symbol.
- */
-export function UDWHAZ05(
-  config: LayerConfig,
-): Partial<LayerSpecification> | undefined {
-  return {
-    type: "symbol",
-    filter: isolatedDanger(config),
-    layout: iconLayout("ISODGR01"),
-  };
-}
+/* ─── UDWHAZ05 — isolated dangers ─────────────────────────────────────── */
 
 /**
- * Filter for features that are isolated dangers per UDWHAZ05:
- *   - VALSOU exists and <= safetyContour
- *   - _DEPARE_DRVAL1 >= safetyContour (hazard lies within safe water)
- *   - WATLEV is NOT 1 (partly submerged) or 2 (always dry)
+ * Names of the depth-area join columns pre-computed by `bin/s57-to-tiles` for
+ * WRECKS, OBSTRN and UWTROC.
+ *
+ *   `_DEPARE_DRVAL1_MAX`     greatest DRVAL1 over every intersecting
+ *                            DEPARE/DRGARE (NULL DRVAL1 skipped)
+ *   `_DEPARE_DRVAL1_MINPOS`  least DRVAL1 >= 0 over the same set
+ *
+ * S-52 UDWHAZ05 asks a single question of "the surrounding depth", but a
+ * hazard can straddle several depth areas, so the safe-water test uses the
+ * deepest neighbour (MAX) and the shallow-water test the shoalest non-drying
+ * one (MINPOS).
  */
-export function isolatedDanger(
-  config: LayerConfig,
-): ExpressionFilterSpecification {
+export const SURROUNDING_DEPTH_MAX = "_DEPARE_DRVAL1_MAX";
+export const SURROUNDING_DEPTH_MINPOS = "_DEPARE_DRVAL1_MINPOS";
+
+/**
+ * Stands in for a missing join value.
+ *
+ * Negative, so it satisfies neither the safe-water test (`>= safetyContour`)
+ * nor the shallow-water one (`>= 0`): a hazard the pipeline could not join to
+ * any depth area is simply not an isolated danger and falls through to its
+ * ordinary symbol.
+ */
+const NO_SURROUNDING_DEPTH = -1;
+
+/**
+ * Read a pre-computed join column as a number, without any way to throw.
+ *
+ * This coalesce guard is load-bearing, not defensive dressing. A MapLibre
+ * filter that throws is not "false" for that layer -- the evaluation error
+ * takes out the whole layer, so a single hazard whose join column is missing
+ * or NULL used to make *every* layer of its object class render nothing. The
+ * two-argument `to-number` gives a total function: `["get"]` on an absent
+ * property yields null, `coalesce` replaces it with the sentinel, and any
+ * value that still refuses to convert falls back to the sentinel rather than
+ * erroring.
+ */
+function surroundingDepth(property: string): ExpressionSpecification {
   return [
-    "all",
-    ["has", "VALSOU"],
-    ["<=", ["get", "VALSOU"], config.safetyContour],
-    [">=", ["get", "_DEPARE_DRVAL1"], config.safetyContour],
-    [
-      "any",
-      ["!", ["has", "WATLEV"]],
-      ["!", ["in", ["get", "WATLEV"], ["literal", [1, 2]]]],
-    ],
+    "to-number",
+    ["coalesce", ["get", property], NO_SURROUNDING_DEPTH],
+    NO_SURROUNDING_DEPTH,
   ];
 }
 
 /**
- * Filter expression for features that are NOT isolated dangers.
- * Used by WRECKS05/OBSTRN07 to avoid double-symbolizing hazards
- * that are already shown with the ISODGR01 symbol.
+ * S-52's "least depth unknown" sentinel for the DEPTH_VALUE ladders.
+ *
+ * Negative on purpose: a hazard whose least depth cannot be established is
+ * treated as shoaler than any safety contour, so the fail-safe outcome is
+ * "assume it endangers own ship".
  */
+const DEPTH_UNKNOWN = -15;
+
+/** The three object classes that run the UDWHAZ05 isolated-danger test. */
+export type HazardClass = "OBSTRN" | "UWTROC" | "WRECKS";
+
+/**
+ * Whether the feature's own VALSOU may be read as its established least depth.
+ *
+ * DEVIATION from the standards: strict S-52 (OBSTRN07 / DEPVAL02) and S-101
+ * never consult QUASOU -- a populated VALSOU is taken at face value. But
+ * QUASOU is the source's own statement ABOUT that sounding, and two of its
+ * values say the least depth was never established: 2 ("depth unknown") and 7
+ * ("least depth unknown, safe clearance at value shown", i.e. the number is a
+ * clearance the surveyor could vouch for, not the shoalest point of the
+ * feature). Trusting the figure anyway computes a confident "safe" depth for a
+ * rock nobody has measured, and when that nominal value is deeper than the
+ * safety contour the hazard skips the ISODGR01 test entirely -- never reaching
+ * the DEPTH_UNKNOWN sentinel that the no-VALSOU case already falls to. That is
+ * the same failure the sentinel above exists to prevent, so the fail-safe
+ * principle stated there decides it: a least depth the source itself flags as
+ * not established is treated as no least depth at all, and the feature falls
+ * through the categorical arms to DEPTH_UNKNOWN.
+ *
+ * QUASOU is a comma-list attribute, and the tiler writes a single-valued list
+ * as an MVT integer rather than a string. `listIncludes` compares over
+ * `["concat", ",", ["get", attr], ","]`, whose stringification makes the test
+ * type-tolerant the same way `attributeFilters`' `to-string` does: 2, "2" and
+ * "1,2" all match, while "12" and "27" do not, and an absent QUASOU concatenates
+ * to ",," and matches nothing -- so an unflagged sounding is trusted exactly as
+ * before.
+ */
+const soundingTrusted: ExpressionFilterSpecification = [
+  "all",
+  ["has", "VALSOU"],
+  ["!", listIncludes("QUASOU", "2", "7")],
+];
+
+/**
+ * DEPTH_VALUE for UDWHAZ05, per the S-52 fail-safe ladders.
+ *
+ * S-52 does not gate the isolated-danger test on VALSOU being present: when
+ * the sounding is missing, OBSTRN07 and DEPVAL02 derive a stand-in depth from
+ * the categorical attributes so that a depth-less hazard is still evaluated.
+ * Gating on `["has", "VALSOU"]` (as this file used to) silently exempted every
+ * unsounded wreck, rock and obstruction from the check.
+ *
+ *   OBSTRN/UWTROC (OBSTRN07): VALSOU, else 0.01 for a foul area (CATOBS 6) or
+ *   an always-submerged feature (WATLEV 3), else 0 for an awash one
+ *   (WATLEV 5), else DEPTH_UNKNOWN.
+ *
+ *   WRECKS (DEPVAL02): VALSOU, else 20.1 for a non-dangerous wreck
+ *   (CATWRK 1), else 0 when WATLEV is 3 or 5, else DEPTH_UNKNOWN.
+ *
+ * A VALSOU that QUASOU flags as not established is not read at all and the
+ * feature takes the arms below it, exactly as if it carried no sounding; see
+ * `soundingTrusted`.
+ *
+ * The CATWRK arm comes BEFORE the WATLEV one, which is the order WRECKS05
+ * reaches them: the flowchart tests "CATWRK = 1" first and only the branch
+ * where it is not 1 goes on to consult WATLEV (the procedure's own note on the
+ * DEPTH_UNKNOWN arm reads "... OR CATWRK is not equal 1"). Testing WATLEV
+ * first inverts the outcome for the commonest coding of a deep, surveyed,
+ * non-dangerous wreck -- CATWRK 1 + WATLEV 3 (always submerged) + no VALSOU --
+ * which then scores 0 m instead of 20.1 m and is flagged as an isolated danger
+ * at EVERY safety contour. That draws ISODGR01 from the display-base,
+ * SCAMIN-immune layer family, so it cannot be turned off or scaled away.
+ */
+export function depthValue(hazard: HazardClass): ExpressionSpecification {
+  const valsou: ExpressionSpecification = [
+    "to-number",
+    ["get", "VALSOU"],
+    DEPTH_UNKNOWN,
+  ];
+
+  if (hazard === "WRECKS") {
+    return [
+      "case",
+      soundingTrusted,
+      valsou,
+      ["==", ["get", "CATWRK"], 1],
+      20.1,
+      ["in", ["get", "WATLEV"], ["literal", [3, 5]]],
+      0,
+      DEPTH_UNKNOWN,
+    ];
+  }
+
+  return [
+    "case",
+    soundingTrusted,
+    valsou,
+    ["any", ["==", ["get", "CATOBS"], 6], ["==", ["get", "WATLEV"], 3]],
+    0.01,
+    ["==", ["get", "WATLEV"], 5],
+    0,
+    DEPTH_UNKNOWN,
+  ];
+}
+
+/**
+ * WATLEV 1 (partly submerged) / 2 (always dry) put the feature in UDWHAZ05's
+ * "no symbol" viewing groups (14050 / 24050): they are above-water dangers and
+ * keep their ordinary symbol.
+ */
+const underwater: ExpressionFilterSpecification = [
+  "any",
+  ["!", ["has", "WATLEV"]],
+  ["!", ["in", ["get", "WATLEV"], ["literal", [1, 2]]]],
+];
+
+/**
+ * A filter no feature can satisfy: `any` of an empty list is false, in both
+ * MapLibre's expression and legacy filter grammars.
+ *
+ * Used to switch a branch of UDWHAZ05 off without removing its layers, so the
+ * positional layer ids (`${lookupId}-${index}`) stay put.
+ */
+const NEVER: ExpressionFilterSpecification = ["any"];
+
+/**
+ * Whether the isolated-danger substitution runs at all.
+ *
+ * Absent means yes: `isolatedDangerMarks` is an opt-OUT (see LayerConfig), so
+ * a caller that has never heard of it gets S-52 behaviour.
+ */
+function isolatedDangerMarksEnabled(config: LayerConfig): boolean {
+  return config.isolatedDangerMarks !== false;
+}
+
+/**
+ * UDWHAZ05 isolated danger in **safe water**: a shoal hazard
+ * (DEPTH_VALUE <= SAFETY_CONTOUR) whose surrounding depth is at or beyond the
+ * safety contour. These are the display-base ISODGR01 layers (viewing group
+ * 14010, ScaleMinimum infinite).
+ *
+ * Returns `NEVER` when `isolatedDangerMarks` is off. The gate lives here, in
+ * the two predicates, rather than at the ISODGR01 layers: they are not the
+ * only thing that consults it. `notIsolatedDanger` guards every ordinary
+ * symbol and every hazard sounding, so gating only the marks would leave the
+ * ordinary symbol suppressed on a hazard whose replacement is no longer drawn.
+ */
+export function isolatedDanger(
+  config: LayerConfig,
+  hazard: HazardClass,
+): ExpressionFilterSpecification {
+  if (!isolatedDangerMarksEnabled(config)) return NEVER;
+  return [
+    "all",
+    ["<=", depthValue(hazard), config.safetyContour],
+    [">=", surroundingDepth(SURROUNDING_DEPTH_MAX), config.safetyContour],
+    underwater,
+  ];
+}
+
+/**
+ * UDWHAZ05 Continuation A shallow-water danger: a shoal hazard whose
+ * surrounding water is itself shallower than the safety contour (viewing group
+ * 24020, Standard category).
+ *
+ * The `>= 0` lower bound is the spec's, and it excludes drying areas -- a
+ * hazard inside a negative-DRVAL1 area is not flagged.
+ *
+ * Written as "not safe water AND shoal surroundings" so it stays mutually
+ * exclusive with `isolatedDanger`, mirroring the if/elseif in UDWHAZ05.lua.
+ * (One feature can touch both a deep and a shallow area, so MAX and MINPOS can
+ * satisfy both tests at once.)
+ *
+ * Also `NEVER` when `isolatedDangerMarks` is off: that option turns the whole
+ * procedure off, not just its display-base half.
+ */
+export function shallowWaterDanger(
+  config: LayerConfig,
+  hazard: HazardClass,
+): ExpressionFilterSpecification {
+  if (!isolatedDangerMarksEnabled(config)) return NEVER;
+  return [
+    "all",
+    ["<=", depthValue(hazard), config.safetyContour],
+    [
+      "!",
+      [">=", surroundingDepth(SURROUNDING_DEPTH_MAX), config.safetyContour],
+    ],
+    [">=", surroundingDepth(SURROUNDING_DEPTH_MINPOS), 0],
+    ["<", surroundingDepth(SURROUNDING_DEPTH_MINPOS), config.safetyContour],
+    underwater,
+  ];
+}
+
+/**
+ * The features UDWHAZ05 returns a hazard symbol for under the current options
+ * -- i.e. the ones whose ordinary symbol (and sounding) it replaces.
+ *
+ * A shallow-water danger only displaces the ordinary symbol when the
+ * `shallowWaterDangers` option is on; with it off, S-52's DANGER01/DANGER02
+ * path stays in force for those features. With `isolatedDangerMarks` off both
+ * predicates are `NEVER`, so this is false for every feature and the ordinary
+ * path is in force for all of them.
+ */
+export function isolatedDangerShown(
+  config: LayerConfig,
+  hazard: HazardClass,
+): ExpressionFilterSpecification {
+  return [
+    "any",
+    isolatedDanger(config, hazard),
+    ...(config.shallowWaterDangers ? [shallowWaterDanger(config, hazard)] : []),
+  ];
+}
+
+/** Filter for features that keep their ordinary symbol. */
 export function notIsolatedDanger(
   config: LayerConfig,
+  hazard: HazardClass,
 ): ExpressionFilterSpecification {
-  return ["!", isolatedDanger(config)];
+  return ["!", isolatedDangerShown(config, hazard)];
+}
+
+/**
+ * UDWHAZ05 - 13.2.20 Isolated dangers in general that endanger own ship
+ * (S-52 PresLib 4.0, section 13.2.20)
+ *
+ * Not called from the look-up tables -- WRECKS05 and OBSTRN07 use the filter
+ * helpers above directly. Kept as the named entry point for the procedure.
+ */
+export function UDWHAZ05(config: LayerConfig, hazard: HazardClass): CSPLayer[] {
+  return isolatedDangerLayers(config, hazard, [
+    "==",
+    ["geometry-type"],
+    "Point",
+  ]);
+}
+
+/**
+ * The pair of ISODGR01 symbol layers every hazard geometry gets: the
+ * display-base safe-water one and the always-emitted, separately gated
+ * shallow-water one.
+ *
+ * Both are emitted unconditionally so that layer ids -- which are positional
+ * (`${lookupId}-${index}`) -- do not shift when the `shallowWaterDangers` or
+ * `isolatedDangerMarks` option changes. With `isolatedDangerMarks` off both
+ * filters reduce to `NEVER` and the pair draws nothing.
+ */
+function isolatedDangerLayers(
+  config: LayerConfig,
+  hazard: HazardClass,
+  geometry: ExpressionFilterSpecification,
+  layout: Record<string, unknown> = {},
+): CSPLayer[] {
+  return [
+    {
+      type: "symbol",
+      // S-52 gives the isolated-danger symbol ScaleMinimum "infinite": it must
+      // never be scaled off the display base.
+      ignoreScamin: true,
+      filter: ["all", geometry, isolatedDanger(config, hazard)],
+      layout: { ...iconLayout("ISODGR01"), ...layout },
+    },
+    {
+      type: "symbol",
+      family: "shallow-water-dangers",
+      displayCategory: "STANDARD",
+      filter: ["all", geometry, shallowWaterDanger(config, hazard)],
+      layout: { ...iconLayout("ISODGR01"), ...layout },
+    },
+  ];
 }
 
 /**
@@ -1941,20 +2466,39 @@ export function notIsolatedDanger(
  *   - Fill: CHBRN (WATLEV 1,2), DEPIT (WATLEV 4), DEPVS (default/3/5)
  *   - Line: dotted CHBLK if danger or shallow, dashed CHBLK if deep, else by WATLEV
  */
-export function WRECKS05(config: LayerConfig): Partial<LayerSpecification>[] {
+export function WRECKS05(config: LayerConfig): CSPLayer[] {
   const { mode, safetyDepth } = config;
-  const isDanger = isolatedDanger(config);
-  const notDanger = notIsolatedDanger(config);
+  const hazard: HazardClass = "WRECKS";
+  const isDanger = isolatedDangerShown(config, hazard);
+  const notDanger = notIsolatedDanger(config, hazard);
+
+  /** The plain wreck symbol, by CATWRK/WATLEV (S-52 Continuation A table). */
+  const wreckSymbol: ExpressionSpecification = [
+    "case",
+    // WATLEV 1 (partly submerged) or 2 (always dry) → visible wreck
+    ["in", ["get", "WATLEV"], ["literal", [1, 2]]],
+    "WRECKS01",
+    // WATLEV 4 (covers/uncovers) → drying wreck
+    ["==", ["get", "WATLEV"], 4],
+    "WRECKS01",
+    // CATWRK 1 (non-dangerous) + WATLEV 3 (always underwater)
+    ["all", ["==", ["get", "CATWRK"], 1], ["==", ["get", "WATLEV"], 3]],
+    "WRECKS04",
+    // CATWRK 2 (dangerous) + WATLEV 3
+    ["all", ["==", ["get", "CATWRK"], 2], ["==", ["get", "WATLEV"], 3]],
+    "WRECKS05",
+    // CATWRK 4 or 5 (showing mast/funnel)
+    ["in", ["get", "CATWRK"], ["literal", [4, 5]]],
+    "WRECKS01",
+    // Default
+    "WRECKS05",
+  ];
 
   return [
     // --- Point wrecks ---
 
     // Isolated danger: ISODGR01 (from UDWHAZ05)
-    {
-      type: "symbol",
-      filter: ["all", ["==", ["geometry-type"], "Point"], isDanger],
-      layout: iconLayout("ISODGR01"),
-    },
+    ...isolatedDangerLayers(config, hazard, ["==", ["geometry-type"], "Point"]),
 
     // Has sounding, shallow (not isolated danger) → DANGER01
     {
@@ -1969,7 +2513,11 @@ export function WRECKS05(config: LayerConfig): Partial<LayerSpecification>[] {
       layout: iconLayout("DANGER01"),
     },
 
-    // Has sounding, deep (not isolated danger) → DANGER02
+    // Has sounding, deep (not isolated danger).
+    // DELIBERATE DEVIATION FROM S-52 — plain symbol instead of DANGER02. A
+    // wreck below the safety depth is not a danger to own ship; the danger
+    // circle on every deep wreck buries the shoal ones. The sounding is still
+    // drawn by the SNDFRM04 layer below.
     {
       type: "symbol",
       filter: [
@@ -1979,10 +2527,10 @@ export function WRECKS05(config: LayerConfig): Partial<LayerSpecification>[] {
         ["has", "VALSOU"],
         [">", ["get", "VALSOU"], safetyDepth],
       ],
-      layout: iconLayout("DANGER02"),
+      layout: iconLayout(wreckSymbol),
     },
 
-    // Sounding text on top of DANGER symbols (SNDFRM04)
+    // Sounding text on top of the point symbols (SNDFRM04)
     SNDFRM04(config, "VALSOU", [
       "all",
       ["==", ["geometry-type"], "Point"],
@@ -1990,34 +2538,19 @@ export function WRECKS05(config: LayerConfig): Partial<LayerSpecification>[] {
       ["has", "VALSOU"],
     ]),
 
-    // No sounding → symbol by CATWRK/WATLEV (S-52 Continuation A lookup table)
+    // No sounding → symbol by CATWRK/WATLEV (S-52 Continuation A lookup table).
+    // `notDanger` matters here now: with the DEPVAL02 fail-safe ladder an
+    // unsounded wreck can be an isolated danger, and then ISODGR01 replaces
+    // this symbol rather than sitting on top of it.
     {
       type: "symbol",
       filter: [
         "all",
         ["==", ["geometry-type"], "Point"],
+        notDanger,
         ["!", ["has", "VALSOU"]],
       ],
-      layout: iconLayout([
-        "case",
-        // WATLEV 1 (partly submerged) or 2 (always dry) → visible wreck
-        ["in", ["get", "WATLEV"], ["literal", [1, 2]]],
-        "WRECKS01",
-        // WATLEV 4 (covers/uncovers) → drying wreck
-        ["==", ["get", "WATLEV"], 4],
-        "WRECKS01",
-        // CATWRK 1 (non-dangerous) + WATLEV 3 (always underwater)
-        ["all", ["==", ["get", "CATWRK"], 1], ["==", ["get", "WATLEV"], 3]],
-        "WRECKS04",
-        // CATWRK 2 (dangerous) + WATLEV 3
-        ["all", ["==", ["get", "CATWRK"], 2], ["==", ["get", "WATLEV"], 3]],
-        "WRECKS05",
-        // CATWRK 4 or 5 (showing mast/funnel)
-        ["in", ["get", "CATWRK"], ["literal", [4, 5]]],
-        "WRECKS01",
-        // Default
-        "WRECKS05",
-      ] as ExpressionSpecification),
+      layout: iconLayout(wreckSymbol),
     },
 
     // --- Area wrecks ---
@@ -2080,6 +2613,7 @@ export function WRECKS05(config: LayerConfig): Partial<LayerSpecification>[] {
       filter: [
         "all",
         ["==", ["geometry-type"], "Polygon"],
+        notDanger,
         ["!", ["has", "VALSOU"]],
         ["in", ["get", "WATLEV"], ["literal", [1, 2]]],
       ],
@@ -2094,6 +2628,7 @@ export function WRECKS05(config: LayerConfig): Partial<LayerSpecification>[] {
       filter: [
         "all",
         ["==", ["geometry-type"], "Polygon"],
+        notDanger,
         ["!", ["has", "VALSOU"]],
         ["==", ["get", "WATLEV"], 4],
       ],
@@ -2109,6 +2644,7 @@ export function WRECKS05(config: LayerConfig): Partial<LayerSpecification>[] {
       filter: [
         "all",
         ["==", ["geometry-type"], "Polygon"],
+        notDanger,
         ["!", ["has", "VALSOU"]],
         ["!", ["in", ["get", "WATLEV"], ["literal", [1, 2, 4]]]],
       ],
@@ -2128,10 +2664,10 @@ export function WRECKS05(config: LayerConfig): Partial<LayerSpecification>[] {
     ]),
 
     // Area wreck isolated danger symbol at center
-    {
-      type: "symbol",
-      filter: ["all", ["==", ["geometry-type"], "Polygon"], isDanger],
-      layout: iconLayout("ISODGR01"),
-    },
+    ...isolatedDangerLayers(config, hazard, [
+      "==",
+      ["geometry-type"],
+      "Polygon",
+    ]),
   ];
 }

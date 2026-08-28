@@ -1,0 +1,316 @@
+#!/usr/bin/env bash
+# Exports ONE chart's analysis classes, clipped to where this chart is the
+# FINEST coverage, as per-class GeoJSON files. The Stage D analysis extracts
+# (plotroom docs/architecture/ANALYSIS_DATA.md §2) are built from these: each
+# cell's DEPARE / LNDARE / DEPCNT / maritime-limit features minus the union of
+# all FINER coverage over it — exactly the geometry bin/s57-to-tiles' "top
+# copy" carries into the tiles, derived here with the same rung function
+# (bin/quilt-rung.sh), the same merged coverage mask and the same un-cast
+# ST_Difference SQL, so the extracts and the tiles cannot disagree about which
+# chart owns a point.
+#
+# A SIBLING of bin/s57-to-tiles rather than a hook inside it, deliberately:
+# the tiler only runs for cells whose tiles are NOT already in the per-cell
+# cache, while the analysis composite needs every member cell of a region on
+# every rebuild. The orchestrator (plotroom pipeline/encpipeline/analysis.py)
+# runs this for every downloaded cell — cache hit or not — and the tile path
+# never executes this program, so tile builds are byte-identical whether the
+# analysis feature is on or off.
+#
+# Usage: bin/extract-analysis input.000 output_dir [--coverage coverage.gpkg] [--cscale S]
+#
+#   output_dir receives <CLASS>.geojson for each analysis class the chart
+#   carries (a class the chart lacks writes no file; a class the clip emptied
+#   writes an empty FeatureCollection, which readers skip).
+#
+# The class list:
+#   DEPARE LNDARE DEPCNT      the §3 dissolve products (depth areas by DRVAL1,
+#                             the land union, contours by VALDCO)
+#   TESARE CONZNE EXEZNE      the charted maritime-limit family for the limits
+#   FSHZNE CUSZNE STSLNE      product (display/cross-check; the 12/24/200 NM
+#                             placement classes come from NOAA OCS's Maritime
+#                             Limits and Boundaries dataset — ANALYSIS_DATA.md
+#                             §4): territorial sea, contiguous zone, EEZ,
+#                             fishery zone, customs zone, straight
+#                             territorial-sea baseline. MIPARE is deliberately
+#                             NOT in this family — military practice areas are
+#                             restriction display, not maritime-limit lines;
+#                             it rides the advisory-area list below.
+#   ADMARE                    administration areas, exported IN FULL with
+#                             their attributes because NOAA charts the
+#                             "Three Nautical Mile Line" as a named ADMARE
+#                             (a thin double-line area) — the charted-primary
+#                             source of the national 3 NM class. The name
+#                             filter that keeps state/border administration
+#                             areas out of the products lives PIPELINE-side
+#                             (plotroom encpipeline/analysis.py), where it is
+#                             tested; this script exports the class as
+#                             charted like every other.
+#   UWTROC OBSTRN WRECKS      the point/area hazards for the hazards product
+#                             (Live Route Check danger candidates): underwater
+#                             rocks, obstructions, wrecks. Exported per
+#                             feature as charted — no dissolve and no depth
+#                             filter here; the safety contour is a
+#                             request-time input, so the backend decides
+#                             dangerousness. Clipped exactly like every other
+#                             class: areas/lines by ST_Difference, points
+#                             deleted where ST_Within the finer mask.
+#   CTNARE RESARE PRCARE      the advisory-area classes for the areas product
+#   MIPARE SPLARE MARCUL      (Live Route Check advisory candidates): caution,
+#                             restricted, precautionary, military practice,
+#                             sea-plane landing and marine farm/culture areas.
+#                             Exported per feature as charted — no dissolve —
+#                             with every attribute the full-feature export
+#                             carries (OBJNAM, INFORM, CATREA, RESTRN, STATUS,
+#                             DATSTA, DATEND, and TXTDSC's companion .TXT file
+#                             refs, which the pipeline resolves to note text
+#                             while the cell's files are still on disk). The
+#                             attribute allowlist lives PIPELINE-side
+#                             (plotroom encpipeline/analysis.py), where it is
+#                             tested; this script exports the classes as
+#                             charted like every other, clipped exactly like
+#                             every other: areas by ST_Difference, point
+#                             renderings deleted where ST_Within the finer
+#                             mask.
+#
+# Clip semantics, mirroring the s57-to-tiles top copy: the mask is the
+# ST_Union of every coverage row with QFLOOR strictly greater than this
+# chart's own rung floor. Peers at the SAME floor clip nothing (adjacent
+# same-scale cells overlap only at seams, and the downstream dissolve is a
+# union), and a chart that cannot be placed on the ladder (no readable M_COVR
+# extent, a scale off the rung ladder) exports UNCLIPPED — the same "publish
+# unpartitioned" rule s57-to-tiles applies, because nothing established a
+# finer owner for any of its ground. An unknown INTU, by contrast, is REFUSED
+# (exit 1) exactly as s57-to-tiles refuses it — the tiler would fail that
+# chart's region, and the analysis composite must not quietly accept what the
+# tile build refuses.
+#
+# The geometry expressions are deliberately left UN-CAST, for the reason
+# spelled out in bin/s57-to-tiles step 2b: GDAL's SQLite dialect already
+# round-trips GPKG geometry through the SpatiaLite functions, and an
+# AsGPB()/CastAutomagic() wrapper on the write-back double-encodes it to NULL,
+# after which the empty sweep deletes every row the clip touched. Errors on
+# the clip statements are NOT suppressed: a clip that silently no-ops leaves a
+# coarse chart's depth areas underneath the finer ones, and the dissolve would
+# then publish wrong safe/unsafe water.
+#
+# Exit codes:
+#   0  the exports that exist were written (possibly none: a READABLE chart
+#      carrying no analysis class is unremarkable)
+#   1  bad arguments; a chart ogrinfo cannot read, or one with no layers at
+#      all (a corrupt/truncated .000 must never masquerade as "carries no
+#      analysis class"); an INTU off the band table (refused exactly as
+#      bin/s57-to-tiles refuses it); a failed class import; a failed clip; a
+#      mask row count that could not be read; or a failed export of a class
+#      the chart carries — all loud, with the toolchain's stderr visible,
+#      because a silent omission here is a hole in route-safety data rather
+#      than a hole in a picture.
+
+set -e
+
+VERBOSE=${VERBOSE:-0}
+[ "$VERBOSE" = "1" ] && set -x
+
+if [ $# -lt 2 ]; then
+  echo "Usage: $0 input.000 output_dir [--coverage coverage.gpkg] [--cscale S]"
+  exit 1
+fi
+
+input="$1"
+outdir="$2"
+shift 2
+
+coverage=""
+cscale_override=""
+while [ $# -gt 0 ]; do
+  if [ -z "${2:-}" ]; then
+    echo "Missing value for $1"
+    exit 1
+  fi
+  case "$1" in
+    --coverage) coverage="$2" ;;
+    --cscale) cscale_override="$2" ;;
+    *)
+      echo "Unknown argument: $1"
+      exit 1
+      ;;
+  esac
+  shift 2
+done
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+# shellcheck source=bin/quilt-rung.sh
+. "$SCRIPT_DIR/quilt-rung.sh"
+
+ANALYSIS_CLASSES="DEPARE LNDARE DEPCNT TESARE CONZNE EXEZNE FSHZNE CUSZNE STSLNE ADMARE UWTROC OBSTRN WRECKS CTNARE RESARE PRCARE MIPARE SPLARE MARCUL"
+
+export OGR_S57_OPTIONS="SPLIT_MULTIPOINT=ON,ADD_SOUNDG_DEPTH=ON,LIST_AS_STRING=ON"
+
+mkdir -p "$outdir"
+
+tmpdir=$(mktemp -d)
+trap 'rm -rf "$tmpdir"' EXIT
+
+gpkg="$tmpdir/analysis.gpkg"
+
+# Same strict integer read as bin/s57-to-tiles: a count that failed or parsed
+# to nothing is a hard failure, never a zero — here a zero would silently skip
+# the clip and export coarse geometry beneath the finer charts.
+count_rows() {
+  local sql="$1" label="$2" errors="$tmpdir/count.err" raw value
+  if ! raw=$(ogrinfo -q "$gpkg" -dialect sqlite -sql "$sql" 2>"$errors"); then
+    echo "$label: ogrinfo failed on $gpkg" >&2
+    cat "$errors" >&2
+    return 1
+  fi
+  value=$(printf '%s\n' "$raw" | grep -oE '=[[:space:]]*[0-9]+' | tail -1 |
+    grep -oE '[0-9]+' || true)
+  if [ -z "$value" ]; then
+    echo "$label: could not read a count from ogrinfo on $gpkg" >&2
+    printf '%s\n' "$raw" >&2
+    cat "$errors" >&2
+    return 1
+  fi
+  printf '%s' "$value"
+}
+
+# Which analysis classes this chart carries at all. UNREADABLE is not
+# CLASSLESS: an ogrinfo failure, or a chart with no layers whatsoever, is a
+# corrupt or truncated .000 — exit 1 loud, never the "carries no analysis
+# class" exit 0 a silent hole would hide behind. Only a chart ogrinfo READS,
+# that genuinely has layers and none of them analysis classes, is
+# unremarkable.
+layer_errors="$tmpdir/layers.err"
+if ! layer_listing=$(ogrinfo -q "$input" 2>"$layer_errors"); then
+  echo "$input: ogrinfo could not read the chart" >&2
+  cat "$layer_errors" >&2
+  exit 1
+fi
+layers=$(printf '%s\n' "$layer_listing" | grep "^[0-9]" | awk '{print $2}' || true)
+if [ -z "$layers" ]; then
+  echo "$input: chart has no readable layers (corrupt or truncated download?)" >&2
+  cat "$layer_errors" >&2
+  exit 1
+fi
+
+# The usage band, validated exactly as bin/s57-to-tiles validates it before
+# tiling: a chart whose INTU is off the band table is REFUSED, not exported
+# unclipped — the tiler hard-fails the same chart, and the analysis composite
+# must not quietly accept what the tile build refuses.
+dsid=$(ogrinfo -q "$input" DSID 2>/dev/null)
+intu=$(echo "$dsid" | grep DSID_INTU | awk '{print $NF}')
+case "$intu" in
+  1 | 2 | 3 | 4 | 5 | 6) : ;;
+  *)
+    echo "Unknown INTU: $intu"
+    exit 1
+    ;;
+esac
+
+present=""
+for class in $ANALYSIS_CLASSES; do
+  echo "$layers" | grep -qx "$class" || continue
+  present="$present $class"
+done
+
+if [ -z "$present" ]; then
+  echo "$input: carries no analysis class; nothing to export"
+  exit 0
+fi
+
+# Import only the analysis classes into a transient GPKG — the whole-chart
+# import bin/s57-to-tiles pays for its CSP pre-computation is not needed here.
+# No -skipfailures and no stderr suppression: a feature the driver cannot
+# translate is a feature missing from route-safety data, and that must fail
+# the export with GDAL's own diagnosis visible, not thin the class silently.
+imported=""
+for class in $present; do
+  if [ -z "$imported" ]; then
+    if ! ogr2ogr -f GPKG "$gpkg" "$input" "$class"; then
+      echo "$input: importing ${class} failed" >&2
+      exit 1
+    fi
+  else
+    if ! ogr2ogr -f GPKG "$gpkg" "$input" "$class" -append; then
+      echo "$input: importing ${class} failed" >&2
+      exit 1
+    fi
+  fi
+  imported="$imported $class"
+done
+
+# This chart's own rung floor, derived exactly as bin/s57-to-tiles derives it:
+# --cscale override, else DSPM_CSCL, else the INTU band fallback, evaluated at
+# the chart's own M_COVR mid-latitude. INTU is already validated above, so the
+# band fallback always lands; what can still disable the clip (the "publish
+# unpartitioned" rule) is a missing extent or a scale off the rung ladder.
+cscale="$cscale_override"
+[ -z "$cscale" ] && cscale=$(quilt_dsid_cscale "$dsid")
+[ -z "$cscale" ] && cscale=$(quilt_band_cscale "$intu")
+
+quilt_floor=""
+if [ -n "$coverage" ] && [ -f "$coverage" ]; then
+  mid_lat=$(quilt_mid_lat "$input")
+  if [ -z "$mid_lat" ]; then
+    echo "$input: no readable M_COVR extent; exporting unclipped" >&2
+  elif ! quilt_floor=$(quilt_rung_floor "$cscale" "$mid_lat"); then
+    echo "$input: 1:$cscale at $mid_lat is not on the rung ladder; exporting unclipped" >&2
+    quilt_floor=""
+  fi
+fi
+
+# The finest-here clip: difference every class against the union of all FINER
+# coverage. The GeoJSON hop mirrors s57-to-tiles (direct GPKG-to-GPKG append
+# can have geometry column name conflicts).
+if [ -n "$quilt_floor" ]; then
+  finer_geojson="$tmpdir/quilting_finer.geojson"
+  ogr2ogr -f GeoJSON "$finer_geojson" "$coverage" coverage \
+    -where "QFLOOR > ${quilt_floor}" -select "QFLOOR" 2>/dev/null
+
+  if [ -s "$finer_geojson" ]; then
+    ogr2ogr -f GPKG "$gpkg" "$finer_geojson" -append -nln quilting 2>/dev/null
+
+    ogrinfo --quiet "$gpkg" -dialect sqlite -sql \
+      "CREATE TABLE quilt_mask AS SELECT ST_Union(geom) as geom FROM quilting"
+
+    has_mask=$(count_rows \
+      "SELECT COUNT(*) AS n FROM quilt_mask WHERE geom IS NOT NULL" \
+      "quilt mask count")
+
+    if [ "$has_mask" -gt 0 ]; then
+      for class in $imported; do
+        ogrinfo --quiet "$gpkg" -dialect sqlite -sql "
+          UPDATE \"${class}\" SET geom = ST_Difference(\"${class}\".geom, (SELECT geom FROM quilt_mask))
+          WHERE ST_Intersects(\"${class}\".geom, (SELECT geom FROM quilt_mask))
+            AND GeometryType(\"${class}\".geom) IN ('POLYGON', 'MULTIPOLYGON', 'LINESTRING', 'MULTILINESTRING')
+        "
+
+        ogrinfo --quiet "$gpkg" -dialect sqlite -sql "
+          DELETE FROM \"${class}\"
+          WHERE GeometryType(geom) IN ('POINT', 'MULTIPOINT')
+            AND ST_Within(\"${class}\".geom, (SELECT geom FROM quilt_mask))
+        "
+
+        ogrinfo --quiet "$gpkg" -dialect sqlite -sql "
+          DELETE FROM \"${class}\" WHERE geom IS NULL OR ST_IsEmpty(geom) = 1
+        "
+      done
+    fi
+  fi
+fi
+
+# Export what survived. A failed export of a class the chart carries is loud:
+# the pipeline treats a missing file as "the chart does not carry the class",
+# and letting that stand for a write failure would quietly drop the class from
+# a region's safety data.
+exported=0
+for class in $imported; do
+  geojson="$outdir/${class}.geojson"
+  if ! ogr2ogr -f GeoJSON "$geojson" "$gpkg" "$class"; then
+    echo "$input: exporting ${class} failed" >&2
+    exit 1
+  fi
+  exported=$((exported + 1))
+done
+
+echo "Extracted $exported analysis class(es) from $input to $outdir"

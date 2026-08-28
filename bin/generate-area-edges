@@ -1,0 +1,600 @@
+#!/usr/bin/env node
+
+// Derives the _AREA_EDGE layer: the boundaries of EVERY styled area class,
+// drawn only where the content actually CHANGES across them.
+//
+// Usage:
+//   bin/generate-area-edges <output.geojson> \
+//     --area RESARE:RESARE.geojson [--area CTNARE:CTNARE.geojson ...] \
+//     [--coverage quilting_coverage.geojson] [--cell-coverage M_COVR.geojson] \
+//     [--fallback-coverage quilting_fallback_coverage.geojson] \
+//     [--neighbor-coverage quilting_neighbors.geojson] \
+//     [--neighbor-area-evidence area_evidence.geojson]
+//
+//   bin/generate-area-edges --list-classes
+//     prints the participating classes, one per line, which is how
+//     bin/s57-to-tiles knows what to feed it -- one source of truth, here.
+//
+// THE BOUNDARY MERGE RULE (user directive, stated once):
+//
+//   An area feature's boundary draws ONLY where the content changes across it.
+//   Two polygons of the same class meeting at a chart (cell) seam with
+//   identical S-57 content merge silently -- no line, no dentate marks. ANY
+//   content difference keeps the full boundary presentation.
+//
+//   The live defect this generalises away: a restricted area continuing across
+//   cell seams drew its symbolized toothed line at every chart border, and the
+//   same ruled-into-boxes defect existed for every other stroked area class.
+//   _MQUAL_EDGE, _BUAARE_EDGE and _DEPARE_EDGE each fixed it for ONE class;
+//   this layer is the same derivation (bin/quilt-edges.mjs) run PER CLASS over
+//   every remaining area class the style strokes.
+//
+// WHAT COUNTS AS THE SAME CONTENT
+//
+//   The feature's full attribute set, minus the bookkeeping that identifies
+//   the RECORD rather than the thing in the water (see IDENTITY_EXCLUSIONS in
+//   bin/quilt-content.mjs, which the anchor generators' cross-cell election
+//   compares exactly the same way).
+//   Two RESARE fragments carrying the same RESTRN, the same INFORM and the
+//   same everything else are one regulated area however the topology split
+//   them; two differing in ANY surviving attribute -- a name, a restriction
+//   list, a category -- are different areas and the line between them stands.
+//
+// PER-SIDE EMISSION
+//
+//   An edge where content differs is emitted ONCE PER SIDE, each copy carrying
+//   ITS side's attributes and the CANONICAL orientation of ITS side's ring --
+//   filled side on the right of travel, whatever way the source happened to
+//   wind it (see orientedRings in bin/quilt-geojson.mjs). Each area's own
+//   boundary presentation then draws its own style facing its own interior --
+//   the S-52 line-mark orientation invariant (marks point INTO the filled
+//   side) is what makes per-side emission the correct model rather than a
+//   duplication. Exact-duplicate sides of one segment are deduplicated: three
+//   owners two of which agree emit two edges, not three. An edge with only one
+//   side present (the ordinary outline) is emitted once, with that side's
+//   attributes.
+//
+// THE CHART BORDER
+//
+//   A ONE-SIDED segment -- one owner, or overlapping areas truncated together,
+//   every interior on the same side -- lying along a quilt cut (--coverage),
+//   along the FALLBACK copy's cut against coarser coverage (--fallback-coverage,
+//   which counts on the _QFALL interval alone; see THE FALLBACK CUT in
+//   bin/quilt-edges.mjs) or along this cell's M_COVR ring (--cell-coverage) is a
+//   CANDIDATE chart seam. The other charts' M_COVR roster (--neighbor-coverage)
+//   selects the serving floor for this copy-ladder interval and every DSNM that
+//   owns the far-side probe there. The cached semantic roster (--neighbor-area-evidence) then suppresses
+//   one current side ONLY when EVERY serving DSNM contains the same CLASS and
+//   exact content identity. One different owner, or one owner whose manifest
+//   proved the class absent, keeps the boundary. That is the evidence the old
+//   coverage-only presumption lacked: identical cross-cell content merges, but
+//   a real change exactly at a cell edge stands.
+//
+//   Two exemptions sit above that test. The MARITIME ZONE classes (ZONE_CLASSES)
+//   carry a jurisdiction, not a per-chart compilation, so ANY serving owner
+//   suppresses their chart-border presentation whatever the band and whatever
+//   the content. And a probe that crosses the ANTIMERIDIAN into this cell's own
+//   coverage is the same chart continuing across its -wrapdateline split, not a
+//   neighbour and not a data end.
+//
+//   Where no chart lies across the ring, the truncation is the true charted end
+//   of the area -- NOAA runs data limits along real maritime limits, the
+//   US/Russia EEZ line above all -- and the presentation stands. Without the
+//   semantic roster an older caller retains the historical unconditional seam
+//   drop; cached fragments are accepted only with a manifest, so missing or
+//   malformed evidence never reaches the evidence-aware path as "absence".
+//
+// Each output feature carries:
+//
+//   CLASS      the S-57 class the boundary belongs to, which is what the
+//              style's retargeted per-class boundary copies filter on
+//   <attrs>    the owning side's full content attribute set (everything the
+//              identity was hashed over), so the vendored per-class boundary
+//              filters -- RESTRN, CATREA, ORIENT, CATACH and the rest -- read
+//              the edge exactly as they read the polygon it outlines
+//
+// plus the copy ladder's _QZMIN/_QZMAX/_QFALL, converted to per-feature
+// tippecanoe zoom bounds later by bin/stamp-quilt-zooms. Deliberately NOT
+// carried: SCAMIN/SCAMAX (the partition owns scale gating, and the facade's
+// retargeted layers rely on the gates being inert -- the same contract as
+// _BUAARE_EDGE and _RESTR_ANCHORS) and the identity exclusions themselves.
+
+import { writeFileSync } from "fs";
+
+import { canonicalContent, contentOf } from "./quilt-content.mjs";
+import {
+  chartBorderTest,
+  coveragePolygons,
+  deriveDifferEdges,
+  outwardProbe,
+  outwardProbeRaw,
+  polygonsContaining,
+} from "./quilt-edges.mjs";
+import { readFeatures } from "./quilt-geojson.mjs";
+
+/**
+ * The participating classes: every AREA class for which the generated style
+ * emits a boundary LINE presentation -- a plain dashed line layer, an LC()
+ * symbolized pen, or a line-placed LM_ mark layer -- enumerated from
+ * @enc-tiles/styles under both boundary modes. test/generate-area-edges.test.js
+ * re-derives this list from the style generator and fails on drift, so an
+ * upstream class gaining or losing a stroked boundary cannot silently miss the
+ * merge rule.
+ *
+ * Excluded from participation, with the layer that already owns each:
+ *
+ *   BUAARE            _BUAARE_EDGE (bin/generate-buaare-edges; OBJNAM identity)
+ *   DEPARE, DRGARE    _DEPARE_EDGE (bin/generate-depare-edges; the safety
+ *                     contour needs its seams FLAGGED, not dropped). DRGARE's
+ *                     only stroked presentation in the bundle is its depth
+ *                     boundary, so it has no separate area-outline role here.
+ *   M_QUAL            _MQUAL_EDGE (bin/generate-mqual-edges; CATZOC pairs)
+ *   M_NPUB, M_NSYS    cell metadata -- the plotroom facade drops the classes'
+ *                     whole generated presentation, so there is no boundary
+ *                     left to retarget
+ *
+ * and the style generator's non-S-57 pseudo classes ("######", the
+ * unknown-object fallback, and the lowercase mariner/manufacturer overlay
+ * classes), which never name a tile source-layer.
+ */
+export const AREA_EDGE_CLASSES = [
+  "ACHARE",
+  "ACHBRT",
+  "ADMARE",
+  "AIRARE",
+  "ARCSLN",
+  "BRIDGE",
+  "BUISGL",
+  "CANALS",
+  "CAUSWY",
+  "CBLARE",
+  "CONVYR",
+  "CONZNE",
+  "COSARE",
+  "CRANES",
+  "CTNARE",
+  "CTSARE",
+  "CUSZNE",
+  "DAMCON",
+  "DMPGRD",
+  "DOCARE",
+  "DRYDOC",
+  "DWRTPT",
+  "DYKCON",
+  "EXEZNE",
+  "FAIRWY",
+  "FERYRT",
+  "FLODOC",
+  "FORSTC",
+  "FRPARE",
+  "FSHFAC",
+  "FSHGRD",
+  "FSHZNE",
+  "GATCON",
+  "GRIDRN",
+  "HRBARE",
+  "HULKES",
+  "ICEARE",
+  "ICNARE",
+  "ISTZNE",
+  "LAKARE",
+  "LNDMRK",
+  "LOCMAG",
+  "LOGPON",
+  "LOKBSN",
+  "MARCUL",
+  "MIPARE",
+  "MORFAC",
+  "NEWOBJ",
+  "OBSTRN",
+  "OFSPLF",
+  "OSPARE",
+  "PILBOP",
+  "PIPARE",
+  "PONTON",
+  "PRCARE",
+  "PRDARE",
+  "PYLONS",
+  "RADRNG",
+  "RECTRC",
+  "RESARE",
+  "RIVERS",
+  "ROADWY",
+  "RUNWAY",
+  "SBDARE",
+  "SILTNK",
+  "SLCONS",
+  "SLOGRD",
+  "SMCFAC",
+  "SNDWAV",
+  "SPLARE",
+  "SUBTLN",
+  "SWPARE",
+  "TESARE",
+  "TIDEWY",
+  "TS_FEB",
+  "TS_PAD",
+  "TS_PNH",
+  "TS_PRH",
+  "TS_TIS",
+  "TUNNEL",
+  "TWRTPT",
+  "T_HMON",
+  "T_NHMN",
+  "T_TIMS",
+  "UNSARE",
+  "UWTROC",
+  "VEGATN",
+  "WATTUR",
+  "WEDKLP",
+  "WRECKS",
+];
+
+/**
+ * The maritime-jurisdiction ladder: the classes whose extent is a JURISDICTION,
+ * not a per-chart compilation (user directive 2026-08-15).
+ *
+ * A zone's boundary drawn at a CHART border is a compilation artifact whenever
+ * ANY chart serves the far side. Same-scale neighbours disagree on the Coast
+ * Pilot INFORM boilerplate, stop the polygon a hair short of the shared border,
+ * or omit the class entirely -- US4AK2CE carries no ADMARE at all while
+ * US4AK2DE's is clipped at their shared border, and exact-identity plus
+ * proved-absence manufactured a line across land and water between them. So for
+ * these classes ANY serving owner suppresses, whatever the band and whatever
+ * the content. Only a genuine charted end of all data (no serving owner at all)
+ * keeps the line, and a zone's REAL limit lies interior to a chart, where no
+ * seam test ever reaches it.
+ *
+ * The same jurisdictional reading governs the QUILT: bin/s57-to-tiles reads this
+ * set through `--list-zone-classes` (one source of truth, as `--list-classes`
+ * is for the participating classes) and cuts a zone table only against finer
+ * charts that carry the SAME class. A finer chart covering the ground without
+ * compiling the zone used to cut the zone -- and its interior boundary line --
+ * away for that rung, which is what gapped the US/Russia convention line inside
+ * US1GLBDS four degrees from any chart border.
+ */
+export const ZONE_CLASSES = [
+  "ADMARE",
+  "CONZNE",
+  "COSARE",
+  "CUSZNE",
+  "EXEZNE",
+  "FSHZNE",
+  "TESARE",
+];
+
+const ZONE_CLASS_SET = new Set(ZONE_CLASSES);
+
+const args = process.argv.slice(2);
+
+if (args.includes("--list-classes")) {
+  process.stdout.write(AREA_EDGE_CLASSES.join("\n") + "\n");
+  process.exit(0);
+}
+
+// The zone subset, for the quilt's zone-aware masks. Same contract as
+// --list-classes: the caller never restates the set.
+if (args.includes("--list-zone-classes")) {
+  process.stdout.write(ZONE_CLASSES.join("\n") + "\n");
+  process.exit(0);
+}
+
+const classPaths = [];
+const coveragePaths = [];
+const fallbackCoveragePaths = [];
+const cellCoveragePaths = [];
+const neighborCoveragePaths = [];
+const neighborAreaEvidencePaths = [];
+const positional = [];
+let writeEvidence = false;
+let evidenceDsnm = "";
+let evidenceQfloor = null;
+let cellFloor = null;
+
+for (let i = 0; i < args.length; i++) {
+  if (args[i] === "--area" && args[i + 1]) {
+    const spec = args[++i];
+    const at = spec.indexOf(":");
+    if (at <= 0 || at === spec.length - 1) {
+      console.error(`generate-area-edges: malformed --area '${spec}'`);
+      process.exit(1);
+    }
+    classPaths.push({ name: spec.slice(0, at), path: spec.slice(at + 1) });
+  } else if (args[i] === "--coverage" && args[i + 1])
+    coveragePaths.push(args[++i]);
+  else if (args[i] === "--fallback-coverage" && args[i + 1])
+    fallbackCoveragePaths.push(args[++i]);
+  else if (args[i] === "--cell-coverage" && args[i + 1])
+    cellCoveragePaths.push(args[++i]);
+  else if (args[i] === "--neighbor-coverage" && args[i + 1])
+    neighborCoveragePaths.push(args[++i]);
+  else if (args[i] === "--neighbor-area-evidence" && args[i + 1])
+    neighborAreaEvidencePaths.push(args[++i]);
+  else if (args[i] === "--write-evidence") writeEvidence = true;
+  else if (args[i] === "--evidence-dsnm" && args[i + 1])
+    evidenceDsnm = args[++i];
+  else if (args[i] === "--evidence-qfloor" && args[i + 1])
+    evidenceQfloor = Number(args[++i]);
+  else if (args[i] === "--cell-floor" && args[i + 1])
+    cellFloor = Number(args[++i]);
+  else positional.push(args[i]);
+}
+
+const outputPath = positional[0];
+if (!outputPath || (classPaths.length === 0 && !writeEvidence)) {
+  console.error(
+    "Usage: generate-area-edges <output.geojson> --area <CLASS:file> [--area <CLASS:file> ...] [--coverage <file>] [--fallback-coverage <file>] [--cell-coverage <file>] [--neighbor-coverage <file>] [--neighbor-area-evidence <file>] [--cell-floor <N>]\n" +
+      "       generate-area-edges --list-classes",
+  );
+  process.exit(1);
+}
+
+// extract-coverage uses this mode to cache exactly the identity this generator
+// compares, rather than asking shell/OGR SQL to reproduce its exclusions and
+// canonical JSON ordering. The deliberately narrow schema can be merged across
+// unlike S-57 classes without field drift.
+if (writeEvidence) {
+  if (!evidenceDsnm || !Number.isFinite(evidenceQfloor)) {
+    console.error(
+      "generate-area-edges --write-evidence requires --evidence-dsnm and --evidence-qfloor",
+    );
+    process.exit(1);
+  }
+  const evidence = [];
+  for (const { name, path } of classPaths) {
+    for (const feature of readFeatures(path)) {
+      if (
+        feature.geometry?.type !== "Polygon" &&
+        feature.geometry?.type !== "MultiPolygon"
+      ) {
+        continue;
+      }
+      evidence.push({
+        type: "Feature",
+        geometry: feature.geometry,
+        properties: {
+          CLASS: name,
+          CONTENT: JSON.stringify(contentOf(feature.properties)),
+          DSNM: evidenceDsnm,
+          QFLOOR: evidenceQfloor,
+        },
+      });
+    }
+  }
+  writeFileSync(
+    outputPath,
+    JSON.stringify({ type: "FeatureCollection", features: evidence }),
+  );
+  process.stdout.write(String(evidence.length));
+  process.exit(0);
+}
+
+/**
+ * "There is no feature of this class on that side."
+ *
+ * A unique object rather than a null-ish identity: an attribute-less feature
+ * is a side in its own right (its identity is the empty content set, and two
+ * of them beside each other legitimately MERGE -- same class, same content),
+ * while the absence of any feature never merges with anything.
+ */
+const NO_AREA = Symbol("no area feature");
+
+// One seam test for every class: the ring indexes are built once, because the
+// chart border is a property of the CELL, not of any class.
+const onSeam = chartBorderTest(
+  coveragePaths,
+  cellCoveragePaths,
+  neighborCoveragePaths,
+  fallbackCoveragePaths,
+);
+// The same rings WITHOUT the neighbour refinement -- "this segment lies along a
+// chart border", nothing about what is across it. The wrap seam needs exactly
+// that: the chart on the far side of a -wrapdateline split is this cell ITSELF,
+// and a cell's own DSNM is excluded from --neighbor-coverage by construction
+// (bin/s57-to-tiles), so the refined test reads its own far half as "nothing
+// continues here" and the decision below would never be reached.
+const onRing = chartBorderTest(
+  coveragePaths,
+  cellCoveragePaths,
+  null,
+  fallbackCoveragePaths,
+);
+
+// The coverage roster says WHICH chart floor owns the far-side probe at a
+// given zoom; the evidence says whether that owner carries this same semantic
+// area. Looking only at evidence would let a hidden coarser chart suppress the
+// visible finer chart's different/absent boundary.
+const neighborCoverage = coveragePolygons(neighborCoveragePaths);
+const neighborEvidence = coveragePolygons(neighborAreaEvidencePaths);
+// This cell's OWN footprint, for the wrap seam: a dateline-spanning cell is
+// exported with -wrapdateline, which splits both the areas and the M_COVR ring
+// at +/-180, so the split edge tests as a chart border and the outward probe
+// wraps into the SAME chart's far half. The cell's own DSNM is not in the
+// neighbour roster, so that far half reads as "no chart at all" unless we
+// recognise it here.
+const ownCellCoverage = coveragePolygons(cellCoveragePaths);
+
+function representativeZoom(range) {
+  const stamp = (value) => {
+    // OGR exports a nullable integer as JSON null. Number(null) and Number("")
+    // are both zero, which would turn a fallback interval into z0 and select
+    // the wrong serving owner rather than fall through to its real _QZMAX.
+    if (value === null || value === undefined || value === "") return null;
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  };
+  const min = stamp(range?._QZMIN);
+  if (min !== null) return min;
+  return stamp(range?._QZMAX);
+}
+
+function servingOwnersAt(point, range) {
+  const containing = polygonsContaining(neighborCoverage, point).filter(
+    (entry) =>
+      typeof entry.properties.DSNM === "string" &&
+      Number.isFinite(Number(entry.properties.QFLOOR)),
+  );
+  const floors = containing.map((entry) => Number(entry.properties.QFLOOR));
+  if (floors.length === 0) return null;
+  const zoom = representativeZoom(range);
+  const reached =
+    zoom === null ? floors : floors.filter((floor) => floor <= zoom);
+  const floor = reached.length > 0 ? Math.max(...reached) : Math.min(...floors);
+  return {
+    floor,
+    owners: new Set(
+      containing
+        .filter((entry) => Number(entry.properties.QFLOOR) === floor)
+        .map((entry) => entry.properties.DSNM),
+    ),
+  };
+}
+
+function semanticSeamDecision(name, a, b, walk, sides, range) {
+  // The range goes to both tests: the fallback copy's cut against coarser
+  // coverage is a chart border on the _QFALL interval and on no other.
+  if (!onRing(a, b, walk, sides, range)) return false;
+
+  const raw = outwardProbeRaw(walk);
+  const point = outwardProbe(walk);
+  // THE WRAP SEAM: a probe that stepped ACROSS the antimeridian and landed
+  // inside this cell's own coverage is this same chart continuing. The
+  // -wrapdateline export cut US1GLBDS in two at +/-180; the cut edge lies on
+  // the (equally cut) M_COVR ring, so it tests as a chart border, and the
+  // far side is the cell's own other half -- which, its own DSNM being absent
+  // from the neighbour roster, read as the charted end of all data and drew
+  // portions of the dateline straight through the chart's own footprint.
+  if (
+    raw[0] !== point[0] &&
+    polygonsContaining(ownCellCoverage, point).length
+  ) {
+    return {
+      suppressSides: sides.flatMap((side, index) =>
+        side !== NO_AREA ? [index] : [],
+      ),
+    };
+  }
+
+  // An ordinary chart border: some OTHER chart has to lie across it, or the
+  // truncation is the charted end of all data and the presentation stands.
+  if (!onSeam(a, b, walk, sides, range)) return false;
+  // No semantic roster means an older caller: retain the historical
+  // coverage-only suppression rather than changing every edge generator.
+  if (neighborAreaEvidencePaths.length === 0) return true;
+
+  const serving = servingOwnersAt(point, range);
+  if (serving === null || serving.owners.size === 0)
+    return { suppressSides: [] };
+  // ZONE CLASSES (user directive 2026-08-15): with any chart serving the far
+  // side, a jurisdiction's boundary at a CHART border is a compilation
+  // artifact -- see ZONE_CLASSES. No band test, no content proof.
+  if (ZONE_CLASS_SET.has(name)) {
+    return {
+      suppressSides: sides.flatMap((side, index) =>
+        side !== NO_AREA ? [index] : [],
+      ),
+    };
+  }
+  // BAND NESTING (user directive 2026-08-15): a chart border between SCALE
+  // BANDS never draws an area boundary. Scale editions legitimately differ in
+  // vocabulary and in which zone classes they compile at all -- a US4 approach
+  // chart omitting COSARE does not end the contiguous zone, and a US4 cell
+  // ringed inside US2/US3 coverage is a compilation join, not a limit. When
+  // every serving far-side owner sits on a DIFFERENT rung than this cell, the
+  // truncated presentation drops without demanding content proof. Same-band
+  // owners keep the exact-identity requirement below, and a border with no
+  // owner at all is still the charted end of all data and stands.
+  if (Number.isFinite(cellFloor) && serving.floor !== cellFloor) {
+    return {
+      suppressSides: sides.flatMap((side, index) =>
+        side !== NO_AREA ? [index] : [],
+      ),
+    };
+  }
+  const evidence = polygonsContaining(neighborEvidence, point).filter(
+    (entry) =>
+      serving.owners.has(entry.properties.DSNM) &&
+      Number(entry.properties.QFLOOR) === serving.floor &&
+      entry.properties.CLASS === name,
+  );
+  return {
+    suppressSides: sides.flatMap((side, index) =>
+      [...serving.owners].every((owner) =>
+        evidence.some(
+          (entry) =>
+            entry.properties.DSNM === owner &&
+            canonicalContent(entry.properties.CONTENT) === side.key,
+        ),
+      )
+        ? [index]
+        : [],
+    ),
+  };
+}
+
+const out = [];
+let segmentTotal = 0;
+let seamTotal = 0;
+let classTotal = 0;
+
+for (const { name, path } of classPaths) {
+  const features = readFeatures(path);
+  if (features.length === 0) continue;
+  classTotal++;
+
+  const derived = deriveDifferEdges({
+    features,
+    // One object per feature, shared by every segment it owns: `key` is the
+    // identity, `properties` what its edges carry.
+    sideOf: (feature) => {
+      const content = contentOf(feature.properties);
+      return {
+        key: JSON.stringify(content),
+        properties: { CLASS: name, ...content },
+      };
+    },
+    absent: NO_AREA,
+    classify: (sides) => {
+      const real = sides.filter((side) => side !== NO_AREA);
+      // Every side present and every identity equal: one area, no line.
+      if (
+        real.length === sides.length &&
+        real.every((side) => side.key === real[0].key)
+      ) {
+        return null;
+      }
+      // Otherwise one edge PER DISTINCT SIDE, each keeping its own owner's
+      // attributes and canonical ring orientation. The signature is the side's
+      // identity, so chaining never runs a line through segments whose content
+      // differs.
+      const edges = [];
+      const seen = new Set();
+      for (let i = 0; i < sides.length; i++) {
+        const side = sides[i];
+        if (side === NO_AREA || seen.has(side.key)) continue;
+        seen.add(side.key);
+        edges.push({
+          signature: side.key,
+          properties: side.properties,
+          side: i,
+        });
+      }
+      return edges;
+    },
+    onSeam: (a, b, walk, sides, range) =>
+      semanticSeamDecision(name, a, b, walk, sides, range),
+  });
+
+  out.push(...derived.features);
+  segmentTotal += derived.segmentTotal;
+  seamTotal += derived.seamTotal;
+}
+
+writeFileSync(
+  outputPath,
+  JSON.stringify({ type: "FeatureCollection", features: out }),
+);
+console.error(
+  `Generated ${out.length} area edges from ${segmentTotal} segments across ${classTotal} classes` +
+    (seamTotal ? ` (${seamTotal} dropped at chart boundaries)` : ""),
+);

@@ -1,0 +1,140 @@
+#!/usr/bin/env node
+
+// Derives the _BUAARE_EDGE layer: the outline of the built-up areas, with the
+// borders that are only the edge of the CHART taken out of it.
+//
+// Usage:
+//   bin/generate-buaare-edges <output.geojson> \
+//     --built-up BUAARE.geojson \
+//     [--coverage quilting_coverage.geojson] [--cell-coverage M_COVR.geojson] \
+//     [--fallback-coverage quilting_fallback_coverage.geojson]
+//
+// Why this layer exists:
+//
+//   S-57 splits a named area across every polygon its topology needs and each
+//   fragment carries the whole OBJNAM, so the shared border between two
+//   fragments of ONE town is stroked as though it separated two different
+//   places. bin/s57-to-tiles removes most of that at import time by unioning
+//   the fragments by name -- but only within one cell, because the
+//   neighbouring cell's half of the town is a different chart and is not in
+//   this GPKG. A town spanning two cells therefore still came out cut in half
+//   down the cell border.
+//
+//   That border is not a boundary of the town. It is a boundary of the CHART,
+//   and this layer is the outline with those segments left out: the same
+//   derivation _MQUAL_EDGE uses for zones of confidence, over OBJNAM instead of
+//   CATZOC. See bin/quilt-edges.mjs, which holds all of it that is not the
+//   comparison itself.
+//
+// WHAT COUNTS AS THE SAME PLACE
+//
+//   Only two identical, non-empty OBJNAMs. Everything else is a boundary that
+//   keeps its line:
+//
+//     * two DIFFERENTLY named areas -- two towns that happen to abut;
+//     * a named area beside no built-up area at all -- the ordinary outline,
+//       which is nearly all of this layer;
+//     * NULL beside NULL. "These two both have no name" is not evidence that
+//       they are the same place, which is exactly why the import-time dissolve
+//       leaves unnamed areas completely alone; and
+//     * NULL beside a named area.
+//
+//   The one thing that is dropped is a SINGLE-owner segment lying along a
+//   quilt cut, along the fallback copy's cut against coarser coverage (on the
+//   _QFALL interval alone), or along this cell's own M_COVR ring, named or not:
+//   the area continues onto the next chart, which this cell cannot see. See THE
+//   CHART BORDER in bin/quilt-edges.mjs. An outline that stops at the cell
+//   border is the intended result -- the neighbouring cell draws the rest of
+//   it.
+//
+// The features carry no attributes of their own beyond the copy ladder's. An
+// edge has two sides and no single OBJNAM to name it with, the style draws the
+// whole layer with one stroke, and a property that could only ever be arbitrary
+// is worse than none.
+
+import { writeFileSync } from "fs";
+
+import { chartBorderTest, deriveDifferEdges } from "./quilt-edges.mjs";
+import { readFeatures } from "./quilt-geojson.mjs";
+
+const args = process.argv.slice(2);
+const builtUpPaths = [];
+const coveragePaths = [];
+const fallbackCoveragePaths = [];
+const cellCoveragePaths = [];
+const positional = [];
+
+for (let i = 0; i < args.length; i++) {
+  if (args[i] === "--built-up" && args[i + 1]) builtUpPaths.push(args[++i]);
+  else if (args[i] === "--coverage" && args[i + 1])
+    coveragePaths.push(args[++i]);
+  else if (args[i] === "--fallback-coverage" && args[i + 1])
+    fallbackCoveragePaths.push(args[++i]);
+  else if (args[i] === "--cell-coverage" && args[i + 1])
+    cellCoveragePaths.push(args[++i]);
+  else positional.push(args[i]);
+}
+
+const outputPath = positional[0];
+if (!outputPath || builtUpPaths.length === 0) {
+  console.error(
+    "Usage: generate-buaare-edges <output.geojson> --built-up <file> [--coverage <file>] [--fallback-coverage <file>] [--cell-coverage <file>]",
+  );
+  process.exit(1);
+}
+
+/**
+ * "There is no built-up area on that side."
+ *
+ * A unique object rather than null or "", because an UNNAMED built-up area is a
+ * side in its own right and must not compare equal to the absence of one -- nor
+ * to another unnamed area. Only a real, non-empty name is ever equal to
+ * anything, which is what makes every case but two-of-one-name a line.
+ */
+const NO_AREA = Symbol("no built-up area");
+
+/** The name of a side, or a unique object standing in for "unnamed". */
+function nameOf(feature) {
+  const name = feature.properties?.OBJNAM;
+  if (typeof name !== "string" || name.trim() === "") {
+    // Distinct per feature: two unnamed areas are not known to be one place.
+    return Symbol("unnamed built-up area");
+  }
+  return name;
+}
+
+const builtUp = builtUpPaths.flatMap((path) => readFeatures(path));
+
+const { features, segmentTotal, seamTotal } = deriveDifferEdges({
+  features: builtUp,
+  sideOf: nameOf,
+  absent: NO_AREA,
+  classify: (sides) => {
+    const first = sides[0];
+    // Strings only: every symbol is unique, so a side that is one never agrees.
+    if (typeof first === "string" && sides.every((side) => side === first)) {
+      return null;
+    }
+    // One bucket: the layer is drawn with a single stroke, and chaining is
+    // free to run a line through a vertex two segments of it share.
+    return { signature: "", properties: {} };
+  },
+  // The fallback copy's cut against COARSER coverage is a chart border too,
+  // and one no other roster describes; consulted on the _QFALL interval alone.
+  // See THE FALLBACK CUT in bin/quilt-edges.mjs.
+  onSeam: chartBorderTest(
+    coveragePaths,
+    cellCoveragePaths,
+    null,
+    fallbackCoveragePaths,
+  ),
+});
+
+writeFileSync(
+  outputPath,
+  JSON.stringify({ type: "FeatureCollection", features }),
+);
+console.error(
+  `Generated ${features.length} built-up area edges from ${segmentTotal} segments` +
+    (seamTotal ? ` (${seamTotal} dropped at chart boundaries)` : ""),
+);

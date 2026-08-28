@@ -34,5 +34,7 @@ test("AP(DQUALA21)", () => {
   expect(styles).toHaveLength(1);
   const style = styles[0] as FillLayerSpecification;
   expect(style.type).toBe("fill");
-  expect(style.paint!["fill-pattern"]).toBe("DQUALA21");
+  // AP_ prefix: S-52's pattern name space is not MapLibre's sprite name space,
+  // and four fills share a name with a point symbol.
+  expect(style.paint!["fill-pattern"]).toBe("AP_DQUALA21");
 });

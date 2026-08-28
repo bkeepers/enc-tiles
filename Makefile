@@ -44,7 +44,7 @@ $(OUTPUT): $(PMTILES)
 	tile-join --force \
 		--no-tile-size-limit \
 		--overzoom \
-		--maximum-zoom="12" \
+		--maximum-zoom="13" \
 		-o $@ $^
 
 # Download NOAA ENC data

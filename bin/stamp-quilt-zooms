@@ -1,0 +1,223 @@
+#!/usr/bin/env node
+
+// Turns the quilt partition's `_QZMIN`/`_QZMAX` PROPERTIES into per-feature
+// tippecanoe `{minzoom, maxzoom}` MEMBERS, composed with whatever the
+// generators upstream already stamped.
+//
+// Usage:
+//   bin/stamp-quilt-zooms --minzoom N --maxzoom N [--cscale S] <layer.geojson> ...
+//
+// Each input file is rewritten in place. Without --cscale, files with no
+// partition stamps in them pass through untouched, so a cell built without a
+// coverage table -- and M_COVR, which is exempt from the ladder -- are left
+// exactly as they were.
+//
+// WHY THE COMPILATION SCALE IS STAMPED HERE
+//
+// The partition's claim -- at every (point, zoom) exactly one cell's content
+// serves -- is proved by decoding the built tiles and grouping what is in them
+// by compilation scale (plotroom pipeline/scripts/tile_census.py). Nothing else
+// a tile carries identifies the rung: INTU names the BAND, which is the key the
+// partition stopped using, and it cannot tell the 1:12k cells of band 5 from
+// the 1:22k ones -- the handover the cscale amendment exists for. So every
+// feature carries `CSCALE`, and it is stamped HERE because this is the only
+// pass that sees every feature of every layer after the last generator has run:
+// the derived layers whitelist the properties they carry over, so a stamp
+// earlier would reach the source layers and silently miss _LABELS,
+// _DEPARE_EDGE, _TSS_ANCHORS, _LIGHTS_SECTORS and _TSSNOTE. One number for the
+// whole run -- bin/s57-to-tiles converts one cell.
+//
+// WHY THE TWO FORMS EXIST
+//
+// The partition is computed in SQL (bin/s57-to-tiles step 2b), where the only
+// thing a copy can carry is a column, and columns become GeoJSON PROPERTIES.
+// tippecanoe does not read zoom bounds from properties: it reads a `tippecanoe`
+// member off the Feature itself, beside `geometry`. The derived generators in
+// between (steps 3b-3g) key on properties, which is what lets them propagate a
+// copy's range onto their outputs, so the conversion has to happen after ALL of
+// them -- here -- rather than at export time.
+//
+// COMPOSITION
+//
+// A feature can arrive already carrying a member, and both stamps are real
+// decisions that have to survive together:
+//
+//   maxzoom  min(existing, _QZMAX). Both are ceilings; the lower one binds. A
+//            sector-arc copy pinned to one zoom stays pinned, and if that zoom
+//            is outside the interval the copy is dropped below.
+//
+//   minzoom  max(existing, _QZMIN). Both are floors and the higher binds, on
+//            the always-drawn point hazards as much as on anything else -- and
+//            it still never overrides a hazard the generator promoted.
+//            bin/generate-hazard-minzooms competes each copy only inside its
+//            own interval, so the zoom it promotes a copy to is already at or
+//            above that copy's floor and max() returns the generator's stamp
+//            unchanged. The promotion that reaches an OVERVIEW zoom is the one
+//            on the fallback copy, which carries no _QZMIN at all and is left
+//            exactly as the generator wrote it: the lone charted rock in open
+//            water is on the chart because nothing coarser covers that water.
+//
+//            min() on those classes instead would cancel the partition floor
+//            for every ladder copy at once. The whole copy of a harbour cell's
+//            rock would draw from the promoted zoom up, beside the top copy of
+//            the same rock in the same tiles -- two owners of one rock, one of
+//            them uncut over ground a coarser chart owns -- and the harbour
+//            band's hazards would be back on the overview tiles the partition
+//            exists to clear.
+//
+// DROPPED COPIES
+//
+// A copy whose interval falls entirely outside this cell's band tiling range
+// has no tile to live in. Clamping it into range instead would leave two copies
+// of the same feature in the edge tile -- one uncut, one clipped -- which is
+// exactly the exactly-one-owner invariant the partition exists to hold. So the
+// copy is dropped, and the interval that does reach the tile keeps the ground.
+//
+// bin/s57-to-tiles no longer BUILDS such a copy: a rung above the cell's
+// deepest tile folds into the top copy there, because that tile is what
+// --overzoom lifts over the finer charts and it has to be cut against all of
+// them. This stays as the guard for a copy that arrives out of range anyway.
+
+import { readFileSync, writeFileSync } from "fs";
+
+// Working properties the partition carries. `_QFALL` is NOT one of them: the
+// style needs it to know a feature is a fallback continuation standing in for a
+// chart that is not there, and applies a reduced floor to exactly those.
+const STAMP_PROPERTIES = ["_QZMIN", "_QZMAX"];
+
+const args = process.argv.slice(2);
+let minzoom = 0;
+let maxzoom = 16;
+// Absent, not zero, when the cell has no usable scale: a census that reads 0 as
+// a scale would divide by it, and a feature with no class is one the census
+// fails every floor assertion on rather than one it quietly skips.
+let cscale = null;
+const inputPaths = [];
+
+for (let i = 0; i < args.length; i++) {
+  if (args[i] === "--minzoom" && args[i + 1]) {
+    minzoom = parseInt(args[++i], 10);
+  } else if (args[i] === "--maxzoom" && args[i + 1]) {
+    maxzoom = parseInt(args[++i], 10);
+  } else if (args[i] === "--cscale" && args[i + 1]) {
+    const value = parseInt(args[++i], 10);
+    cscale = Number.isFinite(value) && value > 0 ? value : null;
+  } else {
+    inputPaths.push(args[i]);
+  }
+}
+
+if (inputPaths.length === 0) {
+  console.error(
+    "Usage: stamp-quilt-zooms --minzoom N --maxzoom N <layer.geojson> ...",
+  );
+  process.exit(1);
+}
+
+/**
+ * A stamp read off a property, as a zoom or null.
+ *
+ * ogr2ogr writes an unset integer column as JSON null, and a copy that is
+ * deliberately unbounded on one side (the top copy above, the fallback copy
+ * below) has no value there at all. Both are the same thing here: no bound.
+ */
+function zoomProperty(properties, name) {
+  const raw = properties?.[name];
+  if (raw === null || raw === undefined || raw === "") return null;
+  const value = Number(raw);
+  return Number.isFinite(value) ? Math.round(value) : null;
+}
+
+/** The tiling ladder is the only range that has tiles; see bin/s57-to-tiles. */
+function clamp(zoom) {
+  return Math.max(minzoom, Math.min(maxzoom, zoom));
+}
+
+let stamped = 0;
+let dropped = 0;
+
+for (const path of inputPaths) {
+  const document = JSON.parse(readFileSync(path, "utf8"));
+  const features = document.features ?? [];
+  const kept = [];
+  let touched = false;
+
+  for (const feature of features) {
+    const properties = feature?.properties ?? {};
+    if (cscale !== null && feature) {
+      // Assigned back because a Feature that arrived without properties has
+      // nothing for the census to read off the local object.
+      properties.CSCALE = cscale;
+      feature.properties = properties;
+      touched = true;
+    }
+    const qzmin = zoomProperty(properties, "_QZMIN");
+    const qzmax = zoomProperty(properties, "_QZMAX");
+    for (const name of STAMP_PROPERTIES) {
+      if (name in properties) {
+        delete properties[name];
+        touched = true;
+      }
+    }
+
+    if (qzmin === null && qzmax === null) {
+      kept.push(feature);
+      continue;
+    }
+
+    // The interval has no tile of this band to live in.
+    if (
+      (qzmin !== null && qzmin > maxzoom) ||
+      (qzmax !== null && qzmax < minzoom)
+    ) {
+      dropped++;
+      touched = true;
+      continue;
+    }
+
+    const existing = feature.tippecanoe ?? {};
+    const held = zoomProperty(existing, "minzoom");
+    const ceiling = zoomProperty(existing, "maxzoom");
+
+    let floor = held;
+    if (qzmin !== null) {
+      floor = held === null ? qzmin : Math.max(held, qzmin);
+    }
+
+    let cap = ceiling;
+    if (qzmax !== null) {
+      cap = ceiling === null ? qzmax : Math.min(ceiling, qzmax);
+    }
+
+    const resolvedFloor = clamp(floor === null ? minzoom : floor);
+    const resolvedCap = clamp(cap === null ? maxzoom : cap);
+
+    // An empty range after composition: the generator pinned this copy outside
+    // the interval the partition gave it. Another copy owns those zooms.
+    if (resolvedFloor > resolvedCap) {
+      dropped++;
+      touched = true;
+      continue;
+    }
+
+    // NOT a property: tippecanoe reads this member off the Feature itself,
+    // beside `geometry`. See bin/s57-to-tiles step 4.
+    feature.tippecanoe = {
+      ...existing,
+      minzoom: resolvedFloor,
+      maxzoom: resolvedCap,
+    };
+    stamped++;
+    touched = true;
+    kept.push(feature);
+  }
+
+  if (!touched) continue;
+  document.features = kept;
+  writeFileSync(path, JSON.stringify(document));
+}
+
+console.error(
+  `Stamped ${stamped} partitioned feature(s) across z${minzoom}-${maxzoom}: ` +
+    `${dropped} copy/copies dropped as out of band`,
+);

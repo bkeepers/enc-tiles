@@ -1,0 +1,556 @@
+#!/usr/bin/env node
+
+// Derives the _DEPARE_EDGE layer: the shared edges of the DEPARE/DRGARE
+// partition, each carrying the depths on either side of it.
+//
+// Usage:
+//   bin/generate-depare-edges <output.geojson> \
+//     --depth-area DEPARE.geojson [--depth-area DRGARE.geojson ...] \
+//     [--contour DEPCNT.geojson] [--coverage quilting_coverage.geojson] \
+//     [--fallback-coverage quilting_fallback_coverage.geojson] \
+//     [--cell-coverage M_COVR.geojson]
+//
+// Why this layer exists (S-52 DEPARE03):
+//
+//   The safety contour is not "the DEPCNT whose VALDCO equals SAFETY_CONTOUR".
+//   S-52 defines it as the boundary between safe and unsafe water, which is the
+//   interface between two depth areas -- and an ENC is under no obligation to
+//   carry a DEPCNT at the mariner's chosen contour at all. Drawing DEPCNT alone
+//   leaves the safety contour missing whenever the mariner picks a value the
+//   chart does not happen to have a contour for, and leaves dredged areas
+//   (DRGARE, which has DRVAL1 but no surrounding DEPCNT) with no edge whatever.
+//
+// Each output feature carries:
+//
+//   DRVAL_LO   DRVAL1 of the shallower side; -1 where the other side is not a
+//              depth area at all (land, unsurveyed, or the edge of coverage)
+//   DRVAL_HI   DRVAL1 of the deeper side
+//   VALDCO     the value of a DEPCNT that runs along this edge, when there is
+//              one, so the style can label it
+//   SEAM       1 when the edge is an artefact of quilting rather than a real
+//              interface (see below); DRVAL_LO is then absent
+//
+// The edges are recovered by hashing segments rather than by a geometric
+// overlay: adjacent S-57 areas are built from the same edge primitives, so a
+// shared boundary comes out of ogr2ogr as bit-identical coordinate pairs in
+// both polygons. A segment owned by two areas is an interface; one owned by a
+// single area is an outer boundary.
+//
+// Three things make an outer boundary that is NOT the edge of the survey, and
+// all of them have to be recognised or the style paints a safety contour along
+// them.
+//
+//   1. The quilt clip. bin/s57-to-tiles cuts this chart against the coverage
+//      of the charts it hands over to, so a depth area cut by that clip
+//      acquires a new outer boundary along the cut. The detailed chart
+//      continues there. --coverage carries those M_COVR rings, and it holds
+//      strictly FINER coverage: a stamped copy is cut against nothing else.
+//
+//   2. The cell's OWN edge. An ENC cell is a rectangle cut out of a continuous
+//      survey: the depth areas along its border are truncated by the cut, and
+//      the neighbouring cell carries the rest. This is by far the commoner
+//      case -- measured on the Seattle z11 tile, 169 of 172 edges lying on the
+//      cell ring were being labelled DRVAL_LO = -1, i.e. "land", which drew
+//      the safety contour down every cell edge in the quilt. --cell-coverage
+//      carries this cell's own M_COVR, and only the OUTER ring of its
+//      CATCOV = 1 (coverage available) polygons is indexed -- a CATCOV = 2 gap
+//      is normally a hole in that polygon, and indexing the hole would put the
+//      no-coverage boundary straight back in.
+//
+//      M_COVR is EXEMPT from the zoom partition (it is the quilt's own
+//      pick/status layer), so that ring now arrives UNCLIPPED, and it has to:
+//      the whole copy of a depth area is uncut and ends at the cell's own
+//      border even where a finer chart overlaps that border, and a ring
+//      clipped away there would read those edges as land. The cut boundaries
+//      the ladder copies do have are recognised by case 1 alone.
+//
+//   3. The FALLBACK copy's clip. A cell that has to stand in for a chart that
+//      is not there is also published BELOW its own quilt floor, as a fallback
+//      continuation (_QFALL = 1), and that copy is cut against the union of
+//      all strictly COARSER coverage -- so it acquires new outer boundaries
+//      too, at the compilation-scale junction rather than at the finer one.
+//      --fallback-coverage carries those rings.
+//
+//      They are consulted on the _QFALL interval ALONE. No other copy was ever
+//      cut against a coarser chart, so on a stamped copy a coarser ring lies
+//      over ground no clip touched -- it crosses the cell's interior freely --
+//      and letting it flag a seam would take a real contour off the chart.
+//
+// However the boundary arose, the segment is flagged SEAM and left without a
+// DRVAL_LO.
+//
+// BOTH endpoints and the midpoint must lie on the ring, whichever source it
+// came from. A coastline that merely touches a ring at a single vertex -- a
+// headland running down to the border -- is a real land boundary and must keep
+// DRVAL_LO = -1; testing the midpoint alone is enough to flag any segment whose
+// middle happens to graze one. The coverage test used to do exactly that, and
+// got away with it only because --coverage holds strictly finer charts, whose
+// rings can appear inside this cell only where it was cut. Coarser rings, which
+// --fallback-coverage does hold, cross this cell wherever the coarser chart
+// happens to run -- which is why the interval gate above is not on its own
+// enough, and the along-the-ring rule matters most there.
+//
+// THE ZOOM PARTITION
+//
+// A partitioned cell arrives as zoom-range COPIES of each depth area -- one per
+// interval of the copy ladder, carrying _QZMIN/_QZMAX (and _QFALL on a fallback
+// continuation) -- which bin/stamp-quilt-zooms turns into per-feature tippecanoe
+// zoom bounds after this runs. Each interval is therefore hashed, classified and
+// chained on its OWN segments, and its edges carry its range.
+//
+// Sharing one hash across the intervals is not a duplicate-output problem but a
+// silent deletion: two copies of one area coincide wherever the finer mask did
+// not cut them, so the shared segment collects the SAME DRVAL1 twice, reads as
+// an interface between two areas of equal depth, and is dropped by the
+// `low === high` rule -- taking the cell-ring seam, and the safety contour that
+// runs along it, out of every interval at once.
+//
+// An input carrying none of those properties is one interval and behaves exactly
+// as it did before them.
+
+import { readFileSync, writeFileSync } from "fs";
+
+import { isFallbackInterval, orientedRings } from "./quilt-geojson.mjs";
+
+const args = process.argv.slice(2);
+const depthAreaPaths = [];
+const contourPaths = [];
+const coveragePaths = [];
+const fallbackCoveragePaths = [];
+const cellCoveragePaths = [];
+const positional = [];
+
+for (let i = 0; i < args.length; i++) {
+  if (args[i] === "--depth-area" && args[i + 1]) depthAreaPaths.push(args[++i]);
+  else if (args[i] === "--contour" && args[i + 1]) contourPaths.push(args[++i]);
+  else if (args[i] === "--coverage" && args[i + 1])
+    coveragePaths.push(args[++i]);
+  else if (args[i] === "--fallback-coverage" && args[i + 1])
+    fallbackCoveragePaths.push(args[++i]);
+  else if (args[i] === "--cell-coverage" && args[i + 1])
+    cellCoveragePaths.push(args[++i]);
+  else positional.push(args[i]);
+}
+
+const outputPath = positional[0];
+if (!outputPath || depthAreaPaths.length === 0) {
+  console.error(
+    "Usage: generate-depare-edges <output.geojson> --depth-area <file> [--depth-area <file>] [--contour <file>] [--coverage <file>] [--fallback-coverage <file>] [--cell-coverage <file>]",
+  );
+  process.exit(1);
+}
+
+/** Coordinates round-tripped through GeoJSON text; 9 dp is ~0.1 mm. */
+const PRECISION = 9;
+/** How close a segment has to sit to the coverage boundary to count as a seam. */
+const SEAM_TOLERANCE = 1e-7;
+/**
+ * The same, for the cell's own M_COVR ring.
+ *
+ * Looser than SEAM_TOLERANCE because the two geometries do not share edge
+ * primitives the way two depth areas of one cell do: M_COVR is its own S-57
+ * feature and the depth areas are clipped against the quilt mask, so the
+ * coincidence is arithmetic rather than exact. Measured departure on real
+ * cells is under 1e-7 degrees; 1e-6 (~0.1 m) is an order of magnitude of
+ * headroom and still far below the width of anything drawn on a chart.
+ */
+const CELL_BOUNDARY_TOLERANCE = 1e-6;
+/** Stands in for "the other side is not a depth area". */
+const NO_DEPTH = -1;
+
+function readFeatures(path) {
+  let text;
+  try {
+    text = readFileSync(path, "utf8");
+  } catch (err) {
+    return [];
+  }
+  if (!text.trim()) return [];
+  const parsed = JSON.parse(text);
+  return parsed.features ?? [];
+}
+
+/** The partition properties a source copy carries; see THE ZOOM PARTITION. */
+const QUILT_PROPERTIES = ["_QZMIN", "_QZMAX", "_QFALL"];
+
+/** Those of them a feature actually has, to be copied onto its outputs. */
+function quiltRange(properties) {
+  const range = {};
+  for (const name of QUILT_PROPERTIES) {
+    const value = properties?.[name];
+    if (value !== null && value !== undefined) range[name] = value;
+  }
+  return range;
+}
+
+/** The interval key of a range. Legacy inputs all share the empty one. */
+function quiltKey(range) {
+  return QUILT_PROPERTIES.map((name) => range[name] ?? "").join("\u0000");
+}
+
+const round = (value) => Number(value.toFixed(PRECISION));
+const key = (a, b) => {
+  const [x1, y1] = [round(a[0]), round(a[1])];
+  const [x2, y2] = [round(b[0]), round(b[1])];
+  // Canonical, so the same edge hashes alike whichever way each ring walks it.
+  return x1 < x2 || (x1 === x2 && y1 <= y2)
+    ? `${x1},${y1}|${x2},${y2}`
+    : `${x2},${y2}|${x1},${y1}`;
+};
+
+/** Every closed ring of a Polygon/MultiPolygon geometry. */
+function* rings(geometry) {
+  if (!geometry) return;
+  if (geometry.type === "Polygon") yield* geometry.coordinates;
+  else if (geometry.type === "MultiPolygon")
+    for (const polygon of geometry.coordinates) yield* polygon;
+}
+
+/** Only the outer ring of each polygon -- see `coverageIndex`. */
+function* exteriorRings(geometry) {
+  if (!geometry) return;
+  if (geometry.type === "Polygon") {
+    if (geometry.coordinates[0]) yield geometry.coordinates[0];
+  } else if (geometry.type === "MultiPolygon") {
+    for (const polygon of geometry.coordinates)
+      if (polygon[0]) yield polygon[0];
+  }
+}
+
+/** Every segment of a LineString/MultiLineString geometry. */
+function* lineSegments(geometry) {
+  if (!geometry) return;
+  const lines =
+    geometry.type === "LineString"
+      ? [geometry.coordinates]
+      : geometry.type === "MultiLineString"
+        ? geometry.coordinates
+        : [];
+  for (const line of lines) {
+    for (let i = 1; i < line.length; i++) yield [line[i - 1], line[i]];
+  }
+}
+
+// ---- 1. hash every depth-area segment, by zoom interval --------------------
+
+/** Interval key -> { range, segments }, in the order the intervals arrive. */
+const intervals = new Map();
+
+function intervalOf(properties) {
+  const range = quiltRange(properties);
+  const id = quiltKey(range);
+  let interval = intervals.get(id);
+  if (!interval) {
+    interval = { range, segments: new Map() };
+    intervals.set(id, interval);
+  }
+  return interval;
+}
+
+for (const path of depthAreaPaths) {
+  for (const feature of readFeatures(path)) {
+    const drval1 = Number(feature.properties?.DRVAL1);
+    const depth = Number.isFinite(drval1) ? drval1 : NO_DEPTH;
+    const { segments } = intervalOf(feature.properties);
+    // Canonically wound (filled side on the right of travel), so an emitted
+    // edge's direction is deterministic whatever the source winding -- the
+    // same invariant every deriveDifferEdges layer holds.
+    for (const ring of orientedRings(feature.geometry)) {
+      for (let i = 1; i < ring.length; i++) {
+        const a = ring[i - 1];
+        const b = ring[i];
+        const id = key(a, b);
+        const existing = segments.get(id);
+        if (existing) existing.depths.push(depth);
+        else segments.set(id, { a, b, depths: [depth] });
+      }
+    }
+  }
+}
+
+// ---- 2. DEPCNT values, by segment, by zoom interval ------------------------
+//
+// A contour is copied by the ladder exactly as a depth area is, and a copy
+// labels the edges of its own interval: consulting another interval's contours
+// would put a VALDCO on an edge whose geometry the clip had moved.
+
+const contourValues = new Map();
+for (const path of contourPaths) {
+  for (const feature of readFeatures(path)) {
+    const valdco = Number(feature.properties?.VALDCO);
+    if (!Number.isFinite(valdco)) continue;
+    const id = quiltKey(quiltRange(feature.properties));
+    let values = contourValues.get(id);
+    if (!values) {
+      values = new Map();
+      contourValues.set(id, values);
+    }
+    for (const [a, b] of lineSegments(feature.geometry)) {
+      values.set(key(a, b), valdco);
+    }
+  }
+}
+
+// ---- 3. seams: quilt cuts and the cell's own edge ---------------------------
+
+/**
+ * Index the rings of a set of coverage polygons as bbox-padded segments.
+ *
+ * `accept` filters which features contribute -- the cell's own M_COVR carries
+ * CATCOV = 2 ("no coverage") rings as well, and a no-coverage ring is not an
+ * edge of anything this chart drew.
+ *
+ * `exteriorOnly` drops the HOLES of the accepted polygons, which is how a
+ * no-coverage area actually arrives: as a hole in the CATCOV = 1 polygon with
+ * a separate CATCOV = 2 polygon filling it. Indexing that hole puts the
+ * no-coverage boundary back into the seam index by the back door and undoes
+ * the `accept` filter -- the depth areas that end at the edge of the gap lose
+ * their DRVAL_LO, so the safety contour disappears from a boundary that is
+ * real. Nothing is lost by dropping holes: the other thing that cuts a hole in
+ * a cell's coverage is a higher-INTU chart, and those rings arrive whole on
+ * --coverage.
+ */
+function coverageIndex(
+  paths,
+  tolerance,
+  accept = () => true,
+  exteriorOnly = false,
+) {
+  const index = [];
+  for (const path of paths) {
+    for (const feature of readFeatures(path)) {
+      if (!accept(feature)) continue;
+      const walk = exteriorOnly ? exteriorRings : rings;
+      for (const ring of walk(feature.geometry)) {
+        for (let i = 1; i < ring.length; i++) {
+          const [a, b] = [ring[i - 1], ring[i]];
+          index.push({
+            a,
+            b,
+            minX: Math.min(a[0], b[0]) - tolerance,
+            maxX: Math.max(a[0], b[0]) + tolerance,
+            minY: Math.min(a[1], b[1]) - tolerance,
+            maxY: Math.max(a[1], b[1]) + tolerance,
+          });
+        }
+      }
+    }
+  }
+  return index;
+}
+
+const coverageSegments = coverageIndex(coveragePaths, SEAM_TOLERANCE);
+
+/**
+ * The COARSER charts' rings, which only the fallback copy was cut against.
+ *
+ * Same tolerance as the finer cut, and for the same reason: GEOS keeps the
+ * mask's own vertices when it differences, so the cut edge and the ring it was
+ * cut along share coordinates exactly.
+ */
+const fallbackCoverageSegments = coverageIndex(
+  fallbackCoveragePaths,
+  SEAM_TOLERANCE,
+);
+
+/**
+ * This cell's own coverage ring: the OUTER ring of its CATCOV = 1 polygons.
+ *
+ * The attribute arrives as an MVT/GeoJSON integer from ogr2ogr but has been a
+ * string in other exports, so it is coerced rather than compared strictly to 1.
+ */
+const cellSegments = coverageIndex(
+  cellCoveragePaths,
+  CELL_BOUNDARY_TOLERANCE,
+  (feature) => Number(feature.properties?.CATCOV) === 1,
+  true,
+);
+
+function distanceToSegment(point, a, b) {
+  const dx = b[0] - a[0];
+  const dy = b[1] - a[1];
+  const lengthSquared = dx * dx + dy * dy;
+  let t = 0;
+  if (lengthSquared > 0) {
+    t = ((point[0] - a[0]) * dx + (point[1] - a[1]) * dy) / lengthSquared;
+    t = Math.max(0, Math.min(1, t));
+  }
+  const px = a[0] + t * dx - point[0];
+  const py = a[1] + t * dy - point[1];
+  return Math.sqrt(px * px + py * py);
+}
+
+function near(index, point, tolerance) {
+  for (const segment of index) {
+    if (point[0] < segment.minX || point[0] > segment.maxX) continue;
+    if (point[1] < segment.minY || point[1] > segment.maxY) continue;
+    if (distanceToSegment(point, segment.a, segment.b) <= tolerance)
+      return true;
+  }
+  return false;
+}
+
+/**
+ * Along a ring of `index`: both endpoints AND the midpoint on it.
+ *
+ * A real coastline that touches a ring at ONE vertex is not a boundary
+ * artefact and has to keep DRVAL_LO = -1. The midpoint is tested as well as
+ * the endpoints because a long chord across a bay can have both ends on the
+ * ring without lying along it.
+ */
+function alongRing(index, tolerance, a, mid, b) {
+  if (index.length === 0) return false;
+  return (
+    near(index, a, tolerance) &&
+    near(index, mid, tolerance) &&
+    near(index, b, tolerance)
+  );
+}
+
+/** On the boundary of another chart's coverage: a quilt cut. */
+function onCoverageBoundary(a, mid, b) {
+  return alongRing(coverageSegments, SEAM_TOLERANCE, a, mid, b);
+}
+
+/** On this cell's own M_COVR ring. */
+function onCellBoundary(a, mid, b) {
+  return alongRing(cellSegments, CELL_BOUNDARY_TOLERANCE, a, mid, b);
+}
+
+/**
+ * On the boundary of a COARSER chart's coverage: the fallback copy's cut.
+ *
+ * Only ever asked about a _QFALL interval -- see case 3 in the header.
+ */
+function onFallbackBoundary(a, mid, b) {
+  return alongRing(fallbackCoverageSegments, SEAM_TOLERANCE, a, mid, b);
+}
+
+// ---- 4. chain segments into LineStrings ------------------------------------
+
+function chain(entries) {
+  const endpoints = new Map();
+  const remaining = new Set(entries);
+
+  const at = (point) => `${round(point[0])},${round(point[1])}`;
+  for (const entry of entries) {
+    for (const point of [entry.a, entry.b]) {
+      const id = at(point);
+      const bucket = endpoints.get(id);
+      if (bucket) bucket.push(entry);
+      else endpoints.set(id, [entry]);
+    }
+  }
+
+  const lines = [];
+  for (const start of entries) {
+    if (!remaining.has(start)) continue;
+    remaining.delete(start);
+    const line = [start.a, start.b];
+
+    // Walk forwards, then backwards, taking the single continuation when the
+    // node is a simple one. A junction (three or more edges) ends the chain.
+    for (const direction of [1, 0]) {
+      for (;;) {
+        const tip = direction ? line[line.length - 1] : line[0];
+        const candidates = (endpoints.get(at(tip)) ?? []).filter((entry) =>
+          remaining.has(entry),
+        );
+        if (candidates.length !== 1) break;
+        const next = candidates[0];
+        remaining.delete(next);
+        const other = at(next.a) === at(tip) ? next.b : next.a;
+        if (direction) line.push(other);
+        else line.unshift(other);
+      }
+    }
+    lines.push(line);
+  }
+  return lines;
+}
+
+// ---- 5. classify and emit, one zoom interval at a time ---------------------
+
+const features = [];
+let segmentTotal = 0;
+
+for (const [id, interval] of intervals) {
+  const contours = contourValues.get(id) ?? new Map();
+  // The one interval the coarser roster describes: everything else was cut
+  // against finer coverage alone, and a coarser ring across it is real ground.
+  const fallback = isFallbackInterval(interval.range);
+  segmentTotal += interval.segments.size;
+
+  /** Segments keyed by their attribute signature, for chaining. */
+  const byAttributes = new Map();
+
+  for (const [segmentId, segment] of interval.segments) {
+    const depths = segment.depths;
+    let low;
+    let high;
+    let seam = false;
+
+    if (depths.length >= 2) {
+      low = Math.min(...depths);
+      high = Math.max(...depths);
+    } else {
+      high = depths[0];
+      const mid = [
+        (segment.a[0] + segment.b[0]) / 2,
+        (segment.a[1] + segment.b[1]) / 2,
+      ];
+      if (
+        onCoverageBoundary(segment.a, mid, segment.b) ||
+        onCellBoundary(segment.a, mid, segment.b) ||
+        (fallback && onFallbackBoundary(segment.a, mid, segment.b))
+      ) {
+        seam = true;
+      } else {
+        low = NO_DEPTH;
+      }
+    }
+
+    // A pair of areas with the same DRVAL1 is not an interface worth drawing.
+    if (!seam && low === high) continue;
+
+    const valdco = contours.get(segmentId);
+    const signature = `${low ?? "x"}|${high}|${valdco ?? "x"}|${seam ? 1 : 0}`;
+    const bucket = byAttributes.get(signature);
+    const entry = { a: segment.a, b: segment.b, low, high, valdco, seam };
+    if (bucket) bucket.push(entry);
+    else byAttributes.set(signature, [entry]);
+  }
+
+  for (const entries of byAttributes.values()) {
+    const { low, high, valdco, seam } = entries[0];
+    for (const line of chain(entries)) {
+      features.push({
+        type: "Feature",
+        geometry: { type: "LineString", coordinates: line },
+        properties: {
+          ...(low === undefined ? {} : { DRVAL_LO: low }),
+          DRVAL_HI: high,
+          ...(valdco === undefined ? {} : { VALDCO: valdco }),
+          ...(seam ? { SEAM: 1 } : {}),
+          // The interval these segments came from, converted to tippecanoe
+          // bounds later by bin/stamp-quilt-zooms.
+          ...interval.range,
+        },
+      });
+    }
+  }
+}
+
+writeFileSync(
+  outputPath,
+  JSON.stringify({ type: "FeatureCollection", features }),
+);
+const seamSources = [
+  ...(coverageSegments.length ? ["quilt cuts"] : []),
+  ...(fallbackCoverageSegments.length ? ["fallback cuts"] : []),
+  ...(cellSegments.length ? ["cell ring"] : []),
+];
+console.error(
+  `Generated ${features.length} depth-area edges from ${segmentTotal} segments` +
+    (seamSources.length ? ` (seams flagged: ${seamSources.join(", ")})` : ""),
+);

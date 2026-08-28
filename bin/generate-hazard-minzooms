@@ -1,0 +1,256 @@
+#!/usr/bin/env node
+
+// Stamps a per-feature tippecanoe `minzoom` on point hazards so a dense cluster
+// thins with zoom SHOALEST FIRST.
+//
+// Usage:
+//   bin/generate-hazard-minzooms --minzoom N --maxzoom N <hazards.geojson> ...
+//
+// Each input file is rewritten in place. Only POINT features are touched; the
+// area and line members of WRECKS/OBSTRN keep whatever they had.
+//
+// WHY THIS EXISTS
+//
+// tippecanoe thins point layers with `-r/--drop-rate`: at every zoom below the
+// maxzoom it drops a fraction of the features, chosen by a hash of their
+// position. For SOUNDG that is fine -- which soundings go is not load-bearing,
+// because the contours and depth areas carry the same information at that
+// scale. For UWTROC/WRECKS/OBSTRN it is not fine in either direction:
+//
+//   * The choice is depth-blind. A 1.2 m rock and the 18 m wreck beside it are
+//     equally likely to be the one that survives to z9, and the chart that
+//     results says the water is clear where the rock is.
+//   * It is also all-or-nothing per zoom. Ten rocks in one anchorage are ten
+//     symbols on top of each other at z8 whatever the drop rate leaves.
+//
+// So the decision is made here, by depth, before tippecanoe sees the features.
+//
+// THE RULE
+//
+// At each zoom the world is cut into cells of about 64 screen pixels. In each
+// cell, the hazard with the SHALLOWEST effective depth wins that zoom, and a
+// feature's stamped `minzoom` is the shallowest zoom it ever wins at. Everything
+// else is stamped with the band maxzoom, so no hazard is ever removed from the
+// chart -- it arrives later than the shoaler one beside it, and every one of
+// them is present at full detail.
+//
+// The rule is monotone, which is what makes the result stable: a cell at z+1 is
+// a quarter of a cell at z, so a feature that was shoalest in the larger cell is
+// still shoalest in the smaller one. A winner never stops winning, and the
+// zoom it first wins at is therefore also every zoom after it. Losers are kept
+// in the competition at every zoom for the same reason: the winner from a
+// coarser zoom is still on the chart, and skipping it would let a deeper hazard
+// claim the cell it is already occupying and double the density there.
+//
+// WHAT THE RULE DOES NOT BOUND
+//
+// The competition is per S-57 CELL, because that is the unit this runs on: one
+// invocation of bin/s57-to-tiles converts one .000 and passes it that cell's
+// hazard files. Two charts that cover neighbouring water -- or the same water
+// at a different band -- are two separate runs that never see each other's
+// features, so each holds its own contest and each stamps its own winner.
+//
+// So "one symbol per 64 px" is true of a chart cell and NOT of the screen. What
+// a mariner sees at a given zoom is the union of every chart cell in view, and
+// two hazards a hundred metres apart on opposite sides of a cell boundary both
+// win their square and both draw. The bound is the number of chart cells the
+// viewport touches, which is small in open water and largest exactly where the
+// cells are smallest -- an approaches chart series around a harbour entrance.
+// Nothing here fixes that, and it is not worth fixing at this end: the honest
+// place for a cross-cell rule is after tile-join, where the features of every
+// contributing cell finally exist in one place.
+//
+// THE ZOOM PARTITION
+//
+// A partitioned cell arrives as zoom-range COPIES of each hazard -- one per
+// interval of the copy ladder, carrying _QZMIN/_QZMAX (and _QFALL on a fallback
+// continuation) -- which bin/stamp-quilt-zooms turns into tippecanoe bounds
+// after this runs. A copy competes ONLY at the zooms its own interval serves,
+// for the two reasons bin/thin-soundings states at length: a copy that does not
+// serve a zoom must not hold a grid cell at it, or it evicts the copy that
+// does; and the copies of one rock share a position, a VALSOU and an LNAM, so
+// nothing in the ranking can tell them apart and the winner would otherwise be
+// whichever copy ogr2ogr happened to export first.
+//
+// What is written is the THINNING minzoom alone; composing it with _QZMIN is
+// bin/stamp-quilt-zooms' job and it needs the properties to do it. Competing
+// inside the interval is also what keeps the promotion of a shoal hazard honest
+// at both ends: a copy is never promoted below the interval it serves, so the
+// partition floor has nothing to suppress, and the promotion that reaches an
+// overview zoom is the one on the FALLBACK copy -- this cell standing in where
+// no coarser chart exists, which is exactly the lone charted rock in open water.
+//
+// "No hazard is ever removed from the chart" survives this, said per interval: a
+// copy that wins nothing inside its own is stamped with the band maxzoom, which
+// composes against its _QZMAX to an empty range and publishes nothing THERE.
+// The rock is still charted at the zooms above -- by this cell's next copy up,
+// or, where a finer chart's footprint took that copy's point away, by the finer
+// chart, which charts the same rock itself.
+//
+// EFFECTIVE DEPTH
+//
+// VALSOU, in metres, and shallower is more dangerous -- so a drying height
+// (negative VALSOU) outranks everything wet. A hazard with NO VALSOU has no
+// known least depth, which S-52 already treats as the dangerous case
+// (CS(OBSTRN07) gives it the isolated-danger or rock symbol rather than the
+// deep-water one), so it sorts as the shoalest thing there is. An unsounded
+// wreck is not a reason to prefer the sounded one beside it.
+//
+// Ties break on LNAM, the S-57 cross-chart identifier, so the same chart always
+// produces the same tiles: a set-iteration order or a file order would make the
+// output depend on how ogr2ogr happened to export the cell.
+//
+// A side effect worth naming: a per-feature `minzoom` is also tippecanoe's
+// documented exemption from dot-dropping ("preserved down to that zoom level
+// even if dot-dropping with -r would otherwise have dropped it"). Stamping
+// every hazard therefore takes the whole class out of the random drop as well
+// as thinning it deliberately.
+
+import { readFileSync, writeFileSync } from "fs";
+
+// Screen size of a thinning cell, in pixels. One hazard symbol is ~12 px of
+// ink; 64 px leaves the neighbouring symbol clear of it and its depth figure.
+const CELL_PIXELS = 64;
+
+// The tile grid the pixel size is measured against. Matches bin/s57-to-tiles.
+const TILE_PIXELS = 512;
+
+const args = process.argv.slice(2);
+let minzoom = 0;
+let maxzoom = 16;
+const inputPaths = [];
+
+for (let i = 0; i < args.length; i++) {
+  if (args[i] === "--minzoom" && args[i + 1]) {
+    minzoom = parseInt(args[++i], 10);
+  } else if (args[i] === "--maxzoom" && args[i + 1]) {
+    maxzoom = parseInt(args[++i], 10);
+  } else {
+    inputPaths.push(args[i]);
+  }
+}
+
+if (inputPaths.length === 0) {
+  console.error(
+    "Usage: generate-hazard-minzooms --minzoom N --maxzoom N <hazards.geojson> ...",
+  );
+  process.exit(1);
+}
+
+/** Web Mercator, normalized to [0, 1) on both axes. */
+function mercator(lon, lat) {
+  const x = (lon + 180) / 360;
+  // Clamped short of the poles, where the projection diverges: an S-57 cell
+  // never reaches them, and a NaN here would silently unbucket the feature.
+  const clamped = Math.max(-85.05112878, Math.min(85.05112878, lat));
+  const sin = Math.sin((clamped * Math.PI) / 180);
+  const y = 0.5 - Math.log((1 + sin) / (1 - sin)) / (4 * Math.PI);
+  return [x, y];
+}
+
+/**
+ * Effective depth, shallower first. Missing VALSOU is the shoalest there is.
+ *
+ * Returned as a number so the comparison is a plain `<`; the sentinel has to
+ * be below every real sounding including drying heights, which are negative.
+ */
+function effectiveDepth(properties) {
+  const raw = properties?.VALSOU;
+  if (raw === null || raw === undefined || raw === "") {
+    return Number.NEGATIVE_INFINITY;
+  }
+  const value = Number(raw);
+  return Number.isFinite(value) ? value : Number.NEGATIVE_INFINITY;
+}
+
+/**
+ * The zoom interval a partitioned copy serves; see THE ZOOM PARTITION. An
+ * absent or unreadable bound binds nothing, which is every legacy invocation.
+ */
+function zoomBound(value, fallback) {
+  if (value === null || value === undefined || value === "") return fallback;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : fallback;
+}
+
+// Every point hazard across every input, competing as ONE population: a wreck
+// and a rock 30 m apart are two symbols in the same place on the chart, and
+// thinning each class against itself would leave exactly the pile-up this
+// exists to prevent.
+const hazards = [];
+const documents = [];
+
+for (const path of inputPaths) {
+  const document = JSON.parse(readFileSync(path, "utf8"));
+  documents.push({ path, document });
+  const features = document.features ?? [];
+  for (let index = 0; index < features.length; index++) {
+    const feature = features[index];
+    if (feature?.geometry?.type !== "Point") continue;
+    const coordinates = feature.geometry.coordinates;
+    if (!Array.isArray(coordinates) || coordinates.length < 2) continue;
+    const [lon, lat] = coordinates;
+    if (!Number.isFinite(lon) || !Number.isFinite(lat)) continue;
+    const properties = feature.properties ?? {};
+    hazards.push({
+      feature,
+      depth: effectiveDepth(properties),
+      // The identity a tie is broken on. LNAM is unique across charts; the
+      // fallback only has to be stable within this run, and the path plus the
+      // export order is.
+      key:
+        properties.LNAM != null ? String(properties.LNAM) : `${path}#${index}`,
+      mercator: mercator(lon, lat),
+      qzmin: zoomBound(properties._QZMIN, Number.NEGATIVE_INFINITY),
+      qzmax: zoomBound(properties._QZMAX, Number.POSITIVE_INFINITY),
+      // Filled in below. Nothing that reaches this array leaves without one.
+      minzoom: maxzoom,
+    });
+  }
+}
+
+/** True when `a` is the more dangerous of the two, ties broken on identity. */
+function outranks(a, b) {
+  if (a.depth !== b.depth) return a.depth < b.depth;
+  return a.key < b.key;
+}
+
+for (let zoom = minzoom; zoom < maxzoom; zoom++) {
+  // Cells per axis at this zoom. 2^zoom tiles of TILE_PIXELS, cut into
+  // CELL_PIXELS squares.
+  const cells = Math.pow(2, zoom) * (TILE_PIXELS / CELL_PIXELS);
+  const winners = new Map();
+  for (const hazard of hazards) {
+    if (zoom < hazard.qzmin || zoom > hazard.qzmax) continue;
+    const [x, y] = hazard.mercator;
+    const column = Math.min(cells - 1, Math.floor(x * cells));
+    const row = Math.min(cells - 1, Math.floor(y * cells));
+    const cell = `${column},${row}`;
+    const held = winners.get(cell);
+    if (held === undefined || outranks(hazard, held)) winners.set(cell, hazard);
+  }
+  for (const winner of winners.values()) {
+    // Ascending zooms, so the first zoom a feature wins at is the shallowest,
+    // and monotonicity means it wins every zoom after it too.
+    if (winner.minzoom === maxzoom) winner.minzoom = zoom;
+  }
+}
+
+for (const hazard of hazards) {
+  // NOT a property: tippecanoe reads this member off the Feature itself,
+  // beside `geometry`. See bin/s57-to-tiles step 4.
+  hazard.feature.tippecanoe = {
+    ...(hazard.feature.tippecanoe ?? {}),
+    minzoom: hazard.minzoom,
+  };
+}
+
+for (const { path, document } of documents) {
+  writeFileSync(path, JSON.stringify(document));
+}
+
+const early = hazards.filter((hazard) => hazard.minzoom < maxzoom).length;
+console.error(
+  `Thinned ${hazards.length} point hazard(s) across z${minzoom}-${maxzoom}: ` +
+    `${early} visible before z${maxzoom}`,
+);

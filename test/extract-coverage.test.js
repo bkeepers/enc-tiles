@@ -1,0 +1,321 @@
+/**
+ * Fixture runs of bin/extract-coverage against stub GDAL binaries.
+ *
+ * What is under test is the QFLOOR stamped on every coverage row: the rung
+ * bin/s57-to-tiles then partitions against without re-deriving anything. A
+ * floor that is one zoom off here is a gap or an overlap in that cell's copy
+ * ladder, and neither is visible until a tile is missing content.
+ *
+ * The stub knobs are documented in test/fixtures/gdal-stub/ogrinfo.
+ */
+import { spawnSync } from "node:child_process";
+import {
+  chmodSync,
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { afterEach, beforeEach, describe, expect, test } from "vitest";
+
+const SCRIPT = fileURLToPath(
+  new URL("../bin/extract-coverage", import.meta.url),
+);
+const STUB_SOURCE = fileURLToPath(
+  new URL("./fixtures/gdal-stub", import.meta.url),
+);
+
+/** A bbox GDAL's `-so` prints, centred on `lat`. */
+function extentAt(lat) {
+  return `(-122.900000, ${(lat - 0.5).toFixed(6)}) - (-122.100000, ${(lat + 0.5).toFixed(6)})`;
+}
+
+let work;
+let stubDir;
+// The stubs append, so a test that runs the script twice needs two logs.
+let runs;
+
+beforeEach(() => {
+  work = mkdtempSync(join(tmpdir(), "extract-coverage-"));
+  runs = 0;
+  stubDir = join(work, "stub");
+  mkdirSync(stubDir);
+  for (const name of readdirSync(STUB_SOURCE)) {
+    const target = join(stubDir, name);
+    copyFileSync(join(STUB_SOURCE, name), target);
+    chmodSync(target, 0o755);
+  }
+});
+
+afterEach(() => {
+  rmSync(work, { recursive: true, force: true });
+});
+
+function run(env = {}) {
+  const input = join(work, "US5WA22M.000");
+  const output = join(work, "coverage.gpkg");
+  const sqlLog = join(work, `sql-${runs++}.log`);
+  writeFileSync(input, "");
+  if (env.STUB_EXISTING_OUTPUT) writeFileSync(output, env.STUB_EXISTING_OUTPUT);
+
+  const result = spawnSync("bash", [SCRIPT, output, input], {
+    encoding: "utf8",
+    env: {
+      ...process.env,
+      PATH: `${stubDir}:${process.env.PATH}`,
+      STUB_SQL_LOG: sqlLog,
+      STUB_EXTENT: extentAt(48.5),
+      ...env,
+    },
+  });
+  return {
+    status: result.status,
+    stdout: result.stdout ?? "",
+    stderr: result.stderr ?? "",
+    sql: existsSync(sqlLog) ? readFileSync(sqlLog, "utf8") : "",
+    output: existsSync(output) ? readFileSync(output, "utf8") : null,
+  };
+}
+
+/** The columns the coverage rows were stamped with, or null if none were. */
+function stamps(sql) {
+  const match =
+    /SELECT \*, '[A-Za-z0-9]{8}' AS DSNM, (\d+) AS INTU, (\d+) AS CSCALE, (\d+) AS QFLOOR FROM M_COVR/.exec(
+      sql,
+    );
+  if (!match) return null;
+  return {
+    intu: Number(match[1]),
+    cscale: Number(match[2]),
+    qfloor: Number(match[3]),
+  };
+}
+
+describe("the rung stamped on each chart's coverage", () => {
+  // The offset-2 ladder at Puget latitude: every chart two zooms later than the
+  // historical band floors, which is where a live comparison put the estimated
+  // scale against each chart's actual compilation scale. Every one of these
+  // lands on an integer rung, which is what makes the intra-band handovers
+  // (22k -> 12k, 350k -> 180k) exact rather than a rounding artefact.
+  test.each([
+    [350000, 8],
+    [180000, 9],
+    [90000, 10],
+    [45000, 11],
+    [22000, 12],
+    [12000, 13],
+  ])("1:%i at Puget latitude floors at z%i", (cscale, floor) => {
+    expect(stamps(run({ STUB_CSCALE: String(cscale) }).sql)).toEqual({
+      intu: 5,
+      cscale,
+      qfloor: floor,
+    });
+  });
+
+  test("the same scale floors lower in Zone III", () => {
+    // The rung is computed at the chart's OWN mid-latitude: cos(70) is a third
+    // of cos(48.5), which is a zoom and a half of difference on the same chart.
+    const puget = stamps(run({ STUB_CSCALE: "22000" }).sql);
+    const alaska = stamps(
+      run({ STUB_CSCALE: "22000", STUB_EXTENT: extentAt(70) }).sql,
+    );
+
+    expect(puget.qfloor).toBe(12);
+    expect(alaska.qfloor).toBe(11);
+  });
+
+  test("the floor is clamped into the PUBLISHED web ladder", () => {
+    // Nothing below z0 exists to own, and the top of the ladder is the
+    // published archive's maxzoom (13, which every band's own tiling now
+    // reaches). A floor of 14 would stamp content into z14 tiles that the
+    // national join deletes, and the style would then draw it at no zoom.
+    //
+    // The coarse end takes a coarser scale than it used to: on the offset-2
+    // ladder a 1:40M chart floors at z1 under its own steam, so it no longer
+    // reaches the bottom of the clamp at all.
+    expect(stamps(run({ STUB_CSCALE: "150000000" }).sql).qfloor).toBe(0);
+    expect(stamps(run({ STUB_CSCALE: "500" }).sql).qfloor).toBe(13);
+    // A berthing scale past the cap at Puget latitude (raw rung 14).
+    expect(stamps(run({ STUB_CSCALE: "5000" }).sql).qfloor).toBe(13);
+  });
+});
+
+describe("a chart whose DSID carries no DSPM_CSCL", () => {
+  test("falls back to the COARSER rung of its INTU band's pair", () => {
+    // 1:22k, not 1:12k: a legacy chart is floored no lower than the band it has
+    // always been floored to, so an invocation predating the scale key keeps
+    // producing the tiles it always did.
+    const result = run({ STUB_CSCALE: "none", STUB_INTU: "5" });
+
+    expect(stamps(result.sql)).toEqual({ intu: 5, cscale: 22000, qfloor: 12 });
+    expect(result.stderr).toContain("no DSPM_CSCL");
+  });
+
+  test.each([
+    [1, 10000000, 3],
+    [2, 1500000, 6],
+    [3, 350000, 8],
+    [4, 90000, 10],
+    // 1:4000 is z14 on the raw offset-2 ladder (round(16.50) - 2) — one rung
+    // past the cap — and is clamped to the
+    // publication cap -- which band 6 now tiles natively, so the clamped
+    // floor names a tile the archive actually holds.
+    [6, 4000, 13],
+  ])("band %i falls back to 1:%i", (intu, cscale, floor) => {
+    expect(
+      stamps(run({ STUB_CSCALE: "none", STUB_INTU: String(intu) }).sql),
+    ).toEqual({ intu, cscale, qfloor: floor });
+  });
+});
+
+describe("charts that cannot be placed on the ladder", () => {
+  test("no DSID_INTU is skipped, as it always was", () => {
+    const result = run({ STUB_INTU: "" });
+
+    expect(stamps(result.sql)).toBeNull();
+    expect(result.status).not.toBe(0);
+  });
+
+  test("an unreadable M_COVR extent is skipped and said out loud", () => {
+    // Guessing a latitude would stamp a floor that is quietly wrong in every
+    // tile of every cell around it.
+    const result = run({ STUB_EXTENT: "" });
+
+    expect(stamps(result.sql)).toBeNull();
+    expect(result.stderr).toContain("could not read the M_COVR extent");
+  });
+
+  test("an INTU outside the bands with no scale to fall back on is skipped", () => {
+    const result = run({ STUB_CSCALE: "none", STUB_INTU: "9" });
+
+    expect(stamps(result.sql)).toBeNull();
+    expect(result.stderr).toContain("no DSPM_CSCL to key on");
+  });
+});
+
+describe("what reaches the coverage table", () => {
+  test("every chart, not only the finer ones", () => {
+    // The copy ladder needs the finer rungs for its caps AND the coarser union
+    // to decide where a cell keeps serving below its own floor, so the filter
+    // that used to live here is gone: it is s57-to-tiles that selects a rung.
+    const { sql } = run({ STUB_INTU: "2" });
+
+    expect(sql).toContain("FROM M_COVR WHERE CATCOV=1");
+    expect(sql).not.toContain("INTU >");
+  });
+
+  test("coverage and the semantic manifest carry the exact cell identity", () => {
+    const { sql } = run({ STUB_DSNM: "US5WA22M.000" });
+
+    expect(sql).toContain("'US5WA22M' AS DSNM");
+    expect(sql).toContain(
+      "INSERT INTO area_evidence_manifest (DSNM,QFLOOR,SCHEMA,FEATURE_COUNT) VALUES ('US5WA22M',13,1,0)",
+    );
+  });
+
+  test("zero participating areas is a proved empty manifest, not a failure", () => {
+    const result = run({ STUB_TABLES: "M_COVR" });
+
+    expect(result.status).toBe(0);
+    expect(result.sql).toContain("DELETE FROM area_evidence");
+    expect(result.sql).toContain("DELETE FROM area_evidence_manifest");
+    expect(result.sql).toContain("FEATURE_COUNT) VALUES ('US5WA22M',13,1,0)");
+  });
+
+  test("the evidence layer promotes Polygon and MultiPolygon into one schema", () => {
+    const result = run({ STUB_TABLES: "M_COVR RESARE" });
+    const evidenceImports = result.sql
+      .split("\n--\n")
+      .filter(
+        (entry) =>
+          entry.includes("area-evidence-schema.geojson") ||
+          entry.includes("area-evidence.geojson"),
+      );
+
+    expect(evidenceImports).not.toHaveLength(0);
+    expect(
+      evidenceImports.every((entry) => entry.includes("-nlt PROMOTE_TO_MULTI")),
+    ).toBe(true);
+  });
+
+  test("a participating class export failure rejects the whole fragment", () => {
+    const result = run({
+      STUB_TABLES: "M_COVR RESARE",
+      STUB_OGR2OGR_FAIL_MATCH: "RESARE",
+    });
+
+    expect(result.status).not.toBe(0);
+    expect(result.sql).not.toContain("FEATURE_COUNT) VALUES ('US5WA22M'");
+  });
+
+  test("a failed replacement leaves the previously accepted fragment intact", () => {
+    const result = run({
+      STUB_TABLES: "M_COVR RESARE",
+      STUB_OGR2OGR_FAIL_MATCH: "RESARE",
+      STUB_EXISTING_OUTPUT: "accepted-fragment",
+    });
+
+    expect(result.status).not.toBe(0);
+    expect(result.output).toBe("accepted-fragment");
+  });
+
+  test("a coverage import failure cannot receive an authoritative manifest", () => {
+    const result = run({
+      STUB_TABLES: "M_COVR",
+      STUB_OGR2OGR_FAIL_MATCH: "M_COVR -update",
+      STUB_EXISTING_OUTPUT: "accepted-fragment",
+    });
+
+    expect(result.status).not.toBe(0);
+    expect(result.sql).not.toContain("FEATURE_COUNT) VALUES ('US5WA22M'");
+    expect(result.output).toBe("accepted-fragment");
+  });
+
+  test("an empty count query fails closed and preserves the old fragment", () => {
+    const result = run({
+      STUB_TABLES: "M_COVR",
+      STUB_EMPTY_COUNT_MATCH: "FROM area_evidence",
+      STUB_EXISTING_OUTPUT: "accepted-fragment",
+    });
+
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toContain(
+      "Could not validate coverage/evidence counts",
+    );
+    expect(result.output).toBe("accepted-fragment");
+  });
+
+  test("evidence and manifest count mismatch rejects the fragment", () => {
+    const result = run({
+      STUB_TABLES: "M_COVR",
+      STUB_AREA_TOTAL: "1",
+      STUB_MANIFEST_TOTAL: "0",
+    });
+
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toContain("does not match manifest");
+    expect(result.output).toBeNull();
+  });
+
+  test("a missing schema-1 manifest row rejects the fragment", () => {
+    const result = run({ STUB_TABLES: "M_COVR", STUB_MANIFEST_ROWS: "0" });
+
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toContain("manifest is incomplete");
+    expect(result.output).toBeNull();
+  });
+
+  test("a missing DSNM cannot masquerade as semantic absence", () => {
+    const result = run({ STUB_DSNM: "none" });
+
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toContain("no readable DSID_DSNM");
+  });
+});

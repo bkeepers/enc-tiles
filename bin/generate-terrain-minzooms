@@ -1,0 +1,411 @@
+#!/usr/bin/env node
+
+// Stamps a per-feature tippecanoe `minzoom` on terrain points (SLOGRD, LNDELV,
+// SLOTOP) so a summit cluster thins with zoom NAMED AND HIGHEST FIRST, and
+// derives _TERRAIN: one label anchor per surviving named summit.
+//
+// Usage:
+//   bin/generate-terrain-minzooms <terrain.geojson> --minzoom N --maxzoom N \
+//     --class SLOGRD:SLOGRD.geojson [--class LNDELV:...] [--class SLOTOP:...]
+//
+// Each --class file is rewritten in place. Only POINT features are touched; the
+// line and area members of the classes (contour lines, slope-ground areas) keep
+// whatever they had.
+//
+// WHY THIS EXISTS
+//
+// Nothing between the tiles and the screen thins these points. The partition
+// strips SCAMIN from the style (the producer's own decluttering), no Plotroom
+// zoom floor covers the family, and both point layers draw with
+// icon-allow-overlap/icon-ignore-placement, so MapLibre's collision index
+// cannot help either. Measured result over Alaska: up to 63 HILTOP01/POSGEN04
+// symbols inside a single 64 x 64 px square at z5. A per-band style floor
+// cannot fix that -- it moves the whole pile from one zoom to the next -- so
+// the decision is made here, per feature, before tippecanoe sees them.
+//
+// This is bin/generate-hazard-minzooms' 64 px monotone rule over a different
+// population and a different ranking, and deliberately a sibling rather than a
+// parameterisation (the same call bin/thin-soundings made): the two rules
+// disagree on direction AND on the missing-value sentinel, and this one needs
+// a coincidence pre-pass the hazard file has no place for.
+//
+// THE COINCIDENT PAIR
+//
+// A summit is routinely digitised twice off the same point: an LNDELV spot
+// elevation and the SLOGRD ground it stands on, with BIT-IDENTICAL coordinates
+// (measured 29-33% of all terrain points in Alaska). Two features, one summit
+// -- and two symbols that NEST rather than clash: POSGEN04 is a 9 px dot on
+// its pivot, HILTOP01 an empty-centred starburst whose strokes begin ~7 px
+// out, so drawn together they read as "sloping ground around the elevation
+// point". So exactly-coincident cross-class groups compete as ONE unit per
+// copy-ladder interval, and every member shares the unit's outcome:
+//
+//   * LNDELV represents the group. That is the data talking, not taste: ELEVAT
+//     rides LNDELV on 100% of measured rows and SLOGRD on none, and where only
+//     one side of a pair is named it is LNDELV 14 times out of 15.
+//   * OBJNAM is unioned onto the representative, so a name on the losing side
+//     (the 15th case) is kept. When both sides are named and disagree, the
+//     LNDELV name wins and the clash is logged.
+//   * Only the representative enters the contest, and after the contest every
+//     member of its group takes ITS stamped minzoom, so the ground and the
+//     spot elevation arrive and leave together. The NAME is still deduped:
+//     the _TERRAIN anchor is emitted once, for the representative.
+//
+// The stated cost: a cell slot won by a coincident group now spends itself on
+// two nested icons instead of one, so terrain icon density rises by the
+// coincidence rate (29-33% in Alaska, ~3% measured over Puget Sound).
+// CELL_PIXELS is the knob if summit clutter regresses.
+//
+// The group key is the interval, then POSITION -- rounded to 1e-5 degrees,
+// about a metre, enough to absorb GeoJSON round-tripping of an identical
+// coordinate and nothing more. NEVER the name: "Saddle Mountain" exists twice
+// in Alaska 250 km apart, and a name key would merge two real summits.
+//
+// THE RULE
+//
+// At each zoom the world is cut into cells of about 64 screen pixels. In each
+// cell the highest-priority terrain point wins that zoom, and a feature's
+// stamped `minzoom` is the shallowest zoom it ever wins at. Everything else is
+// stamped with the band maxzoom, so no summit is ever removed from the chart --
+// it arrives later than the better one beside it. Priority, in order:
+//
+//   1. NAMED first. A named peak is the one a mariner steers by, whatever its
+//      height -- and OBJNAM is the only signal SLOGRD carries at all.
+//   2. ELEVAT descending. A missing ELEVAT is the LOWEST there is -- the
+//      INVERSE of the hazard rule's VALSOU sentinel, for bin/thin-soundings'
+//      reason: a missing elevation is not a height claim and cannot displace
+//      one, where a missing least depth is the dangerous case and must win.
+//   3. Class: LNDELV, then SLOGRD, then SLOTOP -- the surveyed elevation point
+//      before the ground it stands on.
+//   4. LNAM, so the same chart always produces the same tiles.
+//
+// The rule is monotone, which is what makes the result stable: a cell at z+1
+// is a quarter of a cell at z, so the winner of the larger cell still wins the
+// smaller one, and losers stay in the competition at every zoom -- see the
+// same paragraph in bin/generate-hazard-minzooms. The competition is per S-57
+// CELL, like every generator here, and per copy-ladder interval: a copy
+// competes only at the zooms its own interval serves, and what is written is
+// the THINNING minzoom alone -- composing it with _QZMIN is
+// bin/stamp-quilt-zooms' job (max() of the two floors) and it needs the
+// properties to do it.
+//
+// SLOTOP is accepted for safety, not on evidence: both sampled Alaska
+// archives carry ZERO SLOTOP point features (its members are lines). If one
+// ever arrives it competes like the rest, ranked after SLOGRD.
+//
+// _TERRAIN
+//
+// The generated style has no OBJNAM text for this family, so named peaks are
+// unlabelled today. The same pass that decides the icons emits one point per
+// surviving NAMED representative -- {OBJNAM, CLASS, ELEVAT, LNAM, INTU} plus
+// its interval -- for a Plotroom-owned symbol layer, exactly as _LABELS does
+// for the named areas. The anchors carry ANCHOR_TIPPECANOE, not the thinning
+// stamp: the named set is thin enough for MapLibre text collision (measured
+// max 9 named per 64 px cell at z5), and a label may name a summit whose icon
+// arrives later. CSCALE, like every layer's, is stamped at step 3j by
+// bin/stamp-quilt-zooms; it is carried here only when the export already had
+// one.
+
+import { readFileSync, writeFileSync } from "fs";
+
+import { ANCHOR_TIPPECANOE } from "./quilt-anchors.mjs";
+import { quiltKey, quiltRange } from "./quilt-geojson.mjs";
+
+// Screen size of a thinning cell, in pixels. 64 px is
+// bin/generate-hazard-minzooms' spacing, so the terrain symbols thin against
+// the same grid as the hazards and the soundings.
+const CELL_PIXELS = 64;
+
+// The tile grid the pixel size is measured against. Matches bin/s57-to-tiles.
+const TILE_PIXELS = 512;
+
+// Rank at equal name and elevation: the surveyed elevation point before the
+// ground it stands on, then the topline. An unknown class ranks last.
+const CLASS_RANK = { LNDELV: 0, SLOGRD: 1, SLOTOP: 2 };
+
+const args = process.argv.slice(2);
+let minzoom = 0;
+let maxzoom = 16;
+const inputs = [];
+const positional = [];
+
+for (let i = 0; i < args.length; i++) {
+  if (args[i] === "--minzoom" && args[i + 1]) {
+    minzoom = parseInt(args[++i], 10);
+  } else if (args[i] === "--maxzoom" && args[i + 1]) {
+    maxzoom = parseInt(args[++i], 10);
+  } else if (args[i] === "--class" && args[i + 1]) {
+    const value = args[++i];
+    const separator = value.indexOf(":");
+    inputs.push({
+      className: value.slice(0, separator),
+      path: value.slice(separator + 1),
+    });
+  } else positional.push(args[i]);
+}
+
+const outputPath = positional[0];
+if (!outputPath || inputs.length === 0) {
+  console.error(
+    "Usage: generate-terrain-minzooms <terrain.geojson> --minzoom N " +
+      "--maxzoom N --class <CLASS>:<file.geojson> [--class ...]",
+  );
+  process.exit(1);
+}
+
+/** Web Mercator, normalized to [0, 1) on both axes. */
+function mercator(lon, lat) {
+  const x = (lon + 180) / 360;
+  // Clamped short of the poles, where the projection diverges: an S-57 cell
+  // never reaches them, and a NaN here would silently unbucket the feature.
+  const clamped = Math.max(-85.05112878, Math.min(85.05112878, lat));
+  const sin = Math.sin((clamped * Math.PI) / 180);
+  const y = 0.5 - Math.log((1 + sin) / (1 - sin)) / (4 * Math.PI);
+  return [x, y];
+}
+
+/** The feature's name, or null. A blank OBJNAM names nothing. */
+function nameOf(properties) {
+  const name = properties?.OBJNAM;
+  return typeof name === "string" && name.trim() !== "" ? name : null;
+}
+
+/**
+ * Effective elevation, higher first. Missing ELEVAT is the lowest there is;
+ * see THE RULE for why this inverts the hazard sentinel.
+ */
+function effectiveElevation(properties) {
+  const raw = properties?.ELEVAT;
+  if (raw === null || raw === undefined || raw === "") {
+    return Number.NEGATIVE_INFINITY;
+  }
+  const value = Number(raw);
+  return Number.isFinite(value) ? value : Number.NEGATIVE_INFINITY;
+}
+
+/**
+ * The zoom interval a partitioned copy serves; see THE RULE. An absent or
+ * unreadable bound binds nothing, which is every legacy invocation.
+ */
+function zoomBound(value, fallback) {
+  if (value === null || value === undefined || value === "") return fallback;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : fallback;
+}
+
+// Every terrain point across every input, competing as ONE population: a spot
+// elevation and the hill under it are two symbols in the same place, and
+// thinning each class against itself would leave exactly the pile-up this
+// exists to prevent.
+const points = [];
+const documents = [];
+
+for (const { className, path } of inputs) {
+  const document = JSON.parse(readFileSync(path, "utf8"));
+  documents.push({ path, document });
+  const features = document.features ?? [];
+  for (let index = 0; index < features.length; index++) {
+    const feature = features[index];
+    if (feature?.geometry?.type !== "Point") continue;
+    const coordinates = feature.geometry.coordinates;
+    if (!Array.isArray(coordinates) || coordinates.length < 2) continue;
+    const [lon, lat] = coordinates;
+    if (!Number.isFinite(lon) || !Number.isFinite(lat)) continue;
+    const properties = feature.properties ?? {};
+    const range = quiltRange(properties);
+    points.push({
+      feature,
+      className,
+      classRank: CLASS_RANK[className] ?? Object.keys(CLASS_RANK).length,
+      name: nameOf(properties),
+      elevation: effectiveElevation(properties),
+      // The identity a tie is broken on. LNAM is unique across charts; the
+      // fallback only has to be stable within this run, and the path plus the
+      // export order is.
+      key:
+        properties.LNAM != null ? String(properties.LNAM) : `${path}#${index}`,
+      lon,
+      lat,
+      mercator: mercator(lon, lat),
+      range,
+      interval: quiltKey(range),
+      qzmin: zoomBound(properties._QZMIN, Number.NEGATIVE_INFINITY),
+      qzmax: zoomBound(properties._QZMAX, Number.POSITIVE_INFINITY),
+      // Filled in below. Nothing that reaches this array leaves without one.
+      minzoom: maxzoom,
+    });
+  }
+}
+
+/**
+ * The coincidence-group key: interval, then position to 1e-5 degrees. See THE
+ * COINCIDENT PAIR -- never the name. Math.round keeps a hair-negative
+ * coordinate in the group (String(-0) is "0").
+ */
+function positionKey(point) {
+  const column = Math.round(point.lon * 1e5);
+  const row = Math.round(point.lat * 1e5);
+  return `${point.interval}\u0000${column},${row}`;
+}
+
+/**
+ * True when `a` is the better group REPRESENTATIVE: class first (LNDELV
+ * carries the elevation and, 14:1, the name), then the contest's own order.
+ */
+function represents(a, b) {
+  if (a.classRank !== b.classRank) return a.classRank < b.classRank;
+  if ((a.name !== null) !== (b.name !== null)) return a.name !== null;
+  if (a.elevation !== b.elevation) return a.elevation > b.elevation;
+  return a.key < b.key;
+}
+
+const groups = new Map();
+for (const point of points) {
+  const id = positionKey(point);
+  const group = groups.get(id);
+  if (group === undefined) groups.set(id, [point]);
+  else group.push(point);
+}
+
+let grouped = 0;
+const contestants = [];
+for (const group of groups.values()) {
+  let representative = group[0];
+  for (const point of group) {
+    if (point !== representative && represents(point, representative)) {
+      representative = point;
+    }
+  }
+  representative.group = group;
+  for (const point of group) {
+    if (point === representative) continue;
+    grouped++;
+    if (point.name === null) continue;
+    if (representative.name === null) {
+      // Union OBJNAM: the name rides the representative into the contest and
+      // onto its anchor, so a summit named only on the losing side keeps it.
+      representative.name = point.name;
+      const properties = representative.feature.properties ?? {};
+      properties.OBJNAM = point.name;
+      representative.feature.properties = properties;
+    } else if (representative.name !== point.name) {
+      console.error(
+        `Coincident ${point.className} "${point.name}" yields to ` +
+          `${representative.className} "${representative.name}" at ` +
+          `${point.lon},${point.lat}`,
+      );
+    }
+  }
+  contestants.push(representative);
+}
+
+/** True when `a` outranks `b`; see THE RULE for the order. */
+function outranks(a, b) {
+  if ((a.name !== null) !== (b.name !== null)) return a.name !== null;
+  if (a.elevation !== b.elevation) return a.elevation > b.elevation;
+  if (a.classRank !== b.classRank) return a.classRank < b.classRank;
+  return a.key < b.key;
+}
+
+for (let zoom = minzoom; zoom < maxzoom; zoom++) {
+  // Cells per axis at this zoom. 2^zoom tiles of TILE_PIXELS, cut into
+  // CELL_PIXELS squares.
+  const cells = Math.pow(2, zoom) * (TILE_PIXELS / CELL_PIXELS);
+  const winners = new Map();
+  for (const point of contestants) {
+    if (zoom < point.qzmin || zoom > point.qzmax) continue;
+    const [x, y] = point.mercator;
+    const column = Math.min(cells - 1, Math.floor(x * cells));
+    const row = Math.min(cells - 1, Math.floor(y * cells));
+    const cell = `${column},${row}`;
+    const held = winners.get(cell);
+    if (held === undefined || outranks(point, held)) winners.set(cell, point);
+  }
+  for (const winner of winners.values()) {
+    // Ascending zooms, so the first zoom a feature wins at is the shallowest,
+    // and monotonicity means it wins every zoom after it too.
+    if (winner.minzoom === maxzoom) winner.minzoom = zoom;
+  }
+}
+
+// Feedback #79 -- a NAMED summit's icon shows wherever its name does; unnamed
+// summits keep the density thinning. The _TERRAIN anchor below carries
+// ANCHOR_TIPPECANOE (minzoom 0) whatever the density contest decided, so a
+// named representative that LOSES its low-zoom cells would otherwise publish
+// its name with no peak mark under it -- measured over Alaska z8-9, "Mount
+// Hamlet 620 m" and its neighbours drew as text with no HILTOP01/POSGEN04
+// symbol. Pin a named representative's icon to the anchor's minzoom so the two
+// enter the tile pyramid together and the frontend style's name floor governs
+// both. This is the THINNING stamp alone, exactly like the value the contest
+// writes: the copy-ladder interval is still composed on top by
+// bin/stamp-quilt-zooms (max(minzoom, _QZMIN)) just as it is for the anchor, so
+// a partitioned copy is unaffected below its own range. Unnamed points keep
+// their competed minzoom -- no new low-zoom clutter -- and the coincident
+// SLOGRD ground takes this through the group loop below, so the nested
+// dot-and-starburst arrives with the name as one summit.
+for (const representative of contestants) {
+  if (representative.name !== null) {
+    representative.minzoom = ANCHOR_TIPPECANOE.minzoom;
+  }
+}
+
+// A summit digitised twice is ONE summit: the group competed as one unit and
+// every member takes the unit's result, so the sloping ground and the
+// elevation point arrive and leave together. The NAME is still deduped -- the
+// anchor below is emitted once per representative.
+for (const representative of contestants) {
+  for (const member of representative.group) {
+    member.minzoom = representative.minzoom;
+  }
+}
+
+for (const point of points) {
+  // NOT a property: tippecanoe reads this member off the Feature itself,
+  // beside `geometry`. See bin/s57-to-tiles step 4.
+  point.feature.tippecanoe = {
+    ...(point.feature.tippecanoe ?? {}),
+    minzoom: point.minzoom,
+  };
+}
+
+for (const { path, document } of documents) {
+  writeFileSync(path, JSON.stringify(document));
+}
+
+const anchors = [];
+for (const point of contestants) {
+  if (point.name === null) continue;
+  const properties = point.feature.properties ?? {};
+  anchors.push({
+    type: "Feature",
+    // See ANCHOR_TIPPECANOE: one anchor per named summit, exempt from
+    // dot-dropping and NOT bound to the icon's thinning minzoom.
+    tippecanoe: ANCHOR_TIPPECANOE,
+    geometry: { type: "Point", coordinates: [point.lon, point.lat] },
+    properties: {
+      OBJNAM: point.name,
+      CLASS: point.className,
+      ...(properties.ELEVAT == null ? {} : { ELEVAT: properties.ELEVAT }),
+      ...(properties.LNAM == null ? {} : { LNAM: properties.LNAM }),
+      ...(properties.INTU == null ? {} : { INTU: properties.INTU }),
+      // Stamped at step 3j like every layer's; present here only when the
+      // export already carried it.
+      ...(properties.CSCALE == null ? {} : { CSCALE: properties.CSCALE }),
+      // The interval the representative serves, converted to tippecanoe
+      // bounds later by bin/stamp-quilt-zooms.
+      ...point.range,
+    },
+  });
+}
+
+writeFileSync(
+  outputPath,
+  JSON.stringify({ type: "FeatureCollection", features: anchors }),
+);
+
+const early = points.filter((point) => point.minzoom < maxzoom).length;
+console.error(
+  `Thinned ${points.length} terrain point(s) across z${minzoom}-${maxzoom}: ` +
+    `${early} visible before z${maxzoom}, ${grouped} coincident ` +
+    `duplicate(s) grouped, ${anchors.length} named anchor(s)`,
+);

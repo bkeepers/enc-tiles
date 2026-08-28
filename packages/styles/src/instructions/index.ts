@@ -4,8 +4,7 @@ import { AC, AP } from "./SHOWAREA.js";
 import { LC, LS } from "./SHOWLINE.js";
 import { SY } from "./SHOWPOINT.js";
 import { TX, TE } from "./SHOWTEXT.js";
-import type { LayerSpecification } from "maplibre-gl";
-import type { LayerConfig } from "../symbolology/index.js";
+import type { CSPLayer, LayerConfig } from "../symbolology/index.js";
 
 export * from "./parser.js";
 export * from "./CALLSYMPROC.js";
@@ -19,7 +18,7 @@ const commands = { AC, AP, CS, LC, LS, SY, TE, TX };
 export function instructionsToStyles(
   instruction: string | undefined,
   config: LayerConfig,
-): Partial<LayerSpecification>[] {
+): CSPLayer[] {
   if (typeof instruction !== "string") return [];
 
   return parse(instruction)

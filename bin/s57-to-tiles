@@ -15,6 +15,50 @@
 # comma-separated strings at read time.
 #
 # See docs/s57-to-tiles.md for attribute encoding details.
+#
+# Exit codes:
+#   0   tiles written
+#   65  NOTHING LEFT TO PUBLISH AFTER QUILTING. Not a failure: the quilt clip
+#       removed every feature of this cell because larger-scale charts cover
+#       all of it, so there is no geometry to tile. Distinct from 1 so a
+#       caller can record the cell as handled rather than retry it forever --
+#       without it, tippecanoe reports "Did not read any valid geometries" and
+#       the cell looks like a broken chart on every single run. 65 is
+#       sysexits.h's EX_DATAERR and is not produced by ogr2ogr, ogrinfo or
+#       tippecanoe on any path this script takes.
+#
+#       UNREACHABLE since step 2b became the copy ladder: the whole copy is the
+#       UNCUT original and survives, so a cell that held rows before the
+#       partition holds at least as many after it. The one exception -- a cell
+#       whose deepest TILE was at or below its own rung, leaving no uncut
+#       interval -- was an artefact of folding deep rungs onto the band
+#       maxzoom, and step 2b no longer folds: step 2d raises the tiling range
+#       to the publication cap instead, so every interval including the whole
+#       copy has a tile. Kept as insurance -- the counters below are what make
+#       it safe, and a partition that stopped emitting the whole copy would
+#       otherwise empty a cell silently.
+#
+#       65 is a PERMANENT verdict -- the caller records the cell as covered and
+#       never looks at it again -- so all THREE of these must hold before it is
+#       returned, and any one of them missing is a plain failure instead:
+#
+#         * the cell held rows BEFORE the clip (pre_clip_total > 0). A mask
+#           that merely EXISTED proves nothing about the cell: -skipfailures on
+#           the S57 import can leave structurally-readable but empty tables, and
+#           an empty cell recorded as "covered" hides a broken chart forever.
+#         * it holds none AFTER it (feature_total == 0).
+#         * a non-empty quilt mask was actually applied (quilt_applied).
+#
+#       Both counts must also PARSE. An ogrinfo that failed, or output no
+#       integer, is exit 1 -- never a count of 0, which is the one value that
+#       turns a broken run into a permanent "covered" verdict.
+#   1   anything else: bad arguments, an unreadable chart, a failed step, a
+#       count that could not be read, or an export that produced no usable
+#       GeoJSON while the GPKG still held rows.
+#
+# Testing: test/s57-to-tiles.test.js drives every one of those paths against
+# the stub GDAL/tippecanoe binaries in test/fixtures/gdal-stub, which is the
+# only way to reach them without a chart that reproduces each condition.
 
 set -e
 
@@ -22,18 +66,104 @@ VERBOSE=${VERBOSE:-0}
 [ "$VERBOSE" = "1" ] && set -x
 
 if [ $# -lt 2 ]; then
-  echo "Usage: $0 input.000 output.pmtiles [--coverage coverage.gpkg]"
+  echo "Usage: $0 input.000 output.pmtiles [--coverage coverage.gpkg] [--cscale S]"
   exit 1
 fi
 
 input="$1"
 output="$2"
+shift 2
+
 coverage=""
-if [ "${3:-}" = "--coverage" ] && [ -n "${4:-}" ]; then
-  coverage="$4"
-fi
+# Overrides DSPM_CSCL for a chart whose DSID does not carry one, or carries a
+# value the catalog disagrees with.
+cscale_override=""
+while [ $# -gt 0 ]; do
+  if [ -z "${2:-}" ]; then
+    echo "Missing value for $1"
+    exit 1
+  fi
+  case "$1" in
+    --coverage) coverage="$2" ;;
+    --cscale) cscale_override="$2" ;;
+    *)
+      echo "Unknown argument: $1"
+      exit 1
+      ;;
+  esac
+  shift 2
+done
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+# shellcheck source=bin/quilt-rung.sh
+. "$SCRIPT_DIR/quilt-rung.sh"
+
+# Whether the quilt clip actually ran against a non-empty mask.
+quilt_applied=0
+
+# Whether the copy ladder ran at all. A cell that opts out of the partition
+# still publishes into a tileset the frontend reads as partitioned, and the
+# style stands its own scale floors down for exactly those tiles; see the
+# fallback marking after step 2b.
+quilt_partitioned=0
+
+# The distinct floors of the finer coverage over this cell, ascending. Filled by
+# step 2b and read by step 2d, which runs on every path -- including the ones
+# that never enter step 2b and leave this empty.
+ladder_floors=()
+
+# Exit code for "the quilt clip left nothing"; see the header.
+EXIT_FULLY_COVERED=65
 
 export OGR_S57_OPTIONS="SPLIT_MULTIPOINT=ON,ADD_SOUNDG_DEPTH=ON,LIST_AS_STRING=ON"
+
+# Reads one integer out of an ogrinfo SQL query, or fails the run.
+#
+# Both halves matter and both are easy to get wrong.
+#
+#   * `ogrinfo ... | grep ...` reports GREP's exit status, not ogrinfo's, so a
+#     query that failed outright is indistinguishable from one that returned
+#     nothing. Run ogrinfo on its own and check it.
+#   * An empty result then coerces to 0 in `[ "$n" -eq 0 ]`. For the row counts
+#     below, 0 is the single value that changes what this script does -- it is
+#     what makes a cell "fully covered" and records it as handled forever -- so
+#     a failure that silently becomes 0 is the worst possible reading of it.
+#
+# Anything that is not a plain integer is therefore a hard failure, not a zero.
+count_rows() {
+  local sql="$1" label="$2" errors="$tmpdir/count.err" raw value
+  # stdout captured, stderr to a file: GDAL's warnings must not end up in the
+  # text being parsed, and they are worth printing when something does go wrong.
+  if ! raw=$(ogrinfo -q "$gpkg" -dialect sqlite -sql "$sql" 2>"$errors"); then
+    echo "$label: ogrinfo failed on $gpkg" >&2
+    cat "$errors" >&2
+    return 1
+  fi
+  # ogrinfo prints the row as `  n (Integer) = 12`; the column type can be
+  # Integer or Integer64, so anchor on the `=` rather than scraping digits.
+  value=$(printf '%s\n' "$raw" | grep -oE '=[[:space:]]*[0-9]+' | tail -1 |
+    grep -oE '[0-9]+' || true)
+  if [ -z "$value" ]; then
+    echo "$label: could not read a count from ogrinfo on $gpkg" >&2
+    printf '%s\n' "$raw" >&2
+    cat "$errors" >&2
+    return 1
+  fi
+  printf '%s' "$value"
+}
+
+# `(SELECT COUNT(*) FROM "a") + (SELECT COUNT(*) FROM "b") + ...` for the tables
+# named in "$@". One statement over the whole GPKG rather than one ogrinfo per
+# table: a cell has ~50 feature tables and this runs for every cell of every
+# region.
+row_count_sql() {
+  local sql="" table
+  for table in "$@"; do
+    [ -n "$sql" ] && sql="${sql} + "
+    sql="${sql}(SELECT COUNT(*) FROM \"${table}\")"
+  done
+  printf '%s' "$sql"
+}
 
 # Extract INTU from the DSID metadata layer
 dsid=$(ogrinfo -q "$input" DSID 2>/dev/null)
@@ -44,18 +174,102 @@ if [ -z "$intu" ]; then
   exit 1
 fi
 
-# INTU → zoom range. Each chart generates tiles only at its native zoom levels.
-# tile-join --overzoom fills in higher zooms by scaling parent tiles where no
-# higher-INTU chart exists, so features don't disappear when zooming in.
+# The cell's own name, off the same DSID read: `DSID_DSNM` is the S-57 dataset
+# name, `US5WA22M.000` for a base cell and `.001`, `.002`, ... for its updates,
+# so the 8 characters before the extension are the chart identity the frontend
+# puts at the head of a pick. Stamped onto M_COVR at step 2 -- M_COVR alone,
+# because M_COVR is the layer a pick already resolves the covering cell through
+# and a per-feature copy on every layer would be one string per feature in
+# every tile.
+#
+# Advisory: a chart whose DSID carries no usable name is tiled without the
+# stamp rather than refused. It cannot safely participate in semantic
+# cross-cell quilting (there is then no way to exclude its own evidence), so
+# the partition is disabled below and the legacy unpartitioned tile stands.
+dsnm=$(printf '%s\n' "$dsid" | grep DSID_DSNM | awk '{print $NF}' |
+  sed 's/\.[0-9][0-9][0-9]$//' | grep -xE '[A-Za-z0-9]{8}' || true)
+if [ -z "$dsnm" ]; then
+  echo "$input: no readable DSID_DSNM; publishing M_COVR without a chart name" >&2
+fi
+
+# INTU → zoom range. The STARTING tiling range: a chart generates tiles at its
+# own band's native zoom levels, and tile-join --overzoom fills in higher zooms
+# by scaling parent tiles where no finer chart exists, so features don't
+# disappear when zooming in.
+#
+# `maxzoom` is raised in step 2d to the publication cap -- every input of one
+# region join must share one native maxzoom, or tile-join synthesizes the
+# missing zooms unboundedly. Nothing between here and there reads it, and step
+# 2d is outside the partition's guards so that the unpartitioned cells are
+# raised too.
 case "$intu" in
   1) minzoom=0; maxzoom=4  ;;
   2) minzoom=0; maxzoom=6  ;;
   3) minzoom=0; maxzoom=8 ;;
   4) minzoom=0; maxzoom=10 ;;
-  5) minzoom=0; maxzoom=11 ;;
-  6) minzoom=0; maxzoom=12 ;;
+  # Band 5's deepest rung is now 13 (a 1:12,000 cell's floor under the
+  # offset-2 ladder), and every interval of the ladder needs a tile to live
+  # in -- so the band tiles to 13 natively rather than relying on the step-2b
+  # raise for its own standard scales.
+  5) minzoom=0; maxzoom=13 ;;
+  6) minzoom=0; maxzoom=13 ;;
   *) echo "Unknown INTU: $intu"; exit 1 ;;
 esac
+
+# This cell's own rung floor: the zoom its compilation scale is native at, and
+# the bottom of the range it owns uncut. Everything below belongs to a coarser
+# chart -- unless none covers the ground, which is what the fallback copy in
+# step 2b is for. Derived from the cell's OWN DSPM_CSCL at its OWN M_COVR
+# mid-latitude; see bin/quilt-rung.sh.
+cscale="$cscale_override"
+[ -z "$cscale" ] && cscale=$(quilt_dsid_cscale "$dsid")
+[ -z "$cscale" ] && cscale=$(quilt_band_cscale "$intu")
+
+# Empty disables the partition entirely rather than guessing a floor: a chart
+# with no readable coverage extent cannot be placed on the ladder, and a cell
+# published unbounded is a cell that draws too early, not one that vanishes.
+quilt_floor=""
+mid_lat=$(quilt_mid_lat "$input")
+if [ -z "$mid_lat" ]; then
+  echo "$input: no readable M_COVR extent; publishing unpartitioned" >&2
+elif ! quilt_floor=$(quilt_rung_floor "$cscale" "$mid_lat"); then
+  echo "$input: 1:$cscale at $mid_lat is not on the rung ladder; publishing unpartitioned" >&2
+  quilt_floor=""
+elif [ -n "$coverage" ] && [ -z "$dsnm" ]; then
+  # Semantic evidence is keyed by DSNM, so a nameless current chart cannot be
+  # excluded from its own neighbour roster. Keep the legacy advisory tile, but
+  # do not run a partition whose cross-cell comparison would be unsound.
+  echo "$input: no DSID_DSNM; publishing unpartitioned without semantic neighbour evidence" >&2
+  quilt_floor=""
+fi
+
+# The deepest zoom a PUBLISHED tileset holds, which is not the same number as
+# the ladder above.
+#
+# A cell is tiled to the deepest of its band maxzoom, this cap and its deepest
+# ladder rung (step 2d), but the archive a browser mounts is the national join,
+# and that join is capped at the MINIMUM band maxzoom across its regions -- 13
+# under the offset-2 ladder, because the harbour band (INTU 5) now tiles z13
+# natively in every region. Every tile above the cap is deleted from the
+# published archive. (Historical note: the cap was 11, then 12, and the old z12
+# join OOM'd because tile-join SYNTHESIZED z12 for the regions that lacked it --
+# under this ladder the fine cells tile the cap natively, so the synthesis path
+# is gone. The cap tracks the ladder: when QUILT_RUNG_OFFSET went 3 -> 2 on
+# 2026-08-15 every rung moved one deeper, and holding the cap at 12 would have
+# collapsed the 1:22k and 1:12k bands onto a single zoom.)
+#
+# It is also the ceiling QUILT_FLOOR_MAX clamps every rung into, which is what
+# keeps step 2d's raise from ever tiling a cell past the cap.
+#
+# It matters here because a derived layer can carry a PROMISE about zooms in its
+# attributes, and a promise about a deleted tile is a zoom at which nothing
+# draws: bin/generate-sector-arcs stamps `_zmax`, the style matches `_z` exactly
+# against min(floor(zoom), _zmax), and a cell promising copies the join had
+# deleted blanks its sectors from the cap up -- the defect that surfaced as
+# band-6 sectors going blank from z12 when the cap was 11.
+#
+# If the join's minimum ever moves again, this moves with it, in one place.
+publication_maxzoom=13
 
 mkdir -p "$(dirname "$output")"
 
@@ -81,20 +295,135 @@ for table in $tables; do
     -sql "ALTER TABLE \"${table}\" ADD COLUMN INTU INTEGER DEFAULT ${intu}"
 done
 
-# UDWHAZ05: Store the DRVAL1 of the containing DEPARE on WRECKS and OBSTRN.
-# The style uses this at render time to evaluate isolated danger status
-# against the user's configured safety contour.
-if echo "$tables" | grep -q '^DEPARE$'; then
-  for hazard_table in WRECKS OBSTRN; do
+# The cell's own name, on M_COVR only: a pick already resolves which chart
+# covers the cursor through the coverage polygon, so that is the one feature
+# that has to carry the chart's identity, and putting it there costs one string
+# per coverage ring instead of one per feature in the tileset.
+if [ -n "$dsnm" ] && echo "$tables" | grep -q '^M_COVR$'; then
+  ogrinfo --quiet "$gpkg" -dialect sqlite \
+    -sql "ALTER TABLE M_COVR ADD COLUMN DSNM TEXT"
+  ogrinfo --quiet "$gpkg" -dialect sqlite \
+    -sql "UPDATE M_COVR SET DSNM = '${dsnm}'"
+fi
+
+# BUAARE: dissolve the fragments of one built-up area back together.
+#
+# S-57 splits a named area across every polygon its topology needs -- the same
+# reason bin/generate-labels exists -- and each fragment carries the whole
+# OBJNAM. Drawn directly, the shared border between two fragments of ONE town
+# is stroked as though it were the edge between two different places. Unioning
+# by name removes the interior border and leaves the outline.
+#
+# Grouped by OBJNAM alone, per cell:
+#
+#   * A NULL or empty OBJNAM is left completely alone. Grouping the unnamed
+#     areas together would union every unrelated built-up area of the cell into
+#     one feature; "these two both have no name" is not evidence that they are
+#     the same place.
+#   * A POINT or LINE BUAARE is left completely alone as well, whatever its
+#     name. S-57 carries the class in all three primitives and ogr2ogr lands
+#     them in ONE mixed-geometry table, so an unrestricted GROUP BY OBJNAM
+#     unions a town's symbol point into the town's polygon -- and where the two
+#     are disjoint, GEOS returns a GEOMETRYCOLLECTION. That is FIX-087: the
+#     copy ladder's clip is guarded by `GeometryType(geom) IN (POLYGON,
+#     MULTIPOLYGON, LINESTRING, MULTILINESTRING)` and its point sweep by
+#     `IN (POINT, MULTIPOINT)`, and a collection matches NEITHER -- so the row
+#     is never differenced against any mask and never swept, and its fallback
+#     copy survives whole, tens of kilometres inside the coverage of the
+#     coarser chart that was supposed to clip it away (24 BUAARE features at
+#     Providence and Boston in the 2026-08-20 national build). Restricting the
+#     dissolve to areal rows makes the union polygonal by construction, which
+#     is also the only thing the dissolve was ever for: a point has no shared
+#     border to remove.
+#   * Fragments of one name that do NOT touch come out as a MultiPolygon,
+#     which draws exactly as the separate polygons did -- ST_Union only removes
+#     a border where there was a shared one.
+#   * Lines remain between DIFFERENTLY-named areas, which is correct, and at
+#     CELL SEAMS, which is not: the neighbouring cell's half of a town is a
+#     different chart and is not in this GPKG. Accepted for now.
+#
+# The surviving row keeps the attributes of the lowest-ROWID fragment. They are
+# the same feature as far as the chart is concerned; where a group disagrees on
+# CATBUA or CONVIS, one of the answers is arbitrarily the one that ships.
+#
+# The geometry expressions are left UN-CAST, for the reason spelled out at
+# length in step 2b: GDAL's SQLite dialect already round-trips GPKG geometry
+# through the SpatiaLite functions, and an AsGPB()/CastAutomagic() wrapper on
+# the write-back double-encodes it to NULL.
+if echo "$tables" | grep -q '^BUAARE$'; then
+  # Named AND areal, in every one of the three statements: see the geometry
+  # note above. The same predicate has to gate the DELETE as well, or a point
+  # sharing a town's name is dropped as one of "the extra fragments" while its
+  # geometry never reached the union.
+  buaare_named="OBJNAM IS NOT NULL AND OBJNAM <> ''\
+     AND GeometryType(geom) IN ('POLYGON', 'MULTIPOLYGON')"
+  ogrinfo --quiet "$gpkg" -dialect sqlite -sql \
+    "CREATE TABLE buaare_dissolve AS
+       SELECT OBJNAM AS objnam, ST_Union(geom) AS geom
+       FROM BUAARE WHERE ${buaare_named} GROUP BY OBJNAM"
+
+  # Drop the extra fragments FIRST: the union is already held aside, and
+  # deleting after the write-back would have to know which row was written.
+  ogrinfo --quiet "$gpkg" -dialect sqlite -sql \
+    "DELETE FROM BUAARE WHERE ${buaare_named} AND ROWID NOT IN (
+       SELECT MIN(ROWID) FROM BUAARE WHERE ${buaare_named} GROUP BY OBJNAM)"
+
+  ogrinfo --quiet "$gpkg" -dialect sqlite -sql \
+    "UPDATE BUAARE SET geom = (
+       SELECT d.geom FROM buaare_dissolve d WHERE d.objnam = BUAARE.OBJNAM)
+     WHERE ${buaare_named}"
+
+  ogrinfo --quiet "$gpkg" -dialect sqlite -sql "DROP TABLE buaare_dissolve"
+fi
+
+# UDWHAZ05: Store the surrounding depth of WRECKS, OBSTRN and UWTROC. The style
+# uses these at render time to evaluate isolated danger status against the
+# user's configured safety contour. UWTROC shares CS(OBSTRN07) with OBSTRN, so
+# its branches read the same columns as the obstruction ones -- omit them here
+# and every rock branch that consults them falls through to the generic symbol.
+#
+# Two columns, not one, and ST_Intersects rather than ST_Contains:
+#
+#   * A hazard is rarely *contained* by a single depth area. Wrecks and rocks
+#     sit on the boundary between two of them, area obstructions span several,
+#     and ST_Contains excludes anything touching the edge -- so the old single
+#     ST_Contains(... LIMIT 1) left the column NULL for exactly the hazards
+#     that matter most and picked an arbitrary area for the rest.
+#   * DRGARE carries DRVAL1 too and is just as much "the surrounding depth" as
+#     DEPARE, but was not consulted at all: a wreck in a dredged area read NULL.
+#   * UDWHAZ05 asks two different questions of the surroundings. "Is this
+#     hazard in safe water?" must be answered by the DEEPEST neighbour (_MAX),
+#     and "is the surrounding water itself shoal?" by the shallowest non-drying
+#     one (_MINPOS, which skips negative DRVAL1 so drying areas cannot satisfy
+#     Continuation A's `surroundingDepth >= 0` bound).
+depth_area_union=""
+for depth_table in DEPARE DRGARE; do
+  echo "$tables" | grep -q "^${depth_table}$" || continue
+  if [ -n "$depth_area_union" ]; then
+    depth_area_union="${depth_area_union} UNION ALL "
+  fi
+  depth_area_union="${depth_area_union}SELECT DRVAL1, geom FROM \"${depth_table}\""
+done
+
+if [ -n "$depth_area_union" ]; then
+  for hazard_table in WRECKS OBSTRN UWTROC; do
     echo "$tables" | grep -q "^${hazard_table}$" || continue
     ogrinfo --quiet "$gpkg" -dialect sqlite \
-      -sql "ALTER TABLE \"${hazard_table}\" ADD COLUMN _DEPARE_DRVAL1 REAL"
+      -sql "ALTER TABLE \"${hazard_table}\" ADD COLUMN _DEPARE_DRVAL1_MAX REAL"
+    ogrinfo --quiet "$gpkg" -dialect sqlite \
+      -sql "ALTER TABLE \"${hazard_table}\" ADD COLUMN _DEPARE_DRVAL1_MINPOS REAL"
     ogrinfo --quiet "$gpkg" -dialect sqlite -sql "
-      UPDATE \"${hazard_table}\" SET _DEPARE_DRVAL1 = (
-        SELECT d.DRVAL1 FROM DEPARE d
-        WHERE ST_Contains(CastAutomagic(d.geom), CastAutomagic(\"${hazard_table}\".geom))
-        LIMIT 1
-      )"
+      UPDATE \"${hazard_table}\" SET
+        _DEPARE_DRVAL1_MAX = (
+          SELECT MAX(d.DRVAL1) FROM (${depth_area_union}) d
+          WHERE d.DRVAL1 IS NOT NULL
+            AND ST_Intersects(CastAutomagic(d.geom), CastAutomagic(\"${hazard_table}\".geom))
+        ),
+        _DEPARE_DRVAL1_MINPOS = (
+          SELECT MIN(d.DRVAL1) FROM (${depth_area_union}) d
+          WHERE d.DRVAL1 IS NOT NULL AND d.DRVAL1 >= 0
+            AND ST_Intersects(CastAutomagic(d.geom), CastAutomagic(\"${hazard_table}\".geom))
+        )"
   done
 fi
 
@@ -163,78 +492,639 @@ if echo "$tables" | grep -q '^LIGHTS$'; then
       )"
 fi
 
-# Step 2b: Quilting — clip features against higher-INTU chart coverage.
-# Where a more detailed chart exists, remove this chart's features so they
-# don't bleed through (coarse coastlines obscuring detailed harbour water, etc).
-if [ -n "$coverage" ] && [ -f "$coverage" ]; then
-  # Import higher-INTU M_COVR polygons into the chart GPKG via GeoJSON
-  # (direct GPKG-to-GPKG append can have geometry column name conflicts)
+# Step 2a: How many features this cell held BEFORE anything clipped it.
+#
+# This is the number that makes exit 65 safe to record permanently. "The quilt
+# mask existed" only says something about the NEIGHBOURS; it says nothing about
+# whether this cell ever had geometry. The S57 import runs with -skipfailures,
+# so a chart it could not read comes out as a GPKG full of structurally valid,
+# entirely empty tables -- and every one of those cells would otherwise be
+# written off as "covered by larger-scale charts" and never retried.
+#
+# Counted once, here, rather than per table inside the clip loop below.
+feature_tables=$(echo "$tables" | grep -v '^DSID$' || true)
+pre_clip_total=0
+pre_clip_sql=$(row_count_sql $feature_tables)
+if [ -n "$pre_clip_sql" ]; then
+  pre_clip_total=$(count_rows "SELECT ${pre_clip_sql} AS n" "pre-clip feature count")
+fi
+
+# The attribute columns of one table, quoted and comma-joined -- everything the
+# copy ladder has to carry across, which is every column except the fid GDAL
+# assigns, the geometry the copy rewrites, and the stamps the copy sets. Read
+# off the layer definition rather than the SQLite schema so it is GDAL that
+# decides what an attribute is.
+quilt_columns() {
+  # pragma_table_info through the SQLite dialect, NOT a parse of ogrinfo's
+  # summary. The summary is a formatted report and both of its dressings have
+  # already produced silent corruption: under -q GDAL 3.13 prints no summary
+  # at all (every copy inserted as bare geometry, NULL in every attribute),
+  # and without -q the "INFO: Open of ..." banner line parses as a column
+  # named INFO (every copy INSERT dies on the nonexistent column, every cell
+  # skipped). A GPKG is SQLite, so the schema is queryable as data — one row
+  # per column, no prose to mis-parse. fid/geom and the partition's own
+  # stamps are excluded.
+  ogrinfo -q "$gpkg" -dialect sqlite \
+    -sql "SELECT name FROM pragma_table_info('$1')" 2>/dev/null |
+    sed -n 's/^ *name (String) = //p' |
+    grep -vxE 'fid|geom|_QZMIN|_QZMAX|_QFALL' |
+    awk '{ printf "%s\"%s\"", (NR > 1 ? ", " : ""), $0 }'
+}
+
+# One copy of a table's features for one zoom interval of the ladder.
+#
+# The rows are copied UNCUT first and trimmed afterwards, so the difference,
+# the point membership test and the empty sweep are the same three statements
+# the destructive clip used -- only scoped to the copy. A feature that meets no
+# mask keeps its whole geometry in the interval, which is the point: outside the
+# finer chart's footprint the coarse chart is still the chart.
+#
+#   $1 table  $2 columns  $3 _QZMIN  $4 _QZMAX  $5 _QFALL
+#   $6 mask table, empty for a copy nothing clips
+#   $7 SQL predicate selecting this copy's rows
+quilt_copy() {
+  local table="$1" columns="$2" zmin="$3" zmax="$4" fall="$5" mask="$6" scope="$7"
+  local carried="${columns:+${columns}, }"
+
+  ogrinfo --quiet "$gpkg" -dialect sqlite -sql "
+    INSERT INTO \"${table}\" (${carried}geom, _QZMIN, _QZMAX, _QFALL)
+    SELECT ${carried}geom, ${zmin}, ${zmax}, ${fall} FROM \"${table}\"
+    WHERE _QZMIN IS NULL AND _QFALL IS NULL
+  "
+
+  # A mask whose ST_Union came out NULL clips nothing, and differencing against
+  # it returns NULL geometry that the sweep below then deletes -- which would
+  # erase the copy rather than leave it whole. Skipped, not guarded in SQL.
+  [ -z "$mask" ] && return 0
+
+  ogrinfo --quiet "$gpkg" -dialect sqlite -sql "
+    UPDATE \"${table}\" SET geom = ST_Difference(\"${table}\".geom, (SELECT geom FROM ${mask}))
+    WHERE ${scope}
+      AND ST_Intersects(\"${table}\".geom, (SELECT geom FROM ${mask}))
+      AND GeometryType(\"${table}\".geom) IN ('POLYGON', 'MULTIPOLYGON', 'LINESTRING', 'MULTILINESTRING')
+  "
+
+  ogrinfo --quiet "$gpkg" -dialect sqlite -sql "
+    DELETE FROM \"${table}\"
+    WHERE ${scope}
+      AND GeometryType(geom) IN ('POINT', 'MULTIPOINT')
+      AND ST_Within(\"${table}\".geom, (SELECT geom FROM ${mask}))
+  "
+
+  ogrinfo --quiet "$gpkg" -dialect sqlite -sql "
+    DELETE FROM \"${table}\" WHERE ${scope} AND (geom IS NULL OR ST_IsEmpty(geom) = 1)
+  "
+}
+
+# One rung mask for a ZONE table: the same union the shared mask takes, but only
+# over finer charts that actually CARRY this class.
+#
+# A maritime zone's extent is a jurisdiction, not a per-chart compilation. The
+# shared mask cut a coarse chart's zone wherever ANY finer chart served, so
+# where the finer chart covers the ground and does not compile the class, the
+# zone AND its real boundary vanished for that rung -- which is what gapped the
+# US/Russia convention line inside US1GLBDS (~57.51N 175.84E), whose treaty-line
+# boundary is interior to the chart, four degrees from any chart border. A finer
+# chart that does chart the zone still wins its rungs exactly as before, because
+# its own polygon then draws the line.
+#
+#   $1 table  $2 rung floor, or "all" for the whole finer union (the top copy)
+#
+# Echoes the mask table name, or NOTHING when the restricted union is empty --
+# which quilt_copy reads as "no cut", the same as a cell with nothing finer over
+# it. Differencing against a NULL union would delete the copy instead.
+zone_rung_mask() {
+  local table="$1" rung="$2" name predicate rows
+  name="quilt_mask_zone_${table}_${rung}"
+  predicate="q.QFLOOR > ${quilt_floor}"
+  [ "$rung" = "all" ] || predicate="${predicate} AND q.QFLOOR <= ${rung}"
+
+  ogrinfo --quiet "$gpkg" -dialect sqlite -sql \
+    "CREATE TABLE ${name} AS SELECT ST_Union(q.geom) as geom FROM quilting q
+     WHERE ${predicate}
+       AND EXISTS (SELECT 1 FROM zone_evidence z
+                   WHERE z.DSNM = q.DSNM AND z.CLASS = '${table}')"
+
+  rows=$(count_rows \
+    "SELECT COUNT(*) AS n FROM ${name} WHERE geom IS NOT NULL" \
+    "zone quilt mask ${table} ${rung} count")
+  if [ "$rows" -gt 0 ]; then printf '%s' "$name"; fi
+  return 0
+}
+
+# Step 2b: Quilting — partition each feature into the zoom intervals this cell
+# OWNS instead of deleting the ground a finer chart also covers.
+#
+# See docs/architecture/QUILT_ZOOM_PARTITION.md. With f0 this cell's floor and
+# f1 < … < fK the distinct floors of the finer coverage over it, each feature is
+# emitted as up to K+2 copies with disjoint tippecanoe zoom ranges:
+#
+#   whole      UNCUT original                        [f0 .. f1-1]
+#   ladder i   difference against the finer union up to fi   [fi .. f(i+1)-1]
+#   top        difference against all finer coverage  [fK ..]
+#   fallback   difference against all COARSER coverage [0 .. f0-1], _QFALL=1
+#
+# The `-1` caps are forced by the measured constraint that `tile-join
+# --overzoom` lifts TILES and not features: a cap AT a surviving tile's zoom is
+# a no-op. The top copy is today's fully-clipped output, and the whole copy is
+# what finally renders a coarse chart complete and seam-free in its own range.
+#
+# Every one of those K+2 intervals gets a real tile: step 2d raises the cell's
+# tiling maxzoom to the publication cap rather than folding the deep rungs down
+# onto the band and emptying the zooms between -- and the cap, not the deepest
+# rung, so every region-join input shares one native maxzoom. The rungs this
+# block collects are what step 2d's third arm reads.
+#
+# Rows at this cell's OWN floor -- its own M_COVR among them -- are peers of it
+# and clip nothing, which is also what keeps the cell from clipping itself.
+if [ -n "$coverage" ] && [ -f "$coverage" ] && [ -n "$quilt_floor" ]; then
+  # Import every OTHER rung's M_COVR polygons into the chart GPKG via GeoJSON
+  # (direct GPKG-to-GPKG append can have geometry column name conflicts). Both
+  # directions are needed: the finer rungs cap this cell, the coarser union
+  # decides where it has to keep serving below its floor.
+  #
+  # DSNM travels with the rows because the ZONE masks below join them to the
+  # zone_evidence roster by chart name; nothing else reads it off `quilting`.
+  #
+  # REGION-WIDE on purpose; do not -spat filter this import to the cell's
+  # neighbourhood. Three consumers read `quilting` beyond the cell's own
+  # ground: the ladder floors are SELECT DISTINCT QFLOOR over the WHOLE
+  # roster, so a floor served only far from this cell still creates a real
+  # rung (its mask union is non-empty region-wide) and with it the copies'
+  # _QZMIN/_QZMAX stamps; the has_mask/coarser_rows/rung_rows gates key
+  # quilt_applied (exit 65) and the fallback branch -- the fallback roster
+  # export included -- on region-wide row existence; and the quilt_mask*
+  # unions are materialized region-wide as tables. A bbox filter changes all
+  # three, not just union area no clip could ever see.
+  all_geojson="$tmpdir/quilting_all.geojson"
+  ogr2ogr -f GeoJSON "$all_geojson" "$coverage" coverage \
+    -where "QFLOOR <> ${quilt_floor}" -select "DSNM,INTU,CSCALE,QFLOOR" 2>/dev/null
+
+  # Finer coverage alone, for the edge generators at steps 3c/3d: these are the
+  # rings the ladder's rung masks are unions of, so an edge a rung clip left
+  # comes out flagged a SEAM instead of reported as the edge of the survey.
+  #
+  # ONE roster serves every STAMPED interval, and that is a pragmatic
+  # approximation rather than a proof. Which finer rings actually cut a copy
+  # varies by copy: the WHOLE copy is not clipped at ALL (it is the bare UPDATE
+  # at the end of the per-table loop, stamping whatever the ladder left), and
+  # rung i is cut only against the cumulative mask up to its own floor f_i --
+  # never against the rings of the rungs deeper than it. So a REAL data
+  # boundary lying along a finer chart's ring can be mis-flagged SEAM on the
+  # whole copy or on a shallow rung, which drops a contour that should have
+  # been drawn. Known residual gap, pre-existing and accepted: the rings a cell
+  # shares with its finer neighbours are overwhelmingly the quilt's own cuts,
+  # and closing it properly means a PER-RUNG roster export (one GeoJSON per
+  # ladder floor, each generator invocation keyed to the copy it is deriving),
+  # which nothing has yet needed. Do not re-document the gap away -- the clip
+  # is not exhaustive on stamped copies.
   cov_geojson="$tmpdir/quilting_coverage.geojson"
   ogr2ogr -f GeoJSON "$cov_geojson" "$coverage" coverage \
-    -where "INTU > ${intu}" -select "INTU" 2>/dev/null
+    -where "QFLOOR > ${quilt_floor}" -select "INTU,CSCALE,QFLOOR" 2>/dev/null
 
-  if [ -s "$cov_geojson" ]; then
-    ogr2ogr -f GPKG "$gpkg" "$cov_geojson" -append -nln quilting 2>/dev/null
+  # COARSER coverage alone, for the FALLBACK copy and nothing else, is NOT
+  # exported here beside its siblings: it is exported next to the mask whose
+  # cuts it describes (quilt_mask_coarser, below), and only when that mask is
+  # non-empty. See the block there for why the two cannot be separated.
 
-    # Pre-compute the union of all higher-INTU coverage into a single mask
-    ogrinfo --quiet "$gpkg" -dialect sqlite -sql \
-      "CREATE TABLE quilt_mask AS SELECT ST_Union(geom) as geom FROM quilting"
+  # EVERY chart's coverage, unfiltered -- same-floor peers included, which the
+  # two exports above never carry, and this cell's own rows too (harmless: the
+  # continuation probe steps OUTSIDE the ring it is standing on). This is the
+  # roster generate-area-edges' --neighbor-coverage reads to tell an interior
+  # chart border (some chart continues across it; the truncated boundary drops)
+  # from the edge of ALL charted data (nothing lies beyond; the boundary is the
+  # charted end of the area and stands -- the US/Russia EEZ line through the
+  # Bering Strait is the measured case). See THE EDGE OF ALL CHARTED DATA in
+  # bin/quilt-edges.mjs.
+  nbr_geojson="$tmpdir/quilting_neighbors.geojson"
+  ogr2ogr -f GeoJSON "$nbr_geojson" "$coverage" coverage \
+    -where "DSNM <> '${dsnm}'" -select "DSNM,INTU,CSCALE,QFLOOR" 2>/dev/null
 
-    has_mask=$(ogrinfo -q "$gpkg" -dialect sqlite \
-      -sql "SELECT COUNT(*) FROM quilt_mask WHERE geom IS NOT NULL" 2>/dev/null \
-      | grep -o '[0-9]*' | tail -1)
+  # The other cells' semantic areas, from the SAME atomically accepted cache
+  # fragments as their coverage. Coverage selects the serving floor/owners at
+  # each copy interval; these polygons then prove whether EVERY serving owner
+  # continues the same class and content across this cell border. Excluding the
+  # current DSNM is essential HERE, for the boundary merge rule: its own
+  # matching polygon is not evidence about what lies on the far side. (The
+  # anchor election reads the UNFILTERED twin below instead — a different
+  # question, with the opposite answer. Keep the two exports apart.)
+  # AUTODETECT_JSON_STRINGS=NO: CONTENT is a JSON *string* and the semantic
+  # merge compares it byte-for-byte against the local side's serialization.
+  # Left to its default the GeoJSON writer re-emits the string as a raw JSON
+  # object, which never compares equal, and every chart-border edge in the
+  # fleet silently survived the merge rule (2026-08-14, Adak SWPARE seam).
+  # generate-area-edges canonicalizes defensively as well; this keeps the
+  # transport honest so the file matches what --write-evidence produced.
+  area_evidence_geojson="$tmpdir/area_evidence.geojson"
+  ogr2ogr -f GeoJSON "$area_evidence_geojson" "$coverage" area_evidence \
+    -lco AUTODETECT_JSON_STRINGS=NO \
+    -where "DSNM <> '${dsnm}'" -select "CLASS,CONTENT,DSNM,QFLOOR" 2>/dev/null
 
-    if [ "${has_mask:-0}" -gt 0 ]; then
-      for table in $tables; do
-        [ "$table" = "DSID" ] && continue
+  # The SAME roster unfiltered — this cell's own rows included — for the anchor
+  # election at step 3f. The election joins the region's areas into contiguous
+  # same-class, same-content components and every cell has to derive the SAME
+  # components from them, so every cell must be handed the same rows. Fed the
+  # neighbour-only file, each cell compared its own QUILT-CLIPPED parts against
+  # the neighbours' UNCLIPPED ones and the component came out a function of who
+  # was asking: at the US5OR2JC/JD/KC/KD corner US5OR2JC saw itself joined to
+  # US5OR2KD's big polygon and emitted for the pair, while US5OR2KD — whose
+  # clipped copy stops at the border and never reaches JC — saw no such
+  # component and emitted too, two anchors on one point. Same table, same
+  # columns, same AUTODETECT_JSON_STRINGS=NO transport; only the DSNM filter
+  # goes. See bin/quilt-election.mjs (SYMMETRY).
+  area_evidence_all_geojson="$tmpdir/area_evidence_all.geojson"
+  ogr2ogr -f GeoJSON "$area_evidence_all_geojson" "$coverage" area_evidence \
+    -lco AUTODETECT_JSON_STRINGS=NO \
+    -select "CLASS,CONTENT,DSNM,QFLOOR" 2>/dev/null
 
-        # Detect geometry types present in this table
-        geom_types=$(ogrinfo -q "$gpkg" -dialect sqlite \
-          -sql "SELECT DISTINCT GeometryType(geom) FROM \"${table}\" WHERE geom IS NOT NULL" 2>/dev/null \
-          | grep -oE 'POLYGON|LINESTRING|POINT|MULTI' || true)
+  # The same roster reduced to PRESENCE -- which chart carries which class --
+  # for the zone-aware quilt masks below. Content is irrelevant here: the
+  # question the mask asks is only "does THAT chart compile this zone at all",
+  # so the two attributes are the whole answer and -nlt NONE drops the
+  # geometry at the source. Every consumer of `zone_evidence` reads (CLASS,
+  # DSNM) and nothing else -- the zone_rung_mask EXISTS probe and the covering
+  # index that serves it -- while the geometry was ~240 MB of GeoJSON per cell
+  # on a Maine-region roster, written and re-parsed into the chart GPKG
+  # entirely unread.
+  #
+  # REGION-WIDE on purpose; do not -spat filter this export. The probe's
+  # semantics are chart-level presence -- "does chart DSNM carry class X
+  # ANYWHERE" -- and a bbox filter keyed to this cell would drop (CLASS, DSNM)
+  # pairs whose zone features lie outside the cell while the chart's coverage
+  # still intersects it, silently changing the zone masks.
+  zone_presence_geojson="$tmpdir/zone_presence.geojson"
+  ogr2ogr -f GeoJSON "$zone_presence_geojson" "$coverage" area_evidence \
+    -lco AUTODETECT_JSON_STRINGS=NO \
+    -where "DSNM <> '${dsnm}'" -select "DSNM,CLASS" -nlt NONE 2>/dev/null
 
-        [ -z "$geom_types" ] && continue
+  if [ -s "$all_geojson" ]; then
+    ogr2ogr -f GPKG "$gpkg" "$all_geojson" -append -nln quilting 2>/dev/null
 
-        # Clip polygons and lines: trim geometry to exclude masked area
-        if echo "$geom_types" | grep -qE 'POLYGON|LINESTRING'; then
-          ogrinfo --quiet "$gpkg" -dialect sqlite -sql "
-            UPDATE \"${table}\" SET geom = ST_Difference(\"${table}\".geom, (SELECT geom FROM quilt_mask))
-            WHERE ST_Intersects(\"${table}\".geom, (SELECT geom FROM quilt_mask))
-              AND GeometryType(\"${table}\".geom) IN ('POLYGON', 'MULTIPOLYGON', 'LINESTRING', 'MULTILINESTRING')
-          " 2>/dev/null || true
-        fi
+    # The zone-presence roster, beside the coverage it qualifies. Absent (an
+    # older cache with no area_evidence, or a first-ever region run) every table
+    # simply uses the shared masks, which is the behaviour that shipped before.
+    zone_evidence_ready=0
+    if [ -s "$zone_presence_geojson" ]; then
+      if ogr2ogr -f GPKG "$gpkg" "$zone_presence_geojson" \
+        -append -nln zone_evidence -nlt NONE 2>/dev/null; then
+        zone_evidence_ready=1
 
-        # Delete points inside the mask
-        if echo "$geom_types" | grep -q 'POINT'; then
-          ogrinfo --quiet "$gpkg" -dialect sqlite -sql "
-            DELETE FROM \"${table}\"
-            WHERE GeometryType(geom) IN ('POINT', 'MULTIPOINT')
-              AND ST_Within(\"${table}\".geom, (SELECT geom FROM quilt_mask))
-          " 2>/dev/null || true
-        fi
-
-        # Clean up empty geometries
-        ogrinfo --quiet "$gpkg" -dialect sqlite -sql "
-          DELETE FROM \"${table}\" WHERE geom IS NULL OR ST_IsEmpty(geom) = 1
-        " 2>/dev/null || true
-      done
+        # The roster lands UNINDEXED and REGION-WIDE -- every chart in the
+        # region, tens of thousands of rows (attribute-only: the -nlt NONE
+        # export above already dropped the geometry the probe never reads).
+        # Without this index zone_rung_mask's correlated EXISTS is a full scan
+        # of that table for every `quilting` row, re-run once per zone class
+        # per rung: measured at ~16 s per mask on US4ME1CI (5 zone classes x 3
+        # rungs), ~240 s of a ~370 s cell, back when the rows still carried
+        # the area_evidence geometry -- on a probe whose answer involves 3-6
+        # rows. (CLASS, DSNM) is exactly the probe's key AND covers it, so the
+        # lookup is resolved in the index and never touches a row at all.
+        ogrinfo --quiet "$gpkg" -dialect sqlite -sql \
+          "CREATE INDEX IF NOT EXISTS zone_evidence_class_dsnm ON zone_evidence(CLASS, DSNM)"
+      fi
     fi
+
+    # The geometry expressions in this block are deliberately left un-cast.
+    # GDAL's SQLite dialect already hands GPKG geometry columns to the
+    # SpatiaLite spatial functions and takes the result back, so ST_Difference()
+    # here returns something the geom column accepts as-is. Wrapping the
+    # write-back in AsGPB() double-encodes it -- AsGPB() of an already-GPKG blob
+    # is NULL -- and the empty-geometry sweep at the bottom of the loop then
+    # deletes every row the clip touched, so the clip erases the chart instead
+    # of trimming it. Do not add AsGPB()/CastAutomagic() here without a
+    # round-trip that proves the geometry survives; plotroom's pipeline/Dockerfile
+    # runs exactly that probe at image-build time.
+    #
+    # Errors are deliberately NOT suppressed: a clip that silently no-ops leaves
+    # coarse charts bleeding through the detailed ones, which is invisible here
+    # and only shows up as a chart defect much later.
+
+    # Pre-compute the union of all finer coverage into a single mask. This is
+    # the top copy's mask and the one exit 65 keys on.
+    ogrinfo --quiet "$gpkg" -dialect sqlite -sql \
+      "CREATE TABLE quilt_mask AS SELECT ST_Union(geom) as geom FROM quilting WHERE QFLOOR > ${quilt_floor}"
+
+    has_mask=$(count_rows \
+      "SELECT COUNT(*) AS n FROM quilt_mask WHERE geom IS NOT NULL" \
+      "quilt mask count")
+
+    # The union of everything COARSER, which the fallback copy is cut against.
+    # Empty means no chart lies beneath this one and the fallback carries the
+    # whole cell down to z0 -- someone must own the overview.
+    ogrinfo --quiet "$gpkg" -dialect sqlite -sql \
+      "CREATE TABLE quilt_mask_coarser AS SELECT ST_Union(geom) as geom FROM quilting WHERE QFLOOR < ${quilt_floor}"
+
+    coarser_rows=$(count_rows \
+      "SELECT COUNT(*) AS n FROM quilt_mask_coarser WHERE geom IS NOT NULL" \
+      "coarser quilt mask count")
+    coarser_mask=""
+    if [ "$coarser_rows" -gt 0 ]; then
+      coarser_mask="quilt_mask_coarser"
+
+      # The fallback roster: the RING SET of the mask on the line above, which
+      # is why it is exported inside this branch and nowhere else.
+      #
+      # The fallback continuation is cut against the union of all
+      # strictly-coarser coverage, and that clip leaves new edges at the
+      # compilation-scale junction exactly as the rung masks leave them at the
+      # finer one. Those edges lie on no ring either other roster holds -- not
+      # the finer coverage export, not this cell's own M_COVR (which is exempt
+      # from the ladder and arrives UNCLIPPED) -- so every generator read them
+      # as the end of the data: _DEPARE_EDGE gave them DRVAL_LO = -1 and the
+      # style painted a bold safety contour down each cut. Handed over as
+      # --fallback-coverage and consulted ONLY on the _QFALL interval.
+      #
+      # GATED ON THE MASK because the roster is an instruction -- "an edge on
+      # one of these rings is a cut this pipeline made; erase it" -- and that
+      # instruction is a lie wherever the cut did not run. With an empty union
+      # the fallback copy is left WHOLE (quilt_copy below is handed an empty
+      # mask and skips the difference), so a coarser chart's ring crossing it
+      # lies over ground nothing ever clipped: an edge along that ring is a
+      # REAL boundary, and erasing it would take a real contour off the chart.
+      # Exported unconditionally, that is exactly what the generators were
+      # told. Keep the export and the mask in the same branch.
+      fallback_cov_geojson="$tmpdir/quilting_fallback_coverage.geojson"
+      ogr2ogr -f GeoJSON "$fallback_cov_geojson" "$coverage" coverage \
+        -where "QFLOOR < ${quilt_floor}" -select "INTU,CSCALE,QFLOOR" 2>/dev/null
+    fi
+
+    # One cumulative mask per distinct finer floor: everything finer than this
+    # cell up to and including that rung. Typically K <= 3.
+    #
+    # EVERY finer rung gets an interval, including the ones above this cell's
+    # own INTU-band tiling maxzoom. Folding them down onto the band maxzoom is
+    # what this replaces, and it emptied whole zoom bands (measured under the
+    # old offset-4 floors; the mechanism is ladder-independent): a 1:180k cell
+    # (band maxzoom 8) under finer rungs {9, 10, 11} folded all three onto 8,
+    # which collapsed the ladder to a whole copy of [7..7] and a top copy of
+    # [8..] cut against the FULL finer union -- so at z8 the coarse chart had
+    # been cut away while none of the finer charts had reached its own floor
+    # yet, and the tile came back all but empty (measured: 6 DEPARE features in
+    # a z8 tile over the whole Puget basin against 1791 in the z7 tile above
+    # it). The same fold emptied z10 under a 1:45k cell whose 1:12k neighbours
+    # floored at 11.
+    #
+    # The tiling range is what moves instead: see the raise below.
+    ladder_floors=()
+    for floor in $(ogrinfo -q "$gpkg" -dialect sqlite \
+      -sql "SELECT DISTINCT QFLOOR FROM quilting WHERE QFLOOR > ${quilt_floor} ORDER BY QFLOOR" \
+      2>/dev/null | grep -oE '=[[:space:]]*[0-9]+' | grep -oE '[0-9]+'); do
+      ogrinfo --quiet "$gpkg" -dialect sqlite -sql \
+        "CREATE TABLE quilt_mask_${floor} AS SELECT ST_Union(geom) as geom FROM quilting WHERE QFLOOR > ${quilt_floor} AND QFLOOR <= ${floor}"
+      rung_rows=$(count_rows \
+        "SELECT COUNT(*) AS n FROM quilt_mask_${floor} WHERE geom IS NOT NULL" \
+        "quilt mask ${floor} count")
+      [ "$rung_rows" -gt 0 ] && ladder_floors+=("$floor")
+    done
+
+    # The tiling range these rungs need is set at step 2d, on every path.
+
+    if [ "$has_mask" -gt 0 ]; then
+      # Recorded so an empty export below can be reported as "fully covered"
+      # rather than as a chart that had nothing in it to begin with. On its own
+      # this is NOT enough to justify exit 65 -- it says a neighbouring chart
+      # covers ground here, not that this cell ever had anything to lose. See
+      # the exit-code header.
+      quilt_applied=1
+    fi
+
+    # The whole copy runs to one below the first finer rung, or is unbounded
+    # when nothing finer covers this cell.
+    whole_max="NULL"
+    [ ${#ladder_floors[@]} -gt 0 ] && whole_max=$((${ladder_floors[0]} - 1))
+
+    # The zone tables, from the derivation that owns the set
+    # (bin/generate-area-edges --list-zone-classes) rather than restated here --
+    # the same one-source-of-truth contract as --list-classes at step 3f. Only
+    # consulted when the presence roster made it into the GPKG.
+    zone_classes=""
+    if [ "$zone_evidence_ready" = "1" ]; then
+      zone_classes=$(node "$SCRIPT_DIR/generate-area-edges" --list-zone-classes |
+        tr '\n' ' ')
+    fi
+
+    for table in $tables; do
+      [ "$table" = "DSID" ] && continue
+
+      # M_COVR is EXEMPT from the ladder: it is the pick/status/overzoom keeper
+      # and has to describe the cell's coverage at every zoom the cell reaches.
+      # It is not clipped either -- a coverage ring with a finer chart's
+      # footprint cut out of it stops being the cell's coverage.
+      [ "$table" = "M_COVR" ] && continue
+
+      # Detect geometry types present in this table
+      geom_types=$(ogrinfo -q "$gpkg" -dialect sqlite \
+        -sql "SELECT DISTINCT GeometryType(geom) FROM \"${table}\" WHERE geom IS NOT NULL" \
+        | grep -oE 'POLYGON|LINESTRING|POINT|MULTI' || true)
+
+      [ -z "$geom_types" ] && continue
+
+      # Read before the stamps exist, so the copies carry attributes only.
+      columns=$(quilt_columns "$table")
+
+      for stamp in _QZMIN _QZMAX _QFALL; do
+        ogrinfo --quiet "$gpkg" -dialect sqlite \
+          -sql "ALTER TABLE \"${table}\" ADD COLUMN ${stamp} INTEGER"
+      done
+
+      # A ZONE table cuts against a mask of its own: only the finer charts that
+      # carry this class. See zone_rung_mask.
+      zone_table=0
+      case " $zone_classes " in
+        *" $table "*) zone_table=1 ;;
+      esac
+
+      # Ladder copies, every one of them taken from the still-unstamped
+      # originals so each interval's geometry is the ORIGINAL minus that
+      # interval's mask rather than the previous copy's leftovers.
+      rung=0
+      while [ "$rung" -lt ${#ladder_floors[@]} ]; do
+        floor=${ladder_floors[$rung]}
+        next=$((rung + 1))
+        if [ "$next" -lt ${#ladder_floors[@]} ]; then
+          rung_max=$((${ladder_floors[$next]} - 1))
+          rung_mask="quilt_mask_${floor}"
+          [ "$zone_table" = "1" ] && rung_mask=$(zone_rung_mask "$table" "$floor")
+        else
+          # The top copy runs to the tiling maxzoom and past it through
+          # overzoom, so it is cut against ALL finer coverage: its deepest tile
+          # is the one `tile-join --overzoom` lifts over every finer chart, and
+          # geometry left in it would draw a 1:90k coastline over the 1:12k
+          # harbour it was clipped out of. Since the ladder no longer folds,
+          # `quilt_mask_${floor}` for this last rung is that same full union;
+          # the shared table is used so the intent does not depend on the
+          # cumulative query happening to reach the end.
+          rung_max="NULL"
+          rung_mask="quilt_mask"
+          [ "$zone_table" = "1" ] && rung_mask=$(zone_rung_mask "$table" all)
+        fi
+        quilt_copy "$table" "$columns" "$floor" "$rung_max" "NULL" \
+          "$rung_mask" "_QZMIN = ${floor}"
+        rung=$next
+      done
+
+      # The fallback continuation: this cell standing in for the chart that is
+      # not there. Cut against the coarser union, so it survives only where no
+      # coarser chart lies beneath. It carries NO _QZMIN -- the style keys its
+      # reduced floor on exactly that absence -- and _QFALL for the style.
+      if [ "$quilt_floor" -gt 0 ]; then
+        quilt_copy "$table" "$columns" "NULL" "$((quilt_floor - 1))" "1" \
+          "$coarser_mask" "_QFALL = 1"
+      fi
+
+      # Whatever is left unstamped is the whole copy: the uncut original over
+      # the cell's own rung.
+      if [ "$whole_max" != "NULL" ] && [ "$whole_max" -lt "$quilt_floor" ]; then
+        # Insurance, and UNREACHABLE by construction since the ladder stopped
+        # folding: every ladder floor comes from `QFLOOR > quilt_floor`, so the
+        # first one is at least quilt_floor + 1 and the whole copy's cap is at
+        # least quilt_floor. It was the fold that could land a rung on the
+        # cell's own floor and leave [f0 .. f0-1] behind.
+        #
+        # Kept because rows stamped into an empty interval are dropped after
+        # the export instead, which would hide a fully-covered cell from the
+        # exit-65 guard and fail the run in tippecanoe with no explanation.
+        ogrinfo --quiet "$gpkg" -dialect sqlite -sql "
+          DELETE FROM \"${table}\" WHERE _QZMIN IS NULL AND _QFALL IS NULL
+        "
+      else
+        ogrinfo --quiet "$gpkg" -dialect sqlite -sql "
+          UPDATE \"${table}\" SET _QZMIN = ${quilt_floor}, _QZMAX = ${whole_max}
+          WHERE _QZMIN IS NULL AND _QFALL IS NULL
+        "
+      fi
+    done
+
+    quilt_partitioned=1
   fi
 fi
 
+# Step 2c: A cell the partition could not place on the ladder is published as a
+# fallback continuation in full.
+#
+# There are three ways to get here: no --coverage, an M_COVR extent the rung
+# function cannot read, and no other rung overlapping this cell at all. What
+# they have in common is that nothing established a finer owner for any of this
+# cell's ground, which is what a fallback continuation IS.
+#
+# Saying so is not decoration. The cell publishes into a tileset whose meta
+# reports PIPELINE_BUILD_VERSION 4, the frontend reads that as "the tiles carry
+# the scale gating" and stands the whole INTU-floor family down, and the only
+# floor it keeps is the reduced one it scopes to _QFALL. Features with no stamp
+# of any kind would draw from z0 with no floor on either side -- strictly worse
+# than the INTU ladder the partition replaced, and worst on exactly the classes
+# that carry no SCAMIN. M_COVR stays exempt here as it is in the ladder.
+if [ "$quilt_partitioned" = "0" ]; then
+  for table in $tables; do
+    [ "$table" = "DSID" ] && continue
+    [ "$table" = "M_COVR" ] && continue
+    ogrinfo --quiet "$gpkg" -dialect sqlite \
+      -sql "ALTER TABLE \"${table}\" ADD COLUMN _QFALL INTEGER"
+    ogrinfo --quiet "$gpkg" -dialect sqlite \
+      -sql "UPDATE \"${table}\" SET _QFALL = 1"
+  done
+fi
+
+# Step 2d: The cell's tiling maxzoom -- max(band, publication cap, deepest
+# ladder rung). EVERY published cell passes through here, partitioned or not,
+# and nothing above this line reads `maxzoom`.
+#
+# Two invariants, and this is the only place that holds both.
+#
+# 1. Every input of ONE region join shares ONE native maxzoom. The moment they
+#    disagree tile-join SYNTHESIZES the missing zooms for every shallow input --
+#    all four children of every tile across its whole footprint, through a
+#    1000-entry decoded-tile cache per reader, with no bound. That is what
+#    SIGKILLed the alaska_western_arctic join at 32 GiB: 255 of 261 cells
+#    stopped at z11 while six harbour cells tiled z12, and the final join
+#    fabricated z12 for the whole region. The unpartitioned paths -- no
+#    --coverage, an unreadable M_COVR extent, a cscale off the rung ladder --
+#    are region-join inputs like any other, so the cap cannot sit inside step
+#    2b's guards: a band-4 cell that skipped the ladder would hand the join a
+#    z10 archive beside z12 ones and re-create exactly that merge.
+#
+# 2. Every ladder interval keeps a real tile to live in. tippecanoe writes
+#    nothing above --maximum-zoom and bin/stamp-quilt-zooms drops any copy whose
+#    interval falls entirely outside the tiling range, so a rung deeper than
+#    this range is a copy that never reaches a tile. QUILT_FLOOR_MAX clamps
+#    every rung into the cap today, which makes the rung arm below a no-op --
+#    it is kept because a QUILT_FLOOR_MAX raised past the cap would otherwise
+#    silently start folding the deep rungs again, which is the defect that
+#    emptied whole zoom bands (see step 2b).
+#
+# The zooms this adds are not padding: they carry the coarse chart's RESIDUE --
+# the original minus the coverage that has actually started serving there --
+# which is exactly what tile-join's overzoom would have fabricated, and what
+# the fold used to delete.
+if [ "$publication_maxzoom" -gt "$maxzoom" ]; then
+  maxzoom="$publication_maxzoom"
+fi
+if [ ${#ladder_floors[@]} -gt 0 ] && [ "${ladder_floors[-1]}" -gt "$maxzoom" ]; then
+  maxzoom="${ladder_floors[-1]}"
+fi
+
 # Step 3: Export each layer to GeoJSON for import into tippecanoe.
-layers=$(ogrinfo -q "$gpkg" 2>/dev/null | grep "^[0-9]" | awk '{print $2}' | grep -v '^DSID$' | grep -v '^quilting$' | grep -v '^quilt_mask$')
+#
+# `|| true` because the trailing greps exit 1 when the list comes out empty,
+# which under `set -e` ended the run right here with no message at all -- the
+# one failure mode of this script that told the caller nothing. An empty list
+# is a real answer; it is reported by the feature-count check below.
+layers=$(ogrinfo -q "$gpkg" 2>/dev/null | grep "^[0-9]" | awk '{print $2}' | grep -v '^DSID$' | grep -v '^quilting$' | grep -v '^quilt_mask' | grep -v '^zone_evidence$' || true)
 
 geojson_files=()
 for layer in $layers; do
   geojson="$tmpdir/$layer.geojson"
-  ogr2ogr -f GeoJSON "$geojson" "$gpkg" "$layer" || continue
+  # S-57 permits coordinates to stay continuous past the antimeridian (for
+  # example the western part of US1WC07M is encoded west of -180). Web
+  # Mercator does not: without an explicit wrap, tippecanoe clips those
+  # coordinates into a few-pixel buffer on x=max instead of placing the real
+  # geometry in the positive-longitude world. Transforming to the same CRS is
+  # intentional -- it gives GDAL's dateline splitter a destination frame in
+  # which to normalize out-of-range longitudes and split crossing lines and
+  # polygons. Ordinary layers wholly inside [-180, 180] are unchanged.
+  ogr2ogr -f GeoJSON "$geojson" "$gpkg" "$layer" \
+    -t_srs EPSG:4326 -wrapdateline || continue
   if [ -s "$geojson" ]; then
     geojson_files+=("$geojson")
   fi
 done
 
-if [ ${#geojson_files[@]} -eq 0 ]; then
+# An exported layer is a valid GeoJSON document even when it holds no features,
+# so a non-empty file list does not mean there is anything to tile. Count the
+# rows that survived and decide before tippecanoe does: left to itself it fails
+# the run with "Did not read any valid geometries", which reads as a broken
+# chart and gets the cell retried forever.
+feature_total=0
+count_sql=$(row_count_sql $layers)
+if [ -n "$count_sql" ]; then
+  feature_total=$(count_rows "SELECT ${count_sql} AS n" "post-clip feature count")
+fi
+
+if [ ${#geojson_files[@]} -eq 0 ] || [ "$feature_total" -eq 0 ]; then
+  # Rows still in the GPKG but nothing usable on disk is an EXPORT failure --
+  # ogr2ogr wrote zero-byte files, or the disk filled. Loud, and never 65: the
+  # cell has geometry, so recording it as permanently covered would delete a
+  # real chart from the tileset for good.
+  if [ "$feature_total" -gt 0 ]; then
+    echo "$input: $feature_total rows in the GPKG but no usable GeoJSON export" >&2
+    exit 1
+  fi
+
+  # Nothing after the clip AND something before it AND a mask that really was
+  # applied: the only combination that means "larger-scale charts cover all of
+  # this cell". See the exit-code header.
+  if [ "$pre_clip_total" -gt 0 ] && [ "$quilt_applied" = "1" ]; then
+    echo "$input: fully covered by larger-scale charts after quilting; nothing to publish"
+    exit "$EXIT_FULLY_COVERED"
+  fi
+
+  # Rows before the clip, none after it, and no mask was applied: features were
+  # lost by something other than quilting. A bug, not a covered cell.
+  if [ "$pre_clip_total" -gt 0 ]; then
+    echo "$input: $pre_clip_total features before the clip and none after it, with no quilt mask applied" >&2
+    exit 1
+  fi
+
   echo "No features found in $input"
   exit 1
 fi
@@ -245,16 +1135,510 @@ fi
 lights_geojson="$tmpdir/LIGHTS.geojson"
 sectors_geojson="$tmpdir/_LIGHTS_SECTORS.geojson"
 if [ -f "$lights_geojson" ]; then
-  SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
   node "$SCRIPT_DIR/generate-sector-arcs" "$lights_geojson" "$sectors_geojson" \
-    --minzoom "$minzoom" --maxzoom "$maxzoom"
+    --minzoom "$minzoom" --maxzoom "$maxzoom" \
+    --top-zoom "$publication_maxzoom"
   if [ -s "$sectors_geojson" ]; then
     geojson_files+=("$sectors_geojson")
   fi
 fi
 
+# Step 3c: Derive _DEPARE_EDGE — the shared edges of the DEPARE/DRGARE
+# partition, each carrying the depth on either side (see bin/generate-depare-edges).
+#
+# S-52 DEPARE03 places the safety contour at the safe/unsafe DEPARE interface,
+# not at a DEPCNT: an ENC need not carry a contour at the value the mariner
+# picked, and DRGARE has no surrounding DEPCNT at all. Derived here, after the
+# quilt clip, so the edges match the geometry that actually reaches the tiles.
+edge_args=()
+if [ -f "$tmpdir/DEPARE.geojson" ]; then
+  edge_args+=(--depth-area "$tmpdir/DEPARE.geojson")
+fi
+if [ -f "$tmpdir/DRGARE.geojson" ]; then
+  edge_args+=(--depth-area "$tmpdir/DRGARE.geojson")
+fi
+if [ ${#edge_args[@]} -gt 0 ]; then
+  if [ -f "$tmpdir/DEPCNT.geojson" ]; then
+    edge_args+=(--contour "$tmpdir/DEPCNT.geojson")
+  fi
+  # The higher-INTU coverage the quilt clipped against, so edges created by the
+  # clip are flagged as seams rather than reported as the edge of the survey.
+  if [ -f "$tmpdir/quilting_coverage.geojson" ]; then
+    edge_args+=(--coverage "$tmpdir/quilting_coverage.geojson")
+  fi
+  # The COARSER coverage the fallback copy was cut against, so the cuts that
+  # clip left are seams on that interval instead of the edge of the survey.
+  # The file exists only when that cut actually ran -- step 2b exports it
+  # inside the quilt_mask_coarser branch -- so the -f test here is also the
+  # test for "the rings in it really are cuts". The same holds at the three
+  # sibling generators below.
+  if [ -f "$tmpdir/quilting_fallback_coverage.geojson" ]; then
+    edge_args+=(--fallback-coverage "$tmpdir/quilting_fallback_coverage.geojson")
+  fi
+  # This cell's OWN coverage ring, exported at Step 3 above and therefore
+  # already carrying the quilt clip. A depth area truncated by the edge of the
+  # cell is not bounded by land: the neighbouring cell carries the rest of it,
+  # and without this the style painted the safety contour down every cell edge
+  # in the quilt. Passing --coverage alone did not cover this at all: it only
+  # ever holds HIGHER-INTU coverage, so in a region whose finest band is also
+  # the band being tiled it is empty and the guard was dead.
+  if [ -f "$tmpdir/M_COVR.geojson" ]; then
+    edge_args+=(--cell-coverage "$tmpdir/M_COVR.geojson")
+  fi
+  edges_geojson="$tmpdir/_DEPARE_EDGE.geojson"
+  node "$SCRIPT_DIR/generate-depare-edges" "$edges_geojson" "${edge_args[@]}"
+  if [ -s "$edges_geojson" ]; then
+    geojson_files+=("$edges_geojson")
+  fi
+fi
+
+# Step 3d: Derive _MQUAL_EDGE — the M_QUAL boundaries where the zone of
+# confidence actually changes, each carrying the CATZOC on either side.
+#
+# M_QUAL is split for reasons that have nothing to do with survey quality, the
+# edge of the CHART above all, so stroking its own polygons rules a single
+# survey into one box per cell. Derived here, after the quilt clip and beside
+# the depth-area edges, on the same segment classification: see
+# bin/generate-mqual-edges and the machinery it shares in bin/quilt-edges.mjs.
+#
+# _MQUAL_LABELS comes off the same class and is derived beside it: one CATZOC
+# letter per CONTIGUOUS zone instead of one per fragment, which is the labelling
+# half of the same defect. See bin/generate-mqual-labels.
+if [ -f "$tmpdir/M_QUAL.geojson" ]; then
+  mqual_args=(--quality "$tmpdir/M_QUAL.geojson")
+  # The two ways a boundary can be a chart border rather than a change in
+  # confidence: the quilt cut against a finer chart, and this cell's own ring.
+  # Unlike the depth-area seams these are DROPPED rather than flagged -- a
+  # confidence boundary that is only a cell border has nothing to draw.
+  if [ -f "$tmpdir/quilting_coverage.geojson" ]; then
+    mqual_args+=(--coverage "$tmpdir/quilting_coverage.geojson")
+  fi
+  if [ -f "$tmpdir/quilting_fallback_coverage.geojson" ]; then
+    mqual_args+=(--fallback-coverage "$tmpdir/quilting_fallback_coverage.geojson")
+  fi
+  if [ -f "$tmpdir/M_COVR.geojson" ]; then
+    mqual_args+=(--cell-coverage "$tmpdir/M_COVR.geojson")
+  fi
+  mqual_geojson="$tmpdir/_MQUAL_EDGE.geojson"
+  node "$SCRIPT_DIR/generate-mqual-edges" "$mqual_geojson" "${mqual_args[@]}"
+  if [ -s "$mqual_geojson" ]; then
+    geojson_files+=("$mqual_geojson")
+  fi
+
+  # No coverage inputs: an anchor is a point INSIDE a zone, and a zone
+  # truncated by the cell border is still a zone that has to be lettered here.
+  mqual_labels_geojson="$tmpdir/_MQUAL_LABELS.geojson"
+  node "$SCRIPT_DIR/generate-mqual-labels" "$mqual_labels_geojson" \
+    --quality "$tmpdir/M_QUAL.geojson"
+  if [ -s "$mqual_labels_geojson" ]; then
+    geojson_files+=("$mqual_labels_geojson")
+  fi
+fi
+
+# Step 3d (cont.): Derive _BUAARE_EDGE — the built-up area outline with the
+# borders that are only the edge of the CHART left out of it.
+#
+# The dissolve at the top of this script already unions the fragments of one
+# town, but only within this cell: the neighbouring cell's half of the town is
+# a different chart and is not in this GPKG, so a town spanning two cells still
+# came out cut in half down the cell border. That border is a boundary of the
+# chart, not of the town, and the same derivation _MQUAL_EDGE uses removes it.
+# Derived here, after the quilt clip, so the edges match the geometry that
+# actually reaches the tiles. See bin/generate-buaare-edges.
+if [ -f "$tmpdir/BUAARE.geojson" ]; then
+  buaare_args=(--built-up "$tmpdir/BUAARE.geojson")
+  if [ -f "$tmpdir/quilting_coverage.geojson" ]; then
+    buaare_args+=(--coverage "$tmpdir/quilting_coverage.geojson")
+  fi
+  if [ -f "$tmpdir/quilting_fallback_coverage.geojson" ]; then
+    buaare_args+=(--fallback-coverage "$tmpdir/quilting_fallback_coverage.geojson")
+  fi
+  if [ -f "$tmpdir/M_COVR.geojson" ]; then
+    buaare_args+=(--cell-coverage "$tmpdir/M_COVR.geojson")
+  fi
+  buaare_geojson="$tmpdir/_BUAARE_EDGE.geojson"
+  node "$SCRIPT_DIR/generate-buaare-edges" "$buaare_geojson" "${buaare_args[@]}"
+  if [ -s "$buaare_geojson" ]; then
+    geojson_files+=("$buaare_geojson")
+  fi
+fi
+
+# Step 3d (cont.): Derive _AREA_EDGE — the boundary merge rule, generalised.
+#
+# Every stroked area class had the same defect _MQUAL_EDGE and _BUAARE_EDGE
+# each fixed for one class: S-57 splits an area at the edge of the CHART, so a
+# restricted area continuing across cell seams drew its toothed line at every
+# chart border. _AREA_EDGE is the same derivation run per class over every
+# remaining area class the style strokes — a boundary segment is emitted only
+# where the CONTENT differs across it (once per side, carrying that side's
+# attributes). At a chart border they are dropped only when every serving
+# neighbour proves the same class and content; different or absent content
+# keeps the true boundary. The participating class list lives in the generator
+# (--list-classes), so this loop and the derivation cannot drift apart. See
+# bin/generate-area-edges.
+# The class list is captured FIRST so its exit status is observed: a process
+# substitution hides a failure from `set -e`, and a silently empty list would
+# publish the cell with no _AREA_EDGE at all — the frontend latch (a per-source
+# sighting) would then hide every per-polygon boundary over this cell with
+# nothing to replace them. Every other generator is a bare `node` call the
+# shell aborts on; this one must not be the exception.
+area_edge_classes=$(node "$SCRIPT_DIR/generate-area-edges" --list-classes)
+[ -n "$area_edge_classes" ] || { echo "generate-area-edges --list-classes returned nothing" >&2; exit 1; }
+area_edge_args=()
+while IFS= read -r area_class; do
+  if [ -f "$tmpdir/${area_class}.geojson" ]; then
+    area_edge_args+=(--area "${area_class}:$tmpdir/${area_class}.geojson")
+  fi
+done <<< "$area_edge_classes"
+if [ ${#area_edge_args[@]} -gt 0 ]; then
+  if [ -f "$tmpdir/quilting_coverage.geojson" ]; then
+    area_edge_args+=(--coverage "$tmpdir/quilting_coverage.geojson")
+  fi
+  if [ -f "$tmpdir/quilting_fallback_coverage.geojson" ]; then
+    area_edge_args+=(--fallback-coverage "$tmpdir/quilting_fallback_coverage.geojson")
+  fi
+  if [ -f "$tmpdir/M_COVR.geojson" ]; then
+    area_edge_args+=(--cell-coverage "$tmpdir/M_COVR.geojson")
+  fi
+  # The other-cell coverage and semantic rosters from step 2b, when the
+  # partition ran: together they distinguish an identical continuation from a
+  # different area or a charted end. Absent -- an unpartitioned cell -- the
+  # legacy coverage-only drop stays unconditional.
+  if [ -f "$tmpdir/quilting_neighbors.geojson" ]; then
+    area_edge_args+=(--neighbor-coverage "$tmpdir/quilting_neighbors.geojson")
+  fi
+  if [ -f "$tmpdir/area_evidence.geojson" ]; then
+    area_edge_args+=(--neighbor-area-evidence "$tmpdir/area_evidence.geojson")
+  fi
+  # The cell's own rung: a far-side owner on a DIFFERENT rung is a band
+  # handover, and band handovers never draw an area boundary (see the BAND
+  # NESTING block in generate-area-edges).
+  if [ -n "$quilt_floor" ]; then
+    area_edge_args+=(--cell-floor "$quilt_floor")
+  fi
+  area_edges_geojson="$tmpdir/_AREA_EDGE.geojson"
+  node "$SCRIPT_DIR/generate-area-edges" "$area_edges_geojson" "${area_edge_args[@]}"
+  if [ -s "$area_edges_geojson" ]; then
+    geojson_files+=("$area_edges_geojson")
+  fi
+fi
+
+# Step 3e: Derive _LABELS — one label anchor per named land, sea or built-up
+# area. S-57 splits a named feature across every polygon its topology needs,
+# all carrying the same OBJNAM, so labelling the classes directly repeats the
+# name once per polygon. See bin/generate-labels.
+label_args=()
+for label_table in LNDARE LNDRGN SEAARE BUAARE; do
+  if [ -f "$tmpdir/${label_table}.geojson" ]; then
+    label_args+=(--class "${label_table}:$tmpdir/${label_table}.geojson")
+  fi
+done
+if [ ${#label_args[@]} -gt 0 ]; then
+  labels_geojson="$tmpdir/_LABELS.geojson"
+  node "$SCRIPT_DIR/generate-labels" "$labels_geojson" "${label_args[@]}"
+  if [ -s "$labels_geojson" ]; then
+    geojson_files+=("$labels_geojson")
+  fi
+fi
+
+# Step 3f: Derive _TSS_ANCHORS — one arrow anchor per traffic-lane leg.
+# S-57 splits a lane leg at every cell boundary into features with DIFFERENT
+# LNAMs, and tippecanoe copies each part into every tile it touches, so drawing
+# the arrow from TSSLPT directly repeats it and nothing at runtime can collapse
+# the copies. Run after the quilt clip, like the edges, so the anchors sit on
+# the geometry that actually reaches the tiles. See bin/generate-tss-anchors.
+#
+# RCTLPT rides it too: a recommended traffic lane is a directed leg like any
+# other, and on the generic per-(CLASS, LNAM, interval) anchor path it drew one
+# arrow per CELL COPY — eight, measured, on one continuous lane through the
+# Strait of Juan de Fuca. Only its ORIENT-carrying features are legs; the rest
+# keep their plain centred mark from generate-area-anchors, which skips the
+# directed ones. The split is stated once, in ORIENT_LEG_CLASSES
+# (bin/quilt-anchors.mjs), and both generators read it from there.
+tss_args=()
+for tss_table in TSSLPT TSSRON DWRTPT RCTLPT; do
+  if [ -f "$tmpdir/${tss_table}.geojson" ]; then
+    tss_args+=(--class "${tss_table}:$tmpdir/${tss_table}.geojson")
+  fi
+done
+if [ ${#tss_args[@]} -gt 0 ]; then
+  tss_geojson="$tmpdir/_TSS_ANCHORS.geojson"
+  node "$SCRIPT_DIR/generate-tss-anchors" "$tss_geojson" "${tss_args[@]}"
+  if [ -s "$tss_geojson" ]; then
+    geojson_files+=("$tss_geojson")
+  fi
+fi
+
+# The ANCHOR ELECTION inputs, shared by the two centred-symbol anchor generators
+# below. Both group by (CLASS, LNAM, interval), and LNAM is issued PER CELL — so
+# one dumping ground digitised across three charts drew three stacks of symbols,
+# a pipeline area at a four-cell corner eight, and the several LNAMs ONE cell
+# holds of one area a stack of their own. The semantic roster the boundary merge
+# rule reads (step 2b) says which of those parts are one area: the contiguous
+# same-class, same-content component — within a cell as much as across a seam —
+# elects the smallest DSNM in it, and inside that cell the smallest group id
+# standing on it.
+#
+# The roster handed over is the UNFILTERED export, this cell's own rows
+# INCLUDED. The election is decided with no cell talking to any other, so every
+# cell must see the same rows and derive the same components; with the
+# neighbour-only file each cell compared its clipped parts against the others'
+# unclipped ones and two cells of one corner could both believe they had won.
+# (The edge generator above keeps the neighbour-only file, deliberately: a chart
+# is not evidence about what lies beyond its own border.) This cell's own name
+# and rung go with the roster — the name so it knows which candidate it is, the
+# rung because the election is same-band only. All three together or none:
+# without any one of them the generators keep one anchor per cell copy, which is
+# what shipped before. See bin/quilt-election.mjs.
+anchor_election_args=()
+if [ -f "$tmpdir/area_evidence_all.geojson" ] && [ -n "$dsnm" ] && [ -n "$quilt_floor" ]; then
+  anchor_election_args=(
+    --area-evidence "$tmpdir/area_evidence_all.geojson"
+    --dsnm "$dsnm"
+    --cell-floor "$quilt_floor"
+  )
+fi
+
+# Step 3f (cont.): Derive _RESTR_ANCHORS — one centred-symbol anchor per
+# restriction feature. S-52 centres the crossed-anchor ACHRES family in the
+# AREA, the generated style draws that per polygon per tile, and restriction
+# polygons genuinely span land — so the symbols repeat along every quilt seam
+# and 28% of them landed ashore at z7. One point per (CLASS, LNAM, interval),
+# placed on the water side of the feature: --land is what the placement
+# differences against. The class set is every LUT class whose instruction
+# invokes the CS(RESTRN01) cascade — the same ENTRES/ACHRES/FSHRES/CTYARE/
+# INFARE symbols RESARE04 places — except ACHARE, which is deliberately absent:
+# anchorages are fine as drawn (user ruling). Run after the quilt clip, like
+# the other anchor generators, so the anchors sit on the geometry that actually
+# reaches the tiles. See bin/generate-restriction-anchors.
+restr_args=()
+for restr_table in RESARE CBLARE PIPARE MIPARE DMPGRD \
+  DWRTPT FAIRWY ICNARE ISTZNE MARCUL OSPARE PRCARE SPLARE SUBTLN TESARE \
+  TSSCRS TSSLPT TSSRON; do
+  if [ -f "$tmpdir/${restr_table}.geojson" ]; then
+    restr_args+=(--class "${restr_table}:$tmpdir/${restr_table}.geojson")
+  fi
+done
+if [ ${#restr_args[@]} -gt 0 ]; then
+  # Advisory, like every other input here: a cell with no LNDARE simply keeps
+  # the plain largest-part interior points.
+  if [ -f "$tmpdir/LNDARE.geojson" ]; then
+    restr_args+=(--land "$tmpdir/LNDARE.geojson")
+  fi
+  restr_args+=("${anchor_election_args[@]}")
+  restr_geojson="$tmpdir/_RESTR_ANCHORS.geojson"
+  node "$SCRIPT_DIR/generate-restriction-anchors" "$restr_geojson" "${restr_args[@]}"
+  if [ -s "$restr_geojson" ]; then
+    geojson_files+=("$restr_geojson")
+  fi
+fi
+
+# Step 3f (cont.): Derive _AREA_ANCHORS — one centred-symbol anchor per area
+# feature of the own-symbol class set. tippecanoe writes each polygon clipped
+# into every tile it touches and MapLibre draws the centred symbol once per
+# fragment whose pole of inaccessibility is in-tile, so a pilot boarding area
+# straddling a tile corner arrives as up to four identical diamonds. One point
+# per (CLASS, LNAM, interval), at the plain largest-fragment interior point —
+# the water-side pass is the restriction generator's own; these classes are
+# drawn to the water they regulate or mark. The class set is
+# AREA_ANCHOR_CLASSES in bin/generate-area-anchors — the ship-narrow ten plus
+# the widening round's own-symbol classes; the rationale and the deliberate
+# exclusions (######, ACHARE, OBSTRN) are documented there. Widen both lists
+# together. RCTLPT is handed over whole and the generator itself keeps only the
+# features WITHOUT ORIENT: the directed ones are traffic legs and were anchored
+# above, by the TSS mechanism. Run after the quilt clip, like the other anchor
+# generators, so the anchors sit on the geometry that actually reaches the
+# tiles. See bin/generate-area-anchors.
+area_anchor_args=()
+for area_anchor_table in CTNARE PILBOP CBLARE RESARE DWRTPT ISTZNE PRCARE \
+  TSSCRS TSSLPT TSSRON \
+  ACHBRT BERTHS BRIDGE CHKPNT CONVYR CTSARE FERYRT FSHFAC FSHGRD HRBFAC \
+  LOCMAG LOGPON MAGVAR NEWOBJ PRDARE RCTLPT RECTRC SMCFAC SWPARE WATTUR \
+  WEDKLP; do
+  if [ -f "$tmpdir/${area_anchor_table}.geojson" ]; then
+    area_anchor_args+=(--class "${area_anchor_table}:$tmpdir/${area_anchor_table}.geojson")
+  fi
+done
+if [ ${#area_anchor_args[@]} -gt 0 ]; then
+  area_anchor_args+=("${anchor_election_args[@]}")
+  area_anchors_geojson="$tmpdir/_AREA_ANCHORS.geojson"
+  node "$SCRIPT_DIR/generate-area-anchors" "$area_anchors_geojson" "${area_anchor_args[@]}"
+  if [ -s "$area_anchors_geojson" ]; then
+    geojson_files+=("$area_anchors_geojson")
+  fi
+fi
+
+# Step 3g: Thin the point hazards by depth rather than by tippecanoe's
+# position hash. Rewrites the exported UWTROC/WRECKS/OBSTRN files in place with
+# a per-feature minzoom, so the shoalest hazard of a cluster is the one that
+# survives to small scales. See bin/generate-hazard-minzooms; the files are
+# already in geojson_files, and rewriting them here does not change that.
+hazard_files=()
+for hazard_table in UWTROC WRECKS OBSTRN; do
+  if [ -f "$tmpdir/${hazard_table}.geojson" ]; then
+    hazard_files+=("$tmpdir/${hazard_table}.geojson")
+  fi
+done
+if [ ${#hazard_files[@]} -gt 0 ]; then
+  node "$SCRIPT_DIR/generate-hazard-minzooms" \
+    --minzoom "$minzoom" --maxzoom "$maxzoom" "${hazard_files[@]}"
+fi
+
+# Step 3g (cont.): Thin the terrain points and derive _TERRAIN — one label
+# anchor per surviving named summit. SLOGRD/LNDELV summits arrive as
+# exactly-coincident pairs digitised off the same peak, both point layers draw
+# with icon-allow-overlap, and the partition strips SCAMIN, so nothing between
+# here and the screen thins them. One pass owns both decisions — group the
+# pair into one contest unit, thin the rest named-and-highest first — because
+# the coincidence rule must also stamp every member of the unit with its
+# shared minzoom, not just dedupe the label.
+# SLOTOP is carried for safety: zero point features measured, lines only.
+# Rewrites in place like the hazards; the files are already in geojson_files.
+# See bin/generate-terrain-minzooms.
+terrain_args=()
+for terrain_table in SLOGRD LNDELV SLOTOP; do
+  if [ -f "$tmpdir/${terrain_table}.geojson" ]; then
+    terrain_args+=(--class "${terrain_table}:$tmpdir/${terrain_table}.geojson")
+  fi
+done
+if [ ${#terrain_args[@]} -gt 0 ]; then
+  terrain_geojson="$tmpdir/_TERRAIN.geojson"
+  node "$SCRIPT_DIR/generate-terrain-minzooms" "$terrain_geojson" \
+    --minzoom "$minzoom" --maxzoom "$maxzoom" "${terrain_args[@]}"
+  if [ -s "$terrain_geojson" ]; then
+    geojson_files+=("$terrain_geojson")
+  fi
+fi
+
+# Step 3h: Mark the precautionary areas that belong to a traffic separation
+# scheme. The evidence is free text -- INFORM, or the companion .TXT file
+# TXTDSC names -- and those files sit beside the chart in ENC_ROOT, which is
+# why this runs against the SOURCE directory rather than the GPKG. Advisory:
+# a cell whose notes are missing simply gets no stamps.
+if [ -f "$tmpdir/PRCARE.geojson" ]; then
+  node "$SCRIPT_DIR/stamp-prcare-tssnote" "$tmpdir/PRCARE.geojson" \
+    --enc-dir "$(dirname "$input")"
+fi
+
+# Step 3i: Thin the soundings by depth, shoalest first, per cell.
+#
+# tippecanoe's own dot-dropping is what used to thin SOUNDG, and it chooses by a
+# hash of position. The partition takes that away: step 3j stamps every sounding
+# with a per-feature minzoom, and a per-feature minzoom is tippecanoe's
+# documented exemption from dot-dropping. Without a deliberate rule in its place
+# a small-scale tile would carry every sounding of the survey.
+if [ -f "$tmpdir/SOUNDG.geojson" ]; then
+  node "$SCRIPT_DIR/thin-soundings" "$tmpdir/SOUNDG.geojson" \
+    --minzoom "$minzoom" --maxzoom "$maxzoom"
+fi
+
+# Step 3i (cont.): Thin the LNDARE islet POINTS the same way, named first.
+#
+# The measured Aleutian defect: the islet points draw at full density from the
+# band's arrival zoom -- a carpet of land dots at z5 over islands that are
+# barely a pixel -- because the partition's per-feature minzooms exempt them
+# from tippecanoe's dot-dropping exactly as they exempt SOUNDG. Point features
+# only; the file's polygons and lines are the land itself and are left alone.
+# Runs AFTER the label and anchor generators consumed LNDARE (steps 3e/3f), so
+# the in-place stamps cannot leak into their groupings, and BEFORE
+# stamp-quilt-zooms, which composes the thinning floor with each copy's own
+# interval. See bin/thin-lndare-points.
+if [ -f "$tmpdir/LNDARE.geojson" ]; then
+  node "$SCRIPT_DIR/thin-lndare-points" "$tmpdir/LNDARE.geojson" \
+    --minzoom "$minzoom" --maxzoom "$maxzoom"
+fi
+
+# Step 3j: Convert the partition's _QZMIN/_QZMAX properties into per-feature
+# tippecanoe min/maxzoom members, composing with whatever the generators above
+# already stamped. Runs last, over every file that reaches tippecanoe, because
+# it is the composition -- not the properties -- that has to be final.
+#
+# It also stamps this cell's CSCALE onto every feature of every layer, which is
+# the only key the census (plotroom pipeline/scripts/tile_census.py) can group
+# the built tiles by: INTU names the band the partition stopped using, and the
+# rung columns live on the coverage rows, which never reach a tile.
+if [ ${#geojson_files[@]} -gt 0 ]; then
+  node "$SCRIPT_DIR/stamp-quilt-zooms" \
+    --minzoom "$minzoom" --maxzoom "$maxzoom" \
+    ${cscale:+--cscale "$cscale"} "${geojson_files[@]}"
+fi
+
 # Step 4: Generate tiles. List attributes are already comma-separated strings
 # from the GeoJSON export. Each input filename becomes the layer name.
+#
+# Tile resolution: ONE extent, for every tile, at every zoom, in every INTU
+# band. That uniformity is the requirement, not the 14 itself.
+#
+# tippecanoe has three resolution knobs and they default apart: -d/--full-detail
+# (12) is the grid at THIS cell's own maxzoom, -D/--low-detail (12) the grid at
+# every zoom below it, and -m/--minimum-detail (7) the floor it silently drops
+# to when a tile trips the feature limit. Setting only --full-detail made the
+# extent depend on the cell's band: an INTU-5 cell (then maxzoom 11) wrote its
+# z11 at 16384, while an INTU-6 cell (maxzoom 12) wrote its z11 -- below that
+# cell's maxzoom -- at 4096. tile-join then merges both cells' features into ONE
+# layer of one tile, and an MVT layer carries a single `extent`: two coordinate
+# spaces cannot both be right, and nothing in the format or in tile-join's
+# contract promises the loser gets rescaled rather than read against the wrong
+# extent and landing 4x off. Pinning all three knobs to the same value removes
+# the question. (Bands 4 and coarser still stop above their own maxzoom, so the
+# hazard is as live under the offset-2 ladder as it was then.)
+#
+# Why 14 (16384 units) rather than the default 12 (4096): the published archive
+# stops at maxzoom 13 and clients overzoom 3-5 levels past that. At a 4096-unit grid,
+# quantization opens ~1-unit slivers between adjacent DEPARE polygons that reach
+# 4-8 px on screen by z16-17, showing the basemap through depth-area seams. The
+# 16384-unit grid keeps them sub-pixel to roughly z16.
+#
+# The cost, stated honestly. Finer quantization lengthens the varint coordinate
+# stream at every zoom BELOW maxzoom, which until now was 4096, and collapses
+# fewer coincident points; those tiles get bigger. They are also the small ones,
+# so the archive should grow by little -- but that has not been measured over a
+# full region, so treat it as unquantified rather than negligible. Pinning
+# --minimum-detail also removes tippecanoe's escape hatch: a tile that trips the
+# feature limit can no longer be rewritten at coarser detail, so it fails the
+# run loudly instead of quietly emitting exactly the odd-extent tile this block
+# exists to prevent. --no-tile-size-limit already disables the size half of that
+# same fallback.
+#
+# Why there is no -r/--drop-rate here, having gone looking for one.
+#
+# tippecanoe drops a fraction of POINT features at every zoom below the maxzoom
+# -- default rate 2.5, so ~60% survive each level down. It used to be what
+# thinned SOUNDG, and a hash of position was an acceptable chooser there because
+# the depth areas and contours carry the same information at that scale. The
+# partition ended that: step 3i stamps a minzoom on every sounding and a
+# per-feature minzoom is the documented exemption from dot-dropping, so step 3h
+# thins them deliberately instead. For the derived point layers dropping was
+# never right: _TSS_ANCHORS has one anchor per traffic-lane leg and
+# _LABELS one per named area, each already the single survivor of a
+# deduplication done precisely because the renderer cannot collapse duplicates
+# itself. Dropping one of those loses an arrow off a lane or a name off a bay,
+# with nothing left to fall back on.
+#
+# -r1 turns dropping off, but it is a WHOLE-RUN knob: tippecanoe 2.79.0 has no
+# per-layer drop rate, and -L's layer JSON takes only file/layer/description/
+# format. It is moot now that every partitioned feature carries a minzoom of its
+# own, which is why the thinning steps had to become explicit.
+#
+# The scoped exemption is per FEATURE, not per layer: a `tippecanoe` member on
+# the Feature (beside `geometry`, not inside `properties`) with a `minzoom` is
+# documented to preserve that feature "even if dot-dropping with -r would
+# otherwise have dropped it". bin/generate-tss-anchors and bin/generate-labels
+# stamp `{"minzoom": 0}` on every feature they emit, so the derived layers are
+# exempt -- and step 3i composes the partition's floor onto that stamp rather
+# than replacing it.
+#
+# The point hazards are a third case and are stamped at step 3f. Dropping them
+# by position hash is depth-blind -- a 1.2 m rock is as likely to go as the 18 m
+# wreck beside it -- so they get a minzoom chosen by depth instead, which also
+# takes them out of the random drop. Their stamp is a real thinning decision and
+# not a blanket 0; see bin/generate-hazard-minzooms.
+#
+# The same member also carries a `maxzoom`, which bin/generate-sector-arcs uses
+# to pin each per-zoom copy of a sector figure to one zoom's tiles. That is a
+# confinement rather than an exemption and has nothing to do with -r; it is what
+# keeps a layer with one copy per zoom the same weight per tile as the
+# single-copy layer it replaced.
 tippecanoe \
   -o "$output" \
   --force \
@@ -262,6 +1646,9 @@ tippecanoe \
   --no-tile-size-limit \
   --minimum-zoom="$minzoom" \
   --maximum-zoom="$maxzoom" \
+  --full-detail=14    `# grid at this cell's own maxzoom` \
+  --low-detail=14     `# grid at every zoom below it -- must equal --full-detail` \
+  --minimum-detail=14 `# no silent downgrade when a tile trips the feature limit` \
   --exclude=LNAM_REFS `# feature-to-feature cross-references` \
   --exclude=FFPT_RIND `# feature-to-feature pointer update instruction` \
   --exclude=PRIM      `# geometry primitive type (redundant: encoded in geometry)` \

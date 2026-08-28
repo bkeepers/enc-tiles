@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+# Stub node: the derived-layer generators in bin/ have their own fixture runs
+# (test/generate-*.test.js). Here they only have to not exist, so their outputs
+# stay absent and the -s guards in bin/s57-to-tiles skip them.
+#
+# STUB_NODE_LOG records the argv of every invocation, one per line, which is
+# where the tests read the arguments s57-to-tiles hands the generators.
+if [ -n "$STUB_NODE_LOG" ]; then
+  echo "$*" >> "$STUB_NODE_LOG"
+fi
+# `--list-classes`, `--list-zone-classes` and `--write-evidence` are extraction
+# operations, not tile derived-layer runs: the shell scripts consume their
+# stdout and (for evidence) output file, so all of them are answered by the real
+# node. Swallowing any would silently empty the fragment or the wiring in every
+# test. The real binary is whichever node on PATH is not this stub.
+for arg in "$@"; do
+  if [ "$arg" = "--list-classes" ] || [ "$arg" = "--list-zone-classes" ] ||
+    [ "$arg" = "--write-evidence" ]; then
+    self_dir=$(cd "$(dirname "$0")" && pwd)
+    while IFS= read -r candidate; do
+      candidate_dir=$(cd "$(dirname "$candidate")" && pwd)
+      if [ "$candidate_dir" != "$self_dir" ]; then
+        exec "$candidate" "$@"
+      fi
+    done < <(type -ap node)
+    echo "stub node: no real node on PATH for extraction operation" >&2
+    exit 1
+  fi
+done
+exit 0

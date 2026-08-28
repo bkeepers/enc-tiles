@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+# Stub GDAL ogr2ogr for exercising bin/s57-to-tiles' and bin/extract-coverage's
+# control flow.
+#
+#   STUB_EXPORT_EMPTY_FILES  every layer export writes a ZERO-BYTE file, the
+#                            shape a failed export leaves behind while the rows
+#                            are still sitting in the GPKG
+#   STUB_SQL_LOG             file every invocation is appended to, so a test can
+#                            read back the coverage rows that were asked for --
+#                            the whole argument line, because the selection is
+#                            an -sql in extract-coverage and a -where in
+#                            s57-to-tiles
+#   STUB_OGR2OGR_FAIL_MATCH   exit non-zero when argv contains this text
+set -u
+
+fmt="$2"
+out="$3"
+mkdir -p "$(dirname "$out")" 2>/dev/null
+
+[ -n "${STUB_SQL_LOG:-}" ] && printf '%s\n--\n' "$*" >>"$STUB_SQL_LOG"
+
+if [ -n "${STUB_OGR2OGR_FAIL_MATCH:-}" ] &&
+  [[ "$*" == *"${STUB_OGR2OGR_FAIL_MATCH}"* ]]; then
+  echo "ERROR 1: forced ogr2ogr failure for ${STUB_OGR2OGR_FAIL_MATCH}" >&2
+  exit 1
+fi
+
+case "$fmt" in
+  GPKG) : >"$out" ;;
+  GeoJSON)
+    case "$out" in
+      # The quilt coverage exports are what the script tests with -s to decide
+      # whether there is a mask to build at all; they are never the failing one.
+      # The neighbour roster export rides with them: its presence is what wires
+      # --neighbor-coverage, and it is not a layer export either.
+      *quilting_coverage.geojson | *quilting_fallback_coverage.geojson | \
+        *quilting_all.geojson | *quilting_neighbors.geojson)
+        printf '{"type":"FeatureCollection","features":[]}' >"$out"
+        ;;
+      *)
+        if [ "${STUB_EXPORT_EMPTY_FILES:-0}" = "1" ]; then
+          : >"$out"
+        else
+          printf '{"type":"FeatureCollection","features":[]}' >"$out"
+        fi
+        ;;
+    esac
+    ;;
+esac
+exit 0
